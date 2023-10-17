@@ -1,0 +1,1 @@
+{"@timestamp":"2023-10-17T15:14:13+02:00","client.ip":"::***","event.duration":76,"event.kind":"info","event.outcome":"success","http.method":"GET","http.request.referrer":"","http.response.status_code":200,"level":"error","msg":"Request error","time":"2023-10-17T15:14:13+02:00","url.original":"/cases","user_agent.original":"PostmanRuntime/7.33.0"}

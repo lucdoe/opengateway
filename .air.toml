@@ -1,0 +1,45 @@
+# .air.toml
+
+# The name of your binary executable.
+bin = "capstone"
+
+# Command to run.
+cmd = "go run cmd/capstone/*.go"
+
+# Which directories to watch.
+[build]
+full_bin = "go build -o ./tmp/main cmd/capstone/*.go"
+
+  # Which directories should we watch?
+  include_dir = ["cmd", "internal"]
+
+# Exclude tmp files from triggering a restart.
+exclude_file = [".*"]
+
+# Delay in refreshing
+delay = 1000 # in milliseconds
+
+# Logs in your specified format are written to stdout.
+log = "time"
+
+# Setting this to `false` can boost performance.
+send_interrupt = false
+
+# How many and which signals to send to kill the process.
+kill_signal = "KILL"
+
+# This specifies the root of your project. Binary, config and logs are stored here.
+root = "."
+
+# Don't watch these directories.
+exclude_dir = ["assets", "logs", "tests", "tmp"]
+
+# Watch these file extensions.
+include_ext = ["go", "tmpl", "tpl", "html"]
+
+# Log file
+log_path = "logs/air.log"
+
+# If you set this to false and an error occurs while building, `air` won't start the app.
+[build]
+  full_bin = "go build -o ./tmp/main ."
