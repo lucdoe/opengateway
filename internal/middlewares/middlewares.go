@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/lucdoe/capstone/internal"
 	"github.com/lucdoe/capstone/internal/utils"
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -96,4 +97,32 @@ func sanitizeBody(c *gin.Context) {
 	utils.ResetRequestBody(c, p.SanitizeBytes(bodyBytes))
 
 	c.Next()
+}
+
+func Proxy(serviceName string, endpoint internal.Endpoint) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Request.URL.Host = serviceName
+		c.Request.URL.Scheme = "http"
+		c.Request.URL.Path = endpoint.Path
+	}
+}
+
+func ValidateRequest(allowedJSON []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var body map[string]interface{}
+		err := c.BindJSON(&body)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+			c.Abort()
+			return
+		}
+
+		for key := range body {
+			if !utils.Contains(allowedJSON, key) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+				c.Abort()
+				return
+			}
+		}
+	}
 }

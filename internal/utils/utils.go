@@ -24,3 +24,12 @@ func IntegerToString(i int) string {
 func ResetRequestBody(c *gin.Context, b []byte) {
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(b))
 }
+
+func Contains(arr []string, str string) bool {
+	for _, a := range arr {
+		if a == str {
+			return true
+		}
+	}
+	return false
+}

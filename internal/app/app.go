@@ -2,38 +2,25 @@ package app
 
 import (
 	"github.com/gin-gonic/gin"
-	monitoring "github.com/zsais/go-gin-prometheus"
-
+	"github.com/lucdoe/capstone/internal"
 	"github.com/lucdoe/capstone/internal/middlewares"
+	monitoring "github.com/zsais/go-gin-prometheus"
 )
 
 type App struct {
 	Router *gin.Engine
 }
 
-func APIGatewayAPP() (*App, error) {
+func APIGatewayAPP(config *internal.Config) (*App, error) {
 	r := gin.New()
 
 	monitoring.NewPrometheus("gin").Use(r)
 	middlewares.InitilizeMiddlewares(r)
 
-	d := r.Group("/definitions")
-	DefinitionRoutes(d)
-
-	s := r.Group("/schemas")
-	SchemaRoutes(s)
-
-	a := r.Group("/authors")
-	AuthorRoutes(a)
-
-	p := r.Group("/partners")
-	PartnerRoutes(p)
-
-	c := r.Group("/cases")
-	CaseRoutes(c)
-
-	u := r.Group("/users")
-	UserRoutes(u)
-
+	for serviceName, service := range config.Services {
+		for _, endpoint := range service.Endpoints {
+			r.Handle(endpoint.HTTPMethod, endpoint.Path, middlewares.Proxy(serviceName, endpoint)).Use(middlewares.ValidateRequest(endpoint.AllowedJSON))
+		}
+	}
 	return &App{Router: r}, nil
 }
