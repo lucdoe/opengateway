@@ -22,7 +22,6 @@ func LoadConfig(f string) (*internal.Config, error) {
 		return nil, err
 	}
 
-	log.Printf("Loaded config: %v", config)
 	return &config, nil
 }
 
