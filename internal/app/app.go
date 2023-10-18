@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lucdoe/capstone/internal"
 	"github.com/lucdoe/capstone/internal/middlewares"
-	monitoring "github.com/zsais/go-gin-prometheus"
 )
 
 type App struct {
@@ -14,7 +13,6 @@ type App struct {
 func APIGatewayAPP(config *internal.Config) (*App, error) {
 	r := gin.New()
 
-	monitoring.NewPrometheus("gin").Use(r)
 	middlewares.InitilizeMiddlewares(r)
 
 	for serviceName, service := range config.Services {
