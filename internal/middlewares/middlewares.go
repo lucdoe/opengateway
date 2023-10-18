@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/lucdoe/capstone/internal"
 	"github.com/lucdoe/capstone/internal/utils"
@@ -63,13 +62,17 @@ func securityHeaders(c *gin.Context) {
 }
 
 func setCORS(c *gin.Context) {
-	cors.New(cors.Config{
-		AllowOrigins:     []string{AllowedOrigin},
-		AllowMethods:     []string{"PUT", "PATCH", "POST", "GET"},
-		AllowHeaders:     []string{"Origin, X-CSRF-Token, Cache-Control"},
-		AllowCredentials: true,
-		MaxAge:           MaxAgeCORS,
-	})
+	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, PATCH")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	c.Writer.Header().Set("Max-Age", fmt.Sprintf("%f", MaxAgeCORS.Seconds()))
+
+	if c.Request.Method == "OPTIONS" {
+		c.AbortWithStatus(http.StatusNoContent)
+		return
+	}
+
+	c.Next()
 }
 
 func bodySizeLimit(c *gin.Context) {
