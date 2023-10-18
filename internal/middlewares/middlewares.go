@@ -1,7 +1,12 @@
 package middlewares
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"html"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -101,6 +106,7 @@ func sanitizeBody(c *gin.Context) {
 
 func Proxy(serviceName string, endpoint internal.Endpoint) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		log.Println("Executing Proxy middleware")
 		c.Request.URL.Host = serviceName
 		c.Request.URL.Scheme = "http"
 		c.Request.URL.Path = endpoint.Path
@@ -109,20 +115,35 @@ func Proxy(serviceName string, endpoint internal.Endpoint) gin.HandlerFunc {
 
 func ValidateRequest(allowedJSON []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var body map[string]interface{}
-		err := c.BindJSON(&body)
+		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
-			c.Abort()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Could not read request body"})
 			return
 		}
 
-		for key := range body {
-			if !utils.Contains(allowedJSON, key) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
-				c.Abort()
-				return
-			}
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		decodedBody := html.UnescapeString(string(body))
+		var requestBody map[string]interface{}
+		err = json.Unmarshal([]byte(decodedBody), &requestBody)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+			return
+		}
+
+		if err := checkAllowedFields(requestBody, allowedJSON); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.Abort()
+			return
 		}
 	}
+}
+
+func checkAllowedFields(requestBody map[string]interface{}, allowedJSON []string) error {
+	for key := range requestBody {
+		if !utils.Contains(allowedJSON, key) {
+			return fmt.Errorf("Invalid JSON structure: field %s is not allowed", key)
+		}
+	}
+	return nil
 }
