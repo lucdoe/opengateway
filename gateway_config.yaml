@@ -7,19 +7,9 @@ Services:
       - Name: GETCases
         HTTPMethod: GET
         Path: /cases
-        AllowedJSON:
-          - caseID
-          - caseName
-          - caseDescription
-          - caseStatus
       - Name: GETSingleCase
         HTTPMethod: GET
         Path: /cases/:id
-        AllowedJSON:
-          - caseID
-          - caseName
-          - caseDescription
-          - caseStatus
       - Name: POSTCase
         HTTPMethod: POST
         Path: /cases
@@ -43,9 +33,3 @@ Services:
       - Name: GETSingleUser
         HTTPMethod: GET
         Path: /users/:id
-        AllowedJSON:
-          - userID
-          - userName
-          - userSurname
-          - userAge
-          - userGender

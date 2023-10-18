@@ -19,7 +19,17 @@ func APIGatewayAPP(config *internal.Config) (*App, error) {
 
 	for serviceName, service := range config.Services {
 		for _, endpoint := range service.Endpoints {
-			r.Handle(endpoint.HTTPMethod, endpoint.Path, middlewares.Proxy(serviceName, endpoint)).Use(middlewares.ValidateRequest(endpoint.AllowedJSON))
+			switch endpoint.HTTPMethod {
+			case "GET":
+				r.GET(endpoint.Path, middlewares.ValidateRequest(endpoint.AllowedJSON))
+			case "POST":
+				r.POST(endpoint.Path, middlewares.ValidateRequest(endpoint.AllowedJSON))
+			case "PUT":
+				r.PUT(endpoint.Path, middlewares.ValidateRequest(endpoint.AllowedJSON))
+			case "PATCH":
+				r.PATCH(endpoint.Path, middlewares.ValidateRequest(endpoint.AllowedJSON))
+			}
+			r.Use(middlewares.Proxy(serviceName, endpoint))
 		}
 	}
 	return &App{Router: r}, nil
