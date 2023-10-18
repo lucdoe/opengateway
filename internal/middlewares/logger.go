@@ -1,33 +1,69 @@
 package middlewares
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 const logFilePathTemplate = "logs/%s.log"
 
-func setupLogger() *logrus.Logger {
-	l := logrus.New()
-	l.SetFormatter(&logrus.JSONFormatter{})
+type LogLevel int
 
+const (
+	INFO LogLevel = iota
+	ERROR
+)
+
+type Logger struct {
+	Out *os.File
+}
+
+func CustomLogger() *Logger {
+	l := &Logger{}
 	f, err := os.OpenFile(getLogFileName(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
 		l.Out = f
 	} else {
-		l.Info("Failed to log to file, using default stderr")
+		l.Out = os.Stderr
+		fmt.Println("Failed to log to file, using default stderr")
 	}
-
 	return l
 }
 
+func (l *Logger) log(level LogLevel, fields map[string]interface{}) {
+	fields["@timestamp"] = time.Now().Format(time.RFC3339)
+	var levelStr string
+	switch level {
+	case INFO:
+		levelStr = "info"
+	case ERROR:
+		levelStr = "error"
+	}
+	fields["event.kind"] = levelStr
+	logData, _ := json.Marshal(fields)
+	l.Out.Write(logData)
+	l.Out.WriteString("\n")
+}
+
+func (l *Logger) Info(fields map[string]interface{}) {
+	l.log(INFO, fields)
+}
+
+func (l *Logger) Error(fields map[string]interface{}) {
+	l.log(ERROR, fields)
+}
+
+func setupLogger() *Logger {
+	return CustomLogger()
+}
+
 func getLogFileName() string {
-	return fmt.Sprintf(logFilePathTemplate, time.Now().Format(time.DateOnly))
+	return fmt.Sprintf(logFilePathTemplate, time.Now().Format("2006-01-02"))
 }
 
 func maskIP(ip string) string {
@@ -44,28 +80,27 @@ func maskIP(ip string) string {
 	return ip
 }
 
-func logRequestDetails(c *gin.Context, l *logrus.Logger) {
+func logRequestDetails(c *gin.Context, l *Logger) {
 	start := time.Now()
 	c.Next()
 	latency := time.Since(start)
 
-	log := l.WithFields(logrus.Fields{
+	logFields := map[string]interface{}{
 		"http.method":               c.Request.Method,
 		"url.original":              c.Request.URL.Path,
 		"http.response.status_code": c.Writer.Status(),
 		"event.duration":            int(latency.Milliseconds()),
 		"client.ip":                 maskIP(c.ClientIP()),
 		"user_agent.original":       c.Request.UserAgent(),
-		"@timestamp":                start.Format(time.RFC3339),
-		"event.kind":                "info",
-		"event.outcome":             "success",
 		"http.request.referrer":     c.Request.Referer(),
-	})
+		"event.outcome":             "success",
+	}
 
 	if len(c.Errors) > 0 {
-		log.Error("Request error")
+		logFields["event.outcome"] = "failure"
+		l.Error(logFields)
 	} else {
-		log.Info("Request processed")
+		l.Info(logFields)
 	}
 }
 
