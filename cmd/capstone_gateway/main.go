@@ -10,8 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TODO: add documentation
-
 func main() {
 	databases.InitializeRedis()
 
