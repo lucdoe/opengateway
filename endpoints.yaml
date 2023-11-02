@@ -1,0 +1,11 @@
+Services:
+  capstone_gateway:
+    PORT: 9876
+    URL: http://localhost
+    SecretKey: verySecretKey
+    Endpoints:
+      - Name: GETTest
+        HTTPMethod: GET
+        Path: /test
+        AllowedJSON:
+- testBody
