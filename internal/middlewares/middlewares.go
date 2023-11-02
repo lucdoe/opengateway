@@ -7,4 +7,5 @@ func InitilizeMiddlewares(r *gin.Engine) {
 
 	// add all middlewares here
 	r.Use(LogRequest)
+	r.Use(CORS)
 }
