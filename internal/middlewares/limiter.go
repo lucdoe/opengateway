@@ -22,7 +22,7 @@ const (
 	RateLimitWindow       = time.Minute
 )
 
-func LimitBodySize(c *gin.Context) {
+func BodyLimit(c *gin.Context) {
 	var b []byte
 
 	if c.Request.Body != nil {
