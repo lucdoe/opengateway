@@ -1,8 +1,19 @@
 package main
 
-import "github.com/lucdoe/capstone_gateway/internal/app/databases"
+import (
+	"log"
+
+	"github.com/lucdoe/capstone_gateway/internal/app"
+	"github.com/lucdoe/capstone_gateway/internal/app/databases"
+)
 
 func main() {
-	// init server here
 	databases.InitializeRedis()
+
+	APIGatewayAPP, err := app.APIGatewayAPP()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	APIGatewayAPP.Router.Run(":8080")
 }
