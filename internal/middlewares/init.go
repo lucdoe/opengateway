@@ -7,6 +7,7 @@ func InitilizeMiddlewares(r *gin.Engine) {
 
 	r.Use(LogRequest)
 	r.Use(BodyLimit)
+	r.Use(BodySanitize)
 	r.Use(SecurityHeaders)
 	r.Use(RateLimit)
 	r.Use(CORS)
