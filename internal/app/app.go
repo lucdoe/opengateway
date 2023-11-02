@@ -1,8 +1,6 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/gin-gonic/gin"
 	"github.com/lucdoe/capstone_gateway/internal"
 	"github.com/lucdoe/capstone_gateway/internal/middlewares"
@@ -29,7 +27,7 @@ func APIGatewayAPP(config *internal.Config) (*App, error) {
 			case "PATCH":
 				r.PATCH(endpoint.Path, middlewares.ValidateJSONFields(endpoint.AllowedJSON))
 			}
-			fmt.Print(serviceName)
+			r.Use(middlewares.Proxy(serviceName, endpoint))
 		}
 	}
 
