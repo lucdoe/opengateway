@@ -17,3 +17,5 @@ type Service struct {
 type Config struct {
 	Services map[string]Service `yaml:"Services"`
 }
+
+
