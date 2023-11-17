@@ -100,12 +100,17 @@ Even though this is a Golang codebase and not necessarily strict Object Oriented
 
 ## How to use this API Gateway
 
-Depending on your setup, you have two options to get started. The first option would be to pull the repo and go through the process of creating the API Gateway server and use it as is (full-fledged option). Your second option is the generator, where you can have some choice on tools you want included or not.
+Pull the repo and go through the process of creating the API Gateway server and use it as is (full-fledged option).
 
 The way to register services resides in the `endpoints.yaml`, where you will find a possible setup of services. Just update that file with your configuration and services, and when starting the server, the configuration will be loaded and applied.
-Whatever option you choose, you must start the server either way. Being in the directory where the code for the server resides, execute the following commands:
 
-    go start
+Your services will have to be available on the specified endpoints in the `endpoints.yaml`.
+
+    cd location_of_pulled_repo
+
+    go run cmd/capstone_gateway/main.go
+
+Happy API Gatewaying!
 
 ## Refrences
 
