@@ -53,7 +53,10 @@ The overall pattern making API Gateways exist is the microservice pattern. In th
 
 The API gateway is a design that solves the problems introduced by microservices.
 One is the Circuit breaker pattern, which comes from electrical engineering and refers to a set of switches, and when a threshold of these switches fails, the whole operation down the line also fails. In the API gateway, this pattern is used to ensure, even when retrying, that further requests down the line are not even executed to save resources.
-Another essential pattern for API gateways is the Server-side discovery pattern, which essentially allows the Gateway to know about the services underneath through a Service Registry. Our browser daily uses a use case for that pattern, DNS, which lists IP addresses and their domains.
+
+Another essential pattern for API gateways is the Server-side discovery pattern, which essentially allows the Gateway to know about the services underneath through a Service Registry. Our browser daily uses a use case for that pattern, DNS, which lists IP addresses and their domains. <br>
+A more structural pattern necessary for an API Gateway is the Proxy pattern. It allows the Gateway to perform something before or after the request gets to the services/client. An example would be the attached middleware chain, shown in graphics 1 and 2. <br>
+The middleware chain by itself is a pattern. It is called the Chain of Responsibility and it is a creational pattern. Each handler decides to process the request or pass it to the next handler in the chain.
 
 A pattern that uses the API Gateway pattern is the earlier mentioned Backends for Frontends pattern. It is a specific use case for applying an API Gateway in practice. Each client has its entry point into the application architecture, allowing client-specific setups.
 
@@ -82,7 +85,7 @@ The idea originates from the CLEAN Architecture by Robert C. Martin (Uncle Bob).
 ![](./docs/CleanArchitecture.jpg)
 Clean Coder Blog. (2023). Cleancoder.com. https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html
 
-Our interpretation of the architecture and the actual CLEAN architecture booth aim to achieve separation of concerns.
+Our interpretation of the architecture and the actual CLEAN architecture booth aim to achieve separation of concerns. Secondly, it must be loosely coupled because the API Gateway operates in a Microservice environment. The low coupling of the API Gateway to the services allows for simplified isolation, understanding, and testing of individual components. It keeps the API gateway separate from the Services so each is individually deployable.
 
 #### SOLID Principles
 
