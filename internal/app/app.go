@@ -3,20 +3,11 @@ package app
 import (
 	"fmt"
 
-	"github.com/gin-gonic/gin"
 	"github.com/lucdoe/capstone_gateway/internal"
 	"github.com/lucdoe/capstone_gateway/internal/middlewares"
 )
 
-type App struct {
-	Router *gin.Engine
-}
-
-func APIGatewayAPP(config *internal.Config) (*App, error) {
-	r := gin.New()
-
-	middlewares.InitilizeMiddlewares(r)
-
+func setupRoutes(r internal.RouterInterface, config *internal.Config) {
 	for serviceName, service := range config.Services {
 		URL := fmt.Sprintf("%s:%d", service.URL, service.PORT)
 
@@ -36,6 +27,9 @@ func APIGatewayAPP(config *internal.Config) (*App, error) {
 			r.Use(middlewares.Proxy(serviceName, endpointURL))
 		}
 	}
+}
 
-	return &App{Router: r}, nil
+func APIGatewayApp(router internal.RouterInterface, config *internal.Config) (*internal.App, error) {
+	setupRoutes(router, config)
+	return &internal.App{Router: router}, nil
 }

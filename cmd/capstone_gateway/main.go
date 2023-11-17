@@ -3,13 +3,15 @@ package main
 import (
 	"log"
 
+	"github.com/gin-gonic/gin"
 	"github.com/lucdoe/capstone_gateway/internal/app"
-	"github.com/lucdoe/capstone_gateway/internal/app/databases"
+	"github.com/lucdoe/capstone_gateway/internal/app/router"
 	"github.com/lucdoe/capstone_gateway/internal/utils"
 )
 
 func main() {
-	databases.InitializeRedis()
+	ginRouter := gin.New()
+	router := router.GinRouter{Engine: ginRouter}
 
 	fileReader := utils.OSFileReader{}
 	yamlParser := utils.YAMLParsing{}
@@ -20,10 +22,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	APIGatewayAPP, err := app.APIGatewayAPP(config)
+	APIGatewayApp, err := app.APIGatewayApp(router, config)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	APIGatewayAPP.Router.Run(":8080")
+	if err := APIGatewayApp.Router.Run(":8080"); err != nil {
+		log.Fatal(err)
+	}
 }
