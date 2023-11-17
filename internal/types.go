@@ -28,3 +28,7 @@ type RouterInterface interface {
 	Use(middlewares ...gin.HandlerFunc)
 	Run(addr ...string) error
 }
+
+type App struct {
+	Router RouterInterface
+}
