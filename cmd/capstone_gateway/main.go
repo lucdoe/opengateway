@@ -5,14 +5,15 @@ import (
 
 	"github.com/lucdoe/capstone_gateway/internal/app"
 	"github.com/lucdoe/capstone_gateway/internal/app/databases"
+	"github.com/lucdoe/capstone_gateway/internal/utils"
 )
 
 func main() {
 	databases.InitializeRedis()
 
-	fileReader := OSFileReader{}
-	yamlParser := YAMLParsing{}
-	configLoader := NewConfigLoader(fileReader, yamlParser)
+	fileReader := utils.OSFileReader{}
+	yamlParser := utils.YAMLParsing{}
+	configLoader := utils.NewConfigLoader(fileReader, yamlParser)
 
 	config, err := configLoader.LoadConfig("gateway_config.yaml")
 	if err != nil {
