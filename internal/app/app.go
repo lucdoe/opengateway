@@ -7,7 +7,7 @@ import (
 	"github.com/lucdoe/capstone_gateway/internal/middlewares"
 )
 
-func setupRoutes(r internal.RouterInterface, config *internal.Config) {
+func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
 	for serviceName, service := range config.Services {
 		URL := fmt.Sprintf("%s:%d", service.URL, service.PORT)
 
@@ -30,6 +30,6 @@ func setupRoutes(r internal.RouterInterface, config *internal.Config) {
 }
 
 func APIGatewayApp(router internal.RouterInterface, config *internal.Config) (*internal.App, error) {
-	setupRoutes(router, config)
+	SetupRoutes(router, config)
 	return &internal.App{Router: router}, nil
 }
