@@ -2,7 +2,10 @@
 
 ## Introduction
 
-Created a new API gateway that is easier to use and customise without the overhead of a vast and hard-to-use gateway. Introduce to content
+This repo covers an easy-to-use, customizable and maintainable API Gateway. The documentation covers what design patterns are incorporated into it and what we value in design from maintainers. The motivation to create this repo came from a Monolith to Microservice project where an API Gateway was needed to route the traffic to the services.
+
+The documentation covers what an API Gateway is and why it is necessary. It jumps into an example setup of an API Gateway in a Microservice setup where common tasks are also covered. From there, it details the underlying design patterns typically used in an API gateway and how the quality attributes differ from microservices.<br>
+Towards the end, it details what structure the codebase is in and why the S and D of the SOLID principles are mostly used over others for this codebase. The last part covers how to use the Gateway and who contributed to it.
 
 ## What is an API Gateway?
 
