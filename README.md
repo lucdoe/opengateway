@@ -115,6 +115,10 @@ Your services will have to be available on the specified endpoints in the `endpo
 
 Happy API Gatewaying!
 
+## Contribution List
+
+This project is currently only maintained by Lucca Doerrstein.
+
 ## Refrences
 
 Clean Coder Blog. (2023). Cleancoder.com. https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html
