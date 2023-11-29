@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/lucdoe/capstone_gateway/internal"
-	"github.com/lucdoe/capstone_gateway/internal/utils"
 )
 
 type MockFileReader struct {
@@ -65,7 +64,7 @@ func TestLoadConfig(t *testing.T) {
 			mfr := &MockFileReader{FileContent: tt.fileContent, ReadErr: tt.readErr}
 			myp := &MockYAMLParser{UnmarshalErr: tt.parseErr}
 
-			cl := utils.NewConfigLoader(mfr, myp)
+			cl := internal.NewConfigLoader(mfr, myp)
 
 			_, err := cl.LoadConfig("test_config.yaml")
 

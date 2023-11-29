@@ -4,21 +4,21 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/lucdoe/capstone_gateway/internal"
 	"github.com/lucdoe/capstone_gateway/internal/app"
-	"github.com/lucdoe/capstone_gateway/internal/app/router"
 	"github.com/lucdoe/capstone_gateway/internal/middlewares"
-	"github.com/lucdoe/capstone_gateway/internal/utils"
 )
 
 func main() {
 	ginRouter := gin.New()
-	router := router.GinRouter{Engine: ginRouter}
+	router := app.GinRouter{Engine: ginRouter}
 
 	middlewares.InitilizeMiddlewares(ginRouter)
 
-	fileReader := utils.OSFileReader{}
-	yamlParser := utils.YAMLParsing{}
-	configLoader := utils.NewConfigLoader(fileReader, yamlParser)
+	fileReader := internal.OSFileReader{}
+	yamlParser := internal.YAMLParsing{}
+	configLoader := internal.NewConfigLoader(fileReader, yamlParser)
 
 	config, err := configLoader.LoadConfig("endpoints.yaml")
 	if err != nil {
