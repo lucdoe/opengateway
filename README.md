@@ -1,5 +1,16 @@
 # API Gateway Documentation
 
+## SE_35 Module related contribution list
+- Diagrams: Freeform and Sequence (UML) diagram </br>
+    - [Freeform diagram](https://github.com/lucdoe/capstone_gateway/raw/main/docs/layerd.png): Overview of an API Gateway setup in a Freeform setup.</br>
+    - [Sequence diagram](https://github.com/lucdoe/capstone_gateway/raw/main/docs/sequence_diagram.png): Describing as a UML diagram of how a request is being processed through the Gateway.
+- Quality attributes: [API Gateway Quality attributes](https://github.com/lucdoe/capstone_gateway#design-patterns-and-quality-attributes-of-an-api-gateway)
+- SOLID Principles (focusing on S and D):</br>
+    - Single Responsibility: [Custom Rate Limiter](https://github.com/lucdoe/capstone_gateway/blob/main/internal/middlewares/limiter.go), [Custom Logger](https://github.com/lucdoe/capstone_gateway/blob/main/internal/middlewares/logger.go)</br>
+    - Dependency Inversion: [Interface abstractions](https://github.com/lucdoe/capstone_gateway/blob/main/internal/types.go), [Dependency Injection](https://github.com/lucdoe/capstone_gateway/blob/main/internal/app/app.go)
+    - Both principles contribute to easier [testability](https://github.com/lucdoe/capstone_gateway/blob/main/tests/internal/app/app_test.go) and flexibility in terms of other libraries or implementations. 
+- Design Patterns: [Server-side discovery pattern (Service Registry)](https://github.com/lucdoe/capstone_gateway/blob/main/endpoints.yaml), [Proxy Pattern](https://github.com/lucdoe/capstone_gateway/blob/main/internal/app/app.go) (gateway forwarding request to services and running middlewares before and after), API Gateway itself is a pattern, [Chain of Responsibility Pattern](https://github.com/lucdoe/capstone_gateway/blob/main/internal/middlewares/init.go) (Middlewares)
+
 ## Introduction
 
 This repo covers an easy-to-use, customizable and maintainable API Gateway. The documentation covers what design patterns are incorporated into it and what we value in design from maintainers. The motivation to create this repo came from a Monolith to Microservice project where an API Gateway was needed to route the traffic to the services.
@@ -13,7 +24,7 @@ An API Gateway is a single entry point for clients, acting like a reverse proxy 
 The gateway layer can handle typical tasks that would otherwise be governed by each service individually so the services can concentrate on one domain-specific task. This central layer between the client and the services allows monitoring, caching, analytics, and request conversion.
 
 To identify what services, the API gateway accesses a service registry to look up registered services. The Gateway is, therefore, entirely decoupled from the services.
-That makes the Circuit breaker pattern an essential tool where a certain amount of services can fail or retry before a request fails.
+That makes the circuit breaker pattern an essential tool where a certain number of services can fail or retry before a request fails.
 
 Generally, there are fewer requests due to the orchestration of an API Gateway, although it adds another hop in the network.
 
@@ -59,7 +70,7 @@ One is the Circuit breaker pattern, which comes from electrical engineering and 
 
 Another essential pattern for API gateways is the Server-side discovery pattern, which essentially allows the Gateway to know about the services underneath through a Service Registry. Our browser daily uses a use case for that pattern, DNS, which lists IP addresses and their domains. <br>
 A more structural pattern necessary for an API Gateway is the Proxy pattern. It allows the Gateway to perform something before or after the request gets to the services/client. An example would be the attached middleware chain, shown in graphics 1 and 2. <br>
-The middleware chain by itself is a pattern. It is called the Chain of Responsibility and it is a creational pattern. Each handler decides to process the request or pass it to the next handler in the chain.
+The middleware chain by itself is a pattern. It is called the Chain of Responsibility, a creational pattern. Each handler decides to process the request or pass it to the next handler in the chain.
 
 A pattern that uses the API Gateway pattern is the earlier mentioned Backends for Frontends pattern. It is a specific use case for applying an API Gateway in practice. Each client has its entry point into the application architecture, allowing client-specific setups.
 
@@ -78,18 +89,6 @@ The Capstone API Gateway is a choice if you want an easy-to-use and customisable
 
 ### Codebase Patterns
 
-#### Project Structure
-
-This API Gateway codebase is designed with a separation of concerns in mind, aiming to make the codebase more maintainable and scalable. The main folders are `configs`, `controllers`, `database`, `interfaces`, `middlewares`, `routes`, `services`, and `utils`. The flow of a request through the application would be as follows:
-
-![Image of the request/ response flow through the Application with separtion of concerns.](./docs/project_structure.jpeg)
-
-The idea originates from the CLEAN Architecture by Robert C. Martin (Uncle Bob). On his website and in the book, he uses the following diagram to illustrate the architecture (Clean Coder Blog, 2023):
-![](./docs/CleanArchitecture.jpg)
-Clean Coder Blog. (2023). Cleancoder.com. https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html
-
-Our interpretation of the architecture and the actual CLEAN architecture booth aim to achieve separation of concerns. Secondly, it must be loosely coupled because the API Gateway operates in a Microservice environment. The low coupling of the API Gateway to the services allows for simplified isolation, understanding, and testing of individual components. It keeps the API gateway separate from the Services so each is individually deployable.
-
 #### SOLID Principles
 
 This codebase tries to adhere to the SOLID principles and invites all maintainers and users to do so. Also, change it if you spot places where this could be improved. Especially the Single Responsibility Principle (SRP) and the Dependency Inversion principle (DIP) should be applied, and others can be discarded if these two are present.
@@ -102,7 +101,7 @@ The second important principle we invite you to apply is the DIP:
 
 Images coming from: Oleksii Trekhleb. (2020, March 29). S.O.L.I.D. Principles Around You. DEV Community; DEV Community. https://dev.to/trekhleb/s-o-l-i-d-principles-around-you-1o17
 
-Even though this is a Golang codebase and not necessarily strict Object Oriented Programming, the principles help to create cleaner and more maintainable code.
+Even though this is a Golang codebase and not necessarily strict object-oriented programming, the principles help to create cleaner and more maintainable code.
 
 ## How to use this API Gateway
 
@@ -110,7 +109,7 @@ Pull the repo and go through the process of creating the API Gateway server and 
 
 The way to register services resides in the `endpoints.yaml`, where you will find a possible setup of services. Just update that file with your configuration and services, and when starting the server, the configuration will be loaded and applied.
 
-Your services will have to be available on the specified endpoints in the `endpoints.yaml`.
+Your services must be available on the specified endpoints in the `endpoints.yaml`.
 
     cd location_of_pulled_repo
 
