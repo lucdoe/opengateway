@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/lucdoe/capstone_gateway/internal/utils"
+	"github.com/lucdoe/capstone_gateway/internal"
 )
 
 func TestReadFile(t *testing.T) {
@@ -23,7 +23,7 @@ func TestReadFile(t *testing.T) {
 		t.Fatalf("Cannot close temporary file: %v", err)
 	}
 
-	reader := utils.OSFileReader{}
+	reader := internal.OSFileReader{}
 	readContent, err := reader.ReadFile(tmpfile.Name())
 	if err != nil {
 		t.Errorf("ReadFile returned an error: %v", err)

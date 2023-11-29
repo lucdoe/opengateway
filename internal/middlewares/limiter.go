@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lucdoe/capstone_gateway/internal/app/databases"
+	"github.com/lucdoe/capstone_gateway/app"
 )
 
 const (
@@ -64,13 +64,13 @@ func increaseRateLimitCounter(ip string) (int64, error) {
 	ctx := context.Background()
 	key := RateLimitKeyPrefix + ip
 
-	count, err := databases.RDB.Incr(ctx, key).Result()
+	count, err := app.RDB.Incr(ctx, key).Result()
 	if err != nil {
 		return 0, err
 	}
 
 	if count == 1 {
-		databases.RDB.Expire(ctx, key, RateLimitWindow)
+		app.RDB.Expire(ctx, key, RateLimitWindow)
 	}
 
 	return count, nil

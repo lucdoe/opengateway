@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/lucdoe/capstone_gateway/internal/utils"
+	"github.com/lucdoe/capstone_gateway/internal"
 )
 
 func TestYAMLParsingUnmarshal(t *testing.T) {
@@ -21,7 +21,7 @@ age: 30
 		Age:  30,
 	}
 
-	parserInstance := utils.YAMLParsing{}
+	parserInstance := internal.YAMLParsing{}
 
 	var actual struct {
 		Name string `yaml:"name"`

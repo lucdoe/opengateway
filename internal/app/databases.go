@@ -1,4 +1,4 @@
-package databases
+package app
 
 import (
 	"github.com/redis/go-redis/v9"

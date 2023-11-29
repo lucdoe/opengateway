@@ -1,6 +1,4 @@
-package utils
-
-import "github.com/lucdoe/capstone_gateway/internal"
+package internal
 
 type FileReader interface {
 	ReadFile(filename string) ([]byte, error)
@@ -22,13 +20,13 @@ func NewConfigLoader(fr FileReader, yp YAMLParser) *ConfigLoader {
 	}
 }
 
-func (cl *ConfigLoader) LoadConfig(f string) (*internal.Config, error) {
+func (cl *ConfigLoader) LoadConfig(f string) (*Config, error) {
 	data, err := cl.fileReader.ReadFile(f)
 	if err != nil {
 		return nil, err
 	}
 
-	var config internal.Config
+	var config Config
 	err = cl.yamlParser.Unmarshal(data, &config)
 	if err != nil {
 		return nil, err
