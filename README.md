@@ -2,7 +2,7 @@
 
 ## SE_35 Module related contribution list
 
-- Diagrams: Freeform and Sequence (UML) diagram </br>
+- Diagrams: Freeform and Sequence and UML diagram </br>
   - [Freeform diagram](https://github.com/lucdoe/capstone_gateway/raw/main/docs/layerd.png): Overview of an API Gateway setup in a Freeform setup.</br>
   - [Sequence diagram](https://github.com/lucdoe/capstone_gateway/raw/main/docs/sequence_diagram.png): Describing as a UML diagram of how a request is being
     processed through the Gateway.
@@ -10,7 +10,7 @@
 - Quality attributes: [API Gateway Quality attributes](https://github.com/lucdoe/capstone_gateway#design-patterns-and-quality-attributes-of-an-api-gateway)
 - SOLID Principles (focusing on S and D):</br>
   - Single Responsibility: [Custom Rate Limiter](https://github.com/lucdoe/capstone_gateway/blob/main/internal/middlewares/limiter.go), [Custom Logger](https://github.com/lucdoe/capstone_gateway/blob/main/internal/middlewares/logger.go)</br>
-  - Dependency Inversion: [Interface abstractions](https://github.com/lucdoe/capstone_gateway/blob/main/internal/types.go), [Dependency Injection](https://github.com/lucdoe/capstone_gateway/blob/main/internal/app/app.go)
+  - Dependency Inversion: [Interface/ Struct abstractions](https://github.com/lucdoe/capstone_gateway/blob/main/internal/types.go), [Dependency Injection](https://github.com/lucdoe/capstone_gateway/blob/main/internal/app/app.go)
   - Both principles contribute to easier [testability](https://github.com/lucdoe/capstone_gateway/blob/main/tests/internal/app/app_test.go) and flexibility in terms of other libraries or implementations.
   - Example for both SRP and DIP: [Implementation of YAML Config loader (loads service registry)](https://github.com/lucdoe/capstone_gateway/blob/main/internal/config_loader.go)
 - Design Patterns: [Server-side discovery pattern (Service Registry)](https://github.com/lucdoe/capstone_gateway/blob/main/endpoints.yaml), [Proxy Pattern](https://github.com/lucdoe/capstone_gateway/blob/main/internal/app/app.go) (gateway forwarding request to services and running middlewares before and after), API Gateway itself is a pattern, [Chain of Responsibility Pattern](https://github.com/lucdoe/capstone_gateway/blob/main/internal/middlewares/init.go) (Middlewares)
