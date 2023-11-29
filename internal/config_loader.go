@@ -1,18 +1,5 @@
 package internal
 
-type FileReader interface {
-	ReadFile(filename string) ([]byte, error)
-}
-
-type YAMLParser interface {
-	Unmarshal(in []byte, out interface{}) error
-}
-
-type ConfigLoader struct {
-	fileReader FileReader
-	yamlParser YAMLParser
-}
-
 func NewConfigLoader(fr FileReader, yp YAMLParser) *ConfigLoader {
 	return &ConfigLoader{
 		fileReader: fr,
