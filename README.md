@@ -121,7 +121,7 @@ Your services must be available on the specified endpoints in the `endpoints.yam
 
     cd location_of_pulled_repo
 
-    go run cmd/capstone_gateway/main.go
+    go run main.go
 
 Happy API Gatewaying!
 
