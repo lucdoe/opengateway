@@ -1,4 +1,4 @@
-package app
+package internal
 
 import (
 	"github.com/redis/go-redis/v9"

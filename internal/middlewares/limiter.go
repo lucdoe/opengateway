@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lucdoe/capstone_gateway/app"
+	"github.com/lucdoe/capstone_gateway/internal"
 )
 
 const (
@@ -45,13 +45,13 @@ func BodyLimit(c *gin.Context) {
 func RateLimit(c *gin.Context) {
 	count, err := increaseRateLimitCounter(c.ClientIP())
 	if err != nil {
-		c.Error(errors.New("Redis not started, could not process Rate-Limit."))
+		c.Error(errors.New("redis not started, could not process Rate-Limit"))
 		return
 	}
 
 	if count > MaxRequestsPerMinute {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests"})
-		c.Error(errors.New("Too many requests, please try again later.")).SetType(gin.ErrorTypePublic)
+		c.Error(errors.New("too many requests, please try again later")).SetType(gin.ErrorTypePublic)
 		c.Abort()
 		return
 	}
@@ -64,13 +64,13 @@ func increaseRateLimitCounter(ip string) (int64, error) {
 	ctx := context.Background()
 	key := RateLimitKeyPrefix + ip
 
-	count, err := app.RDB.Incr(ctx, key).Result()
+	count, err := internal.RDB.Incr(ctx, key).Result()
 	if err != nil {
 		return 0, err
 	}
 
 	if count == 1 {
-		app.RDB.Expire(ctx, key, RateLimitWindow)
+		internal.RDB.Expire(ctx, key, RateLimitWindow)
 	}
 
 	return count, nil
