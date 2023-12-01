@@ -15,13 +15,13 @@ func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
 			endpointURL := URL + endpoint.Path
 			switch endpoint.HTTPMethod {
 			case "GET":
-				r.GET(endpoint.Path, middlewares.ValidateJSONFields(endpoint.AllowedJSON))
+				r.GET(endpoint.Path, middlewares.ValidateJSONFields(endpoint.Body))
 			case "POST":
-				r.POST(endpoint.Path, middlewares.ValidateJSONFields(endpoint.AllowedJSON))
+				r.POST(endpoint.Path, middlewares.ValidateJSONFields(endpoint.Body))
 			case "PUT":
-				r.PUT(endpoint.Path, middlewares.ValidateJSONFields(endpoint.AllowedJSON))
+				r.PUT(endpoint.Path, middlewares.ValidateJSONFields(endpoint.Body))
 			case "PATCH":
-				r.PATCH(endpoint.Path, middlewares.ValidateJSONFields(endpoint.AllowedJSON))
+				r.PATCH(endpoint.Path, middlewares.ValidateJSONFields(endpoint.Body))
 			}
 
 			r.Use(middlewares.Proxy(serviceName, endpointURL))
