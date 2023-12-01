@@ -30,13 +30,45 @@ func (myp *MockYAMLParser) Unmarshal(in []byte, out interface{}) error {
 				PORT:      9876,
 				URL:       "http://localhost",
 				SecretKey: "verySecretKey",
+				Protocol:  "HTTP",
 				Endpoints: []internal.Endpoint{
 					{
 						Name:       "GETTest",
 						HTTPMethod: "GET",
 						Path:       "/test",
-						AllowedJSON: []string{
-							"testBody",
+						QueryParams: []internal.QueryParam{
+							{
+								Key:  "id",
+								Type: "string",
+							},
+							{
+								Key:  "size",
+								Type: "int",
+							},
+						},
+						Auth: internal.AuthConfig{
+							ApplyAuth: true,
+							Method:    "JWT",
+							Algorithm: "RS256",
+							Scope: internal.AuthScope{
+								ApplyScope: true,
+								Names:      []string{"READ_TEST_DATA"},
+							},
+						},
+						Body: internal.BodyField{
+							ApplyValidation: true,
+							Type:            "JSON",
+							Fields: map[string]interface{}{
+								"id":       "string",
+								"name":     "string",
+								"salary":   "int",
+								"hobby":    "array",
+								"location": map[string]interface{}{"country": "string", "city": "string"},
+							},
+						},
+						Resiliance: internal.ResilianceConfig{
+							ApplyRateLimit:    true,
+							RequestsPerMinute: 60,
 						},
 					},
 				},

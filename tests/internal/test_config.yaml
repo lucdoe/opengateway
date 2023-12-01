@@ -1,0 +1,49 @@
+CORS:
+  Apply: true
+  Origins: ["http://localhost:3000"]
+  Headers: ["Accept", "Content-Type", "Content-Length"]
+
+Compression:
+  Apply: true
+
+Services:
+  TestService:
+    PORT: 9876
+    URL: http://localhost
+    SecretKey: verySecretKey
+    Protocol: HTTP
+
+    Endpoints:
+      - Name: GETTest
+        HTTPMethod: GET
+        Path: /test
+
+        QueryParams:
+          - Key: "id"
+            Type: "string"
+          - Key: "size"
+            Type: "int"
+
+        Auth:
+          ApplyAuth: true
+          Method: JWT
+          Algorithm: RS256
+          Scope:
+            ApplyScope: true
+            Names: [READ_TEST_DATA]
+
+        Body:
+          ApplyValidation: true
+          Type: "JSON"
+          Fields:
+            id: "string"
+            name: "string"
+            salary: "int"
+            hobby: "array"
+            location:
+              country: "string"
+              city: "string"
+
+        Resiliance:
+          ApplyRateLimit: true
+          RequestsPerMinute: 60
