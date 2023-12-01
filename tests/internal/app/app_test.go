@@ -16,14 +16,9 @@ func TestSetupRoutes(t *testing.T) {
 				PORT: 8080,
 				Endpoints: []internal.Endpoint{
 					{
-						Path:        "/path1",
-						HTTPMethod:  "GET",
-						AllowedJSON: []string{"field1", "field2"},
-					},
-					{
-						Path:        "/path2",
-						HTTPMethod:  "POST",
-						AllowedJSON: []string{"field3", "field4"},
+						Path:       "/path1",
+						HTTPMethod: "GET",
+						// Body, Auth, etc.
 					},
 				},
 			},
