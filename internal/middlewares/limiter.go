@@ -20,6 +20,7 @@ const (
 	HeaderRateLimitReset  = "X-RateLimit-Reset"
 	MaxRequestsPerMinute  = 45
 	RateLimitWindow       = time.Minute
+	ThreeMegaByte         = 3145728
 )
 
 func BodyLimit(c *gin.Context) {
@@ -33,7 +34,7 @@ func BodyLimit(c *gin.Context) {
 
 	size := int64(len(b))
 
-	if size > 1<<20 {
+	if size > ThreeMegaByte {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Request too big"})
 		c.Abort()
 		return
