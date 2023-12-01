@@ -19,22 +19,66 @@ type RouterInterface interface {
 	Run(addr ...string) error
 }
 
+type CORSConfig struct {
+	Apply   bool     `yaml:"Apply"`
+	Origins []string `yaml:"Origins"`
+	Headers []string `yaml:"Headers"`
+}
+
+type CompressionConfig struct {
+	Apply bool `yaml:"Apply"`
+}
+
+type QueryParam struct {
+	Key  string `yaml:"Key"`
+	Type string `yaml:"Type"`
+}
+
+type AuthScope struct {
+	ApplyScope bool     `yaml:"ApplyScope"`
+	Names      []string `yaml:"Names"`
+}
+
+type AuthConfig struct {
+	ApplyAuth bool      `yaml:"ApplyAuth"`
+	Method    string    `yaml:"Method"`
+	Algorithm string    `yaml:"Algorithm"`
+	Scope     AuthScope `yaml:"Scope"`
+}
+
+type BodyField struct {
+	ApplyValidation bool                   `yaml:"ApplyValidation"`
+	Type            string                 `yaml:"Type"`
+	Fields          map[string]interface{} `yaml:"Fields"`
+}
+
+type ResilianceConfig struct {
+	ApplyRateLimit    bool `yaml:"ApplyRateLimit"`
+	RequestsPerMinute int  `yaml:"RequestsPerMinute"`
+}
+
 type Endpoint struct {
-	Name        string   `yaml:"Name"`
-	HTTPMethod  string   `yaml:"HTTPMethod"`
-	Path        string   `yaml:"Path"`
-	AllowedJSON []string `yaml:"AllowedJSON"`
+	Name        string           `yaml:"Name"`
+	HTTPMethod  string           `yaml:"HTTPMethod"`
+	Path        string           `yaml:"Path"`
+	QueryParams []QueryParam     `yaml:"QueryParams"`
+	Auth        AuthConfig       `yaml:"Auth"`
+	Body        BodyField        `yaml:"Body"`
+	Resiliance  ResilianceConfig `yaml:"Resiliance"`
 }
 
 type Service struct {
 	PORT      int        `yaml:"PORT"`
 	URL       string     `yaml:"URL"`
 	SecretKey string     `yaml:"SecretKey"`
+	Protocol  string     `yaml:"Protocol"`
 	Endpoints []Endpoint `yaml:"Endpoints"`
 }
 
 type Config struct {
-	Services map[string]Service `yaml:"Services"`
+	CORS        CORSConfig         `yaml:"CORS"`
+	Compression CompressionConfig  `yaml:"Compression"`
+	Services    map[string]Service `yaml:"Services"`
 }
 
 type App struct {
