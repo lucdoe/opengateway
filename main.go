@@ -7,7 +7,6 @@ import (
 
 	"github.com/lucdoe/capstone_gateway/internal"
 	"github.com/lucdoe/capstone_gateway/internal/app"
-	"github.com/lucdoe/capstone_gateway/internal/middlewares"
 )
 
 func main() {
@@ -18,8 +17,6 @@ func main() {
 
 	ginRouter := gin.New()
 	router := app.GinRouter{Engine: ginRouter}
-
-	middlewares.InitilizeMiddlewares(router.Engine)
 
 	fileReader := internal.OSFileReader{}
 	yamlParser := internal.YAMLParsing{}

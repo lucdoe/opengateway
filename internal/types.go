@@ -17,6 +17,7 @@ type RouterInterface interface {
 	PATCH(path string, handlers ...gin.HandlerFunc)
 	Use(middlewares ...gin.HandlerFunc)
 	Run(addr ...string) error
+	SetTrustedProxies([]string) error
 }
 
 type CORSConfig struct {
