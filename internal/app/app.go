@@ -3,9 +3,19 @@ package app
 import (
 	"fmt"
 
+	"github.com/gin-gonic/gin"
 	"github.com/lucdoe/capstone_gateway/internal"
 	"github.com/lucdoe/capstone_gateway/internal/middlewares"
 )
+
+func handleJSONValidation(body internal.BodyField) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if body.ApplyValidation {
+			middlewares.ValidateJSONFields(body)
+		}
+		c.Next()
+	}
+}
 
 func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
 	for serviceName, service := range config.Services {
@@ -15,13 +25,13 @@ func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
 			endpointURL := URL + endpoint.Path
 			switch endpoint.HTTPMethod {
 			case "GET":
-				r.GET(endpoint.Path, middlewares.ValidateJSONFields(endpoint.Body))
+				r.GET(endpoint.Path, handleJSONValidation(endpoint.Body))
 			case "POST":
-				r.POST(endpoint.Path, middlewares.ValidateJSONFields(endpoint.Body))
+				r.POST(endpoint.Path, handleJSONValidation(endpoint.Body))
 			case "PUT":
-				r.PUT(endpoint.Path, middlewares.ValidateJSONFields(endpoint.Body))
+				r.PUT(endpoint.Path, handleJSONValidation(endpoint.Body))
 			case "PATCH":
-				r.PATCH(endpoint.Path, middlewares.ValidateJSONFields(endpoint.Body))
+				r.PATCH(endpoint.Path, handleJSONValidation(endpoint.Body))
 			}
 
 			r.Use(middlewares.Proxy(serviceName, endpointURL))
