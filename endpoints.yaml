@@ -33,7 +33,7 @@ Services:
             Names: [READ_TEST_DATA]
 
         Body:
-          ApplyValidation: true
+          ApplyValidation: false
           Type: "JSON"
           Fields:
             id: "string"
