@@ -1,8 +1,11 @@
 package middlewares
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/lucdoe/capstone_gateway/internal"
+)
 
-func InitilizeMiddlewares(r *gin.Engine) {
+func InitilizeMiddlewares(r internal.RouterInterface) {
 	r.Use(gin.Recovery())
 
 	r.SetTrustedProxies([]string{"127.0.0.1"})
