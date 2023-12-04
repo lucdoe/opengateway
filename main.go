@@ -11,10 +11,15 @@ import (
 )
 
 func main() {
+	err := internal.InitializeRedis()
+	if err != nil {
+		log.Fatalf("Failed to initialize Redis: %v", err)
+	}
+
 	ginRouter := gin.New()
 	router := app.GinRouter{Engine: ginRouter}
 
-	middlewares.InitilizeMiddlewares(ginRouter)
+	middlewares.InitilizeMiddlewares(router.Engine)
 
 	fileReader := internal.OSFileReader{}
 	yamlParser := internal.YAMLParsing{}
@@ -30,7 +35,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := APIGatewayApp.Router.Run(":8080"); err != nil {
+	APIGatewayApp.Router.Run(":8080")
+	if err != nil {
 		log.Fatal(err)
 	}
 }
