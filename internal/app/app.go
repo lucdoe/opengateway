@@ -1,8 +1,6 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/gin-gonic/gin"
 	"github.com/lucdoe/capstone_gateway/internal"
 	"github.com/lucdoe/capstone_gateway/internal/middlewares"
@@ -17,24 +15,26 @@ func handleJSONValidation(body internal.BodyField) gin.HandlerFunc {
 	}
 }
 
-func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
-	for serviceName, service := range config.Services {
-		URL := fmt.Sprintf("%s:%d", service.URL, service.PORT)
+func proxyRequest(URL string) gin.HandlerFunc {
+	return middlewares.Proxy(URL)
+}
 
+func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
+	for _, service := range config.Services {
 		for _, endpoint := range service.Endpoints {
-			endpointURL := URL + endpoint.Path
+			endpointURL := service.URL + endpoint.Path
+			relativePath := endpoint.Path
+
 			switch endpoint.HTTPMethod {
 			case "GET":
-				r.GET(endpoint.Path, handleJSONValidation(endpoint.Body))
+				r.GET(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
 			case "POST":
-				r.POST(endpoint.Path, handleJSONValidation(endpoint.Body))
+				r.POST(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
 			case "PUT":
-				r.PUT(endpoint.Path, handleJSONValidation(endpoint.Body))
+				r.PUT(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
 			case "PATCH":
-				r.PATCH(endpoint.Path, handleJSONValidation(endpoint.Body))
+				r.PATCH(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
 			}
-
-			r.Use(middlewares.Proxy(serviceName, endpointURL))
 		}
 	}
 }
