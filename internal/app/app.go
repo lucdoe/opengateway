@@ -40,7 +40,7 @@ func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
 }
 
 func APIGatewayApp(router internal.RouterInterface, config *internal.Config) (*internal.App, error) {
-	middlewares.InitilizeMiddlewares(router)
+	middlewares.InitilizeMiddlewares(router, config)
 	SetupRoutes(router, config)
 	return &internal.App{Router: router}, nil
 }
