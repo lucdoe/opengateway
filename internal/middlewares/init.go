@@ -5,7 +5,7 @@ import (
 	"github.com/lucdoe/capstone_gateway/internal"
 )
 
-func InitilizeMiddlewares(r internal.RouterInterface) {
+func InitilizeMiddlewares(r internal.RouterInterface, config *internal.Config) {
 	r.Use(gin.Recovery())
 
 	r.Use(GZIPCompression())
@@ -16,5 +16,5 @@ func InitilizeMiddlewares(r internal.RouterInterface) {
 	r.Use(BodySanitize)
 	r.Use(SecurityHeaders)
 	r.Use(RateLimit)
-	r.Use(CORS)
+	r.Use(CORS(config))
 }
