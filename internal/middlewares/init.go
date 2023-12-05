@@ -8,6 +8,7 @@ import (
 func InitilizeMiddlewares(r internal.RouterInterface) {
 	r.Use(gin.Recovery())
 
+	r.Use(GZIPCompression())
 	r.SetTrustedProxies([]string{"127.0.0.1"})
 
 	r.Use(LogRequest)
