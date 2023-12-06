@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,7 +51,15 @@ func readBody(c *gin.Context) ([]byte, error) {
 }
 
 func createProxyRequest(c *gin.Context, target string, body []byte) (*http.Request, error) {
-	proxyReq, err := http.NewRequest(c.Request.Method, target, bytes.NewReader(body))
+	targetURL, err := url.Parse(target)
+	if err != nil {
+		return nil, err
+	}
+
+	query := c.Request.URL.Query()
+	targetURL.RawQuery = query.Encode()
+
+	proxyReq, err := http.NewRequest(c.Request.Method, targetURL.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
