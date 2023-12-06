@@ -16,7 +16,7 @@ func handleJSONValidation(body internal.BodyField) gin.HandlerFunc {
 }
 
 func proxyRequest(URL string) gin.HandlerFunc {
-	return middlewares.Proxy(URL)
+	return middlewares.ReverseProxy(URL)
 }
 
 func attachQueryParams(params []internal.QueryParam) gin.HandlerFunc {

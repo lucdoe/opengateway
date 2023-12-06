@@ -1,33 +1,91 @@
 package middlewares
 
 import (
-	"log"
+	"bytes"
+	"io"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Proxy(targetURL string) gin.HandlerFunc {
+const (
+	contentTypeHeaderKey = "Content-Type"
+	contentTypeValue     = "application/json"
+)
+
+func ReverseProxy(target string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		target, err := url.Parse(targetURL)
+		body, err := readBody(c)
 		if err != nil {
-			log.Printf("Error parsing target URL: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			respondWithError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		log.Printf("Proxying to URL: %v", target)
-
-		reverseProxy := httputil.NewSingleHostReverseProxy(target)
-		reverseProxy.Director = func(req *http.Request) {
-			req.URL.Scheme = target.Scheme
-			req.URL.Host = target.Host
-			req.URL.Path = target.Path // Adjust if necessary based on your routing logic
-			req.Header["X-Forwarded-Host"] = []string{c.Request.Host}
+		proxyReq, err := createProxyRequest(c, target, body)
+		if err != nil {
+			respondWithError(c, http.StatusInternalServerError, "Error creating request to target server")
+			return
 		}
 
-		reverseProxy.ServeHTTP(c.Writer, c.Request)
+		resp, err := sendProxyRequest(proxyReq)
+		if err != nil {
+			respondWithError(c, http.StatusBadGateway, err.Error())
+			return
+		}
+		defer resp.Body.Close()
+
+		setContentTypeHeaderIfMissing(c)
+		copyResponseHeaders(resp, c)
+		writeResponseBody(c, resp)
 	}
+}
+
+func readBody(c *gin.Context) ([]byte, error) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+	return body, nil
+}
+
+func createProxyRequest(c *gin.Context, target string, body []byte) (*http.Request, error) {
+	proxyReq, err := http.NewRequest(c.Request.Method, target, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+
+	proxyReq.Header = c.Request.Header
+	proxyReq.Header.Set(contentTypeHeaderKey, contentTypeValue)
+	return proxyReq, nil
+}
+
+func sendProxyRequest(req *http.Request) (*http.Response, error) {
+	client := &http.Client{}
+	return client.Do(req)
+}
+
+func respondWithError(c *gin.Context, statusCode int, errMsg string) {
+	http.Error(c.Writer, errMsg, statusCode)
+}
+
+func setContentTypeHeaderIfMissing(c *gin.Context) {
+	if _, ok := c.Writer.Header()[contentTypeHeaderKey]; !ok {
+		c.Writer.Header().Set(contentTypeHeaderKey, contentTypeValue)
+	}
+}
+
+func copyResponseHeaders(resp *http.Response, c *gin.Context) {
+	for h, val := range resp.Header {
+		c.Writer.Header()[h] = val
+	}
+}
+
+func writeResponseBody(c *gin.Context, resp *http.Response) {
+	bodyContent, err := io.ReadAll(resp.Body)
+	if err != nil {
+		respondWithError(c, http.StatusBadGateway, "Error reading from target server")
+		return
+	}
+	c.Writer.Write(bodyContent)
 }
