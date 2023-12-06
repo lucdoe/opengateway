@@ -19,6 +19,16 @@ func proxyRequest(URL string) gin.HandlerFunc {
 	return middlewares.Proxy(URL)
 }
 
+func attachQueryParams(params []internal.QueryParam) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		for _, param := range params {
+			value := c.Query(param.Key)
+			c.Set(param.Key, value)
+		}
+		c.Next()
+	}
+}
+
 func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
 	for _, service := range config.Services {
 		for _, endpoint := range service.Endpoints {
@@ -27,13 +37,13 @@ func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
 
 			switch endpoint.HTTPMethod {
 			case "GET":
-				r.GET(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
+				r.GET(relativePath, handleJSONValidation(endpoint.Body), attachQueryParams(endpoint.QueryParams), proxyRequest(endpointURL))
 			case "POST":
-				r.POST(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
+				r.POST(relativePath, handleJSONValidation(endpoint.Body), attachQueryParams(endpoint.QueryParams), proxyRequest(endpointURL))
 			case "PUT":
-				r.PUT(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
+				r.PUT(relativePath, handleJSONValidation(endpoint.Body), attachQueryParams(endpoint.QueryParams), proxyRequest(endpointURL))
 			case "PATCH":
-				r.PATCH(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
+				r.PATCH(relativePath, handleJSONValidation(endpoint.Body), attachQueryParams(endpoint.QueryParams), proxyRequest(endpointURL))
 			}
 		}
 	}
