@@ -13,7 +13,6 @@ func InitilizeMiddlewares(r internal.RouterInterface, config *internal.Config) {
 
 	r.Use(LogRequest)
 	r.Use(BodyLimit)
-	r.Use(BodySanitize)
 	r.Use(SecurityHeaders)
 	r.Use(RateLimit)
 	r.Use(CORS(config))
