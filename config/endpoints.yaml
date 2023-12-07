@@ -8,7 +8,7 @@ Compression:
 
 Services:
   TestService:
-    URL: http://localhost:3000
+    URL: http://host.docker.internal:3000
     SecretKey: verySecretKey
     Protocol: HTTP
 

@@ -22,7 +22,7 @@ func main() {
 	yamlParser := internal.YAMLParsing{}
 	configLoader := internal.NewConfigLoader(fileReader, yamlParser)
 
-	config, err := configLoader.LoadConfig("endpoints.yaml")
+	config, err := configLoader.LoadConfig("./config/endpoints.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}
