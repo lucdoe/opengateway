@@ -22,21 +22,27 @@ func proxyRequest(URL string) gin.HandlerFunc {
 	return middlewares.ReverseProxy(URL)
 }
 
+func validateToken(shouldCheck bool, key string) gin.HandlerFunc {
+	return middlewares.ValidateToken(shouldCheck, key)
+}
+
 func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
 	for _, service := range config.Services {
 		for _, endpoint := range service.Endpoints {
 			endpointURL := service.URL + endpoint.Path
 			relativePath := endpoint.Path
+			key := service.SecretKey
+			checkKey := endpoint.Auth.ApplyAuth
 
 			switch endpoint.HTTPMethod {
 			case "GET":
-				r.GET(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
+				r.GET(relativePath, validateToken(checkKey, key), handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
 			case "POST":
-				r.POST(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
+				r.POST(relativePath, validateToken(checkKey, key), handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
 			case "PUT":
-				r.PUT(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
+				r.PUT(relativePath, validateToken(checkKey, key), handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
 			case "PATCH":
-				r.PATCH(relativePath, handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
+				r.PATCH(relativePath, validateToken(checkKey, key), handleJSONValidation(endpoint.Body), proxyRequest(endpointURL))
 			}
 		}
 	}
