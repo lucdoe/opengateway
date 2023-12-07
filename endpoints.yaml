@@ -8,8 +8,7 @@ Compression:
 
 Services:
   TestService:
-    PORT: 9876
-    URL: http://localhost
+    URL: http://localhost:3000
     SecretKey: verySecretKey
     Protocol: HTTP
 
@@ -33,16 +32,12 @@ Services:
             Names: [READ_TEST_DATA]
 
         Body:
-          ApplyValidation: false
+          ApplyValidation: true
           Type: "JSON"
           Fields:
-            id: "string"
-            name: "string"
-            salary: "int"
-            hobby: "array"
-            location:
-              country: "string"
-              city: "string"
+            userId: "string"
+            address:
+              street: "string"
 
         Resiliance:
           ApplyRateLimit: true

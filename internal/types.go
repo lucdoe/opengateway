@@ -69,7 +69,6 @@ type Endpoint struct {
 }
 
 type Service struct {
-	PORT      int        `yaml:"PORT"`
 	URL       string     `yaml:"URL"`
 	SecretKey string     `yaml:"SecretKey"`
 	Protocol  string     `yaml:"Protocol"`
