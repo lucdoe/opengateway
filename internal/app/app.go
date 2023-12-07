@@ -9,9 +9,12 @@ import (
 func handleJSONValidation(body internal.BodyField) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if body.ApplyValidation {
-			middlewares.ValidateJSONFields(body)
+			validator := middlewares.ValidateJSONFields(body)
+			validator(c)
 		}
-		c.Next()
+		if !c.IsAborted() {
+			c.Next()
+		}
 	}
 }
 
