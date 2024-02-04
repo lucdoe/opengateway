@@ -35,9 +35,17 @@ func ReverseProxy(target string) gin.HandlerFunc {
 		}
 		defer resp.Body.Close()
 
-		setContentTypeHeaderIfMissing(c)
+		setContentTypeHeaderIfMissing(c, resp)
+
 		copyResponseHeaders(resp, c)
-		writeResponseBody(c, resp)
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			respondWithError(c, http.StatusBadGateway, "Error reading from target server")
+			return
+		}
+
+		c.Data(resp.StatusCode, contentTypeValue, respBody)
 	}
 }
 
@@ -78,23 +86,20 @@ func respondWithError(c *gin.Context, statusCode int, errMsg string) {
 	http.Error(c.Writer, errMsg, statusCode)
 }
 
-func setContentTypeHeaderIfMissing(c *gin.Context) {
+func setContentTypeHeaderIfMissing(c *gin.Context, resp *http.Response) {
 	if _, ok := c.Writer.Header()[contentTypeHeaderKey]; !ok {
-		c.Writer.Header().Set(contentTypeHeaderKey, contentTypeValue)
+		contentType := resp.Header.Get(contentTypeHeaderKey)
+		if contentType != "" {
+			c.Writer.Header().Set(contentTypeHeaderKey, contentType)
+		}
 	}
 }
 
 func copyResponseHeaders(resp *http.Response, c *gin.Context) {
 	for h, val := range resp.Header {
+		if h == "Content-Length" {
+			continue
+		}
 		c.Writer.Header()[h] = val
 	}
-}
-
-func writeResponseBody(c *gin.Context, resp *http.Response) {
-	bodyContent, err := io.ReadAll(resp.Body)
-	if err != nil {
-		respondWithError(c, http.StatusBadGateway, "Error reading from target server")
-		return
-	}
-	c.Writer.Write(bodyContent)
 }
