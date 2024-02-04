@@ -13,18 +13,23 @@ import (
 	"github.com/lucdoe/capstone_gateway/internal"
 )
 
-func ValidateJSONFields(expectedBody internal.BodyField) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		requestBody, err := readAndParseJSON(c)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			c.Abort()
-		}
+func ValidateJSONFields(expectedBody internal.BodyField, shouldValidate bool) gin.HandlerFunc {
+	if shouldValidate {
+		return func(c *gin.Context) {
+			requestBody, err := readAndParseJSON(c)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				c.Abort()
+			}
 
-		if err := checkFields(requestBody, expectedBody.Fields); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			c.Abort()
+			if err := checkFields(requestBody, expectedBody.Fields); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				c.Abort()
+			}
 		}
+	}
+	return func(c *gin.Context) {
+		c.Next()
 	}
 }
 
