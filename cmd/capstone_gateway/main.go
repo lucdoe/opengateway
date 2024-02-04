@@ -3,8 +3,6 @@ package main
 import (
 	"log"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/lucdoe/capstone_gateway/internal"
 	"github.com/lucdoe/capstone_gateway/internal/app"
 )
@@ -15,16 +13,11 @@ func main() {
 		log.Fatalf("Failed to initialize Redis: %v", err)
 	}
 
-	ginRouter := gin.New()
-	router := app.GinRouter{Engine: ginRouter}
+	router := app.InitializeRouter()
 
-	fileReader := internal.OSFileReader{}
-	yamlParser := internal.YAMLParsing{}
-	configLoader := internal.NewConfigLoader(fileReader, yamlParser)
-
-	config, err := configLoader.LoadConfig("./config/endpoints.yaml")
+	config, err := app.LoadConfig("./config/endpoints.yaml")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	APIGatewayApp, err := app.APIGatewayApp(router, config)
