@@ -2,6 +2,8 @@ package app
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/lucdoe/capstone_gateway/internal"
+	"github.com/lucdoe/capstone_gateway/internal/middlewares"
 )
 
 type GinRouter struct {
@@ -29,4 +31,19 @@ func (gr GinRouter) Use(middlewares ...gin.HandlerFunc) {
 }
 func (gr GinRouter) Run(addr ...string) error {
 	return gr.Engine.Run(addr...)
+}
+
+type HandlerConfig struct {
+	EndpointURL string
+	Endpoint    internal.Endpoint
+	Key         string
+	CheckKey    bool
+}
+
+func (hc HandlerConfig) AssembleEndpointMiddlewares() []gin.HandlerFunc {
+	return []gin.HandlerFunc{
+		middlewares.ValidateToken(hc.CheckKey, hc.Key),
+		middlewares.ValidateJSONFields(hc.Endpoint.Body, hc.Endpoint.Body.ApplyValidation),
+		middlewares.ReverseProxy(hc.EndpointURL),
+	}
 }
