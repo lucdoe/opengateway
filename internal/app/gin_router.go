@@ -33,6 +33,11 @@ func (gr GinRouter) Run(addr ...string) error {
 	return gr.Engine.Run(addr...)
 }
 
+func InitializeRouter() GinRouter {
+	ginRouter := gin.New()
+	return GinRouter{Engine: ginRouter}
+}
+
 type HandlerConfig struct {
 	EndpointURL string
 	Endpoint    internal.Endpoint
