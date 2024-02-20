@@ -1,14 +1,11 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
+import PageIndicator from '@/components/PageIndicator'
 
 export default function EditEndpoint() {
   return (
     <div>
-      <div className='mb-8'>
-        <span className='text-gray-500'>
-          <span className='text-gray-700'>Endpoints</span>{' '}
-          <span className='px-2'>{'>'}</span> Edit Endpoint
-        </span>
-      </div>
+      <PageIndicator page='Endpoints' subpage='Edit Endpoint' />
+
       <header>
         <h1 className='text-3xl font-bold tracking-tight text-gray-900'>
           Edit Endpoint

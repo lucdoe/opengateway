@@ -1,14 +1,11 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
+import PageIndicator from '@/components/PageIndicator'
 
 export default function EditService() {
   return (
     <div>
-      <div className='mb-8'>
-        <span className='text-gray-500'>
-          <span className='text-gray-700'>Services</span>{' '}
-          <span className='px-2'>{'>'}</span> Edit Service
-        </span>
-      </div>
+      <PageIndicator page='Services' subpage='Edit Service' />
+
       <header>
         <h1 className='text-3xl font-bold tracking-tight text-gray-900'>
           Edit Service

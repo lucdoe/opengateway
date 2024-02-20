@@ -1,8 +1,11 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
+import PageIndicator from '@/components/PageIndicator'
 
 export default function AddService() {
   return (
     <div>
+      <PageIndicator page='Services' subpage='Add Service' />
+
       <header>
         <h1 className='text-3xl font-bold tracking-tight text-gray-900'>
           Add Service
