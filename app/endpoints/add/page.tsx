@@ -33,6 +33,8 @@ export default function AddEndpoint() {
           },
         ]}
         name='Create Endpoint'
+        endpoint='/endpoints'
+        method='POST'
       />
     </div>
   )
