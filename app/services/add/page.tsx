@@ -36,6 +36,8 @@ export default function AddService() {
           {fieldtype: 'text', label: 'Tags', placeholder: 'test, tag'},
         ]}
         name='Create Service'
+        endpoint='/services'
+        method='POST'
       />
     </div>
   )
