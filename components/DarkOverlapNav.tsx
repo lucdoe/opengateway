@@ -13,8 +13,16 @@ export default function DarkOverlapNav() {
 
   const navigation = [
     {name: 'Dashboard', href: '/', current: pathname === '/'},
-    {name: 'Services', href: '/services', current: pathname === '/services'},
-    {name: 'Endpoints', href: '/endpoints', current: pathname === '/endpoints'},
+    {
+      name: 'Services',
+      href: '/services',
+      current: pathname.includes('/services'),
+    },
+    {
+      name: 'Endpoints',
+      href: '/endpoints',
+      current: pathname.includes('/endpoints'),
+    },
     {
       name: 'Middlewares',
       href: '/middlewares',
