@@ -1,8 +1,11 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
+import PageIndicator from '@/components/PageIndicator'
 
 export default function AddEndpoint() {
   return (
     <div>
+      <PageIndicator page='Endpoints' subpage='Add Endpoint' />
+
       <header>
         <h1 className='text-3xl font-bold tracking-tight text-gray-900'>
           Add Endpoint
