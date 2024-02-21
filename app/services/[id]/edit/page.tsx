@@ -1,5 +1,6 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
 import PageIndicator from '@/components/PageIndicator'
+import {servicesFields} from '../../page'
 
 export default function EditService() {
   return (
@@ -15,27 +16,9 @@ export default function EditService() {
         Edit your Service in the Gateway.
       </p>
       <DynamicAddComponent
-        fields={[
-          {fieldtype: 'toggle', label: 'Enabled', value: 'true'},
-          {},
-          {fieldtype: 'text', label: 'Name', placeholder: 'Test Name'},
-          {
-            fieldtype: 'checkbox',
-            label: 'Protocols',
-            name: 'Protocols',
-            fields: ['http', 'https', 'grpc', 'grpcs'],
-          },
-          {fieldtype: 'text', label: 'Host', placeholder: 'localhost'},
-          {
-            fieldtype: 'text',
-            label: 'Port',
-            placeholder: '8080',
-          },
-
-          {fieldtype: 'text', label: 'Tags', placeholder: 'test, tag'},
-        ]}
+        fields={servicesFields}
         name='Save Service'
-        endpoint='/services'
+        endpoint='http://localhost:3001/api/services'
         method='PUT'
       />
     </div>
