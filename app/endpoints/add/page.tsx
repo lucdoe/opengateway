@@ -31,9 +31,14 @@ export default function AddEndpoint() {
             name: 'Methods',
             fields: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
           },
+          {
+            fieldtype: 'text',
+            label: 'Tags',
+            placeholder: 'test, example, tag',
+          },
         ]}
         name='Create Endpoint'
-        endpoint='/endpoints'
+        endpoint='http://localhost:3001/endpoints'
         method='POST'
       />
     </div>
