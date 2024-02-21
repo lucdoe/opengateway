@@ -8,14 +8,12 @@ const stats = [
   {
     id: 1,
     name: 'Total Services',
-    stat: '4',
     icon: RocketLaunchIcon,
     link: '/services',
   },
   {
     id: 2,
     name: 'Total Endpoints',
-    stat: '61',
     icon: PuzzlePieceIcon,
     link: '/endpoints',
   },
@@ -28,7 +26,13 @@ const stats = [
   },
 ]
 
-export default function StatisticsView() {
+export default function StatisticsView({
+  amountOfServices,
+  amountOfEndpoints,
+}: {
+  amountOfServices: number
+  amountOfEndpoints: number
+}) {
   return (
     <div className='px-4 sm:px-6 lg:px-8'>
       <header>
@@ -56,7 +60,10 @@ export default function StatisticsView() {
             </dt>
             <dd className='ml-16 flex items-baseline pb-6 sm:pb-7'>
               <p className='text-2xl font-semibold text-gray-900'>
-                {item.stat}
+                {item.stat ||
+                  (item.name === 'Total Services' && amountOfServices) ||
+                  (item.name === 'Total Endpoints' && amountOfEndpoints) ||
+                  0}
               </p>
               <div className='absolute inset-x-0 bottom-0 bg-gray-50 px-4 py-4 sm:px-6'>
                 <div className='text-sm'>
