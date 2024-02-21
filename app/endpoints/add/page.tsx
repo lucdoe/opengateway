@@ -38,7 +38,7 @@ export default function AddEndpoint() {
           },
         ]}
         name='Create Endpoint'
-        endpoint='http://localhost:3001/endpoints'
+        endpoint='http://localhost:3001/api/endpoints'
         method='POST'
       />
     </div>
