@@ -33,6 +33,8 @@ export default function EditEndpoint() {
           },
         ]}
         name='Save Endpoint Edit'
+        endpoint='/endpoints'
+        method='PUT'
       />
     </div>
   )

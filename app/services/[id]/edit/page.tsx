@@ -35,6 +35,8 @@ export default function EditService() {
           {fieldtype: 'text', label: 'Tags', placeholder: 'test, tag'},
         ]}
         name='Save Service'
+        endpoint='/services'
+        method='PUT'
       />
     </div>
   )
