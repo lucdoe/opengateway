@@ -15,11 +15,21 @@ export default function DynamicAddComponent({
   const handleSubmit = (e: {preventDefault: () => void}) => {
     e.preventDefault()
 
-    const request = formatRequest(formData)
+    const requestData = formatRequest(formData)
 
-    fetch(endpoint, {
+    const request = fetch(endpoint, {
       method: method,
-      body: JSON.stringify(request),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    })
+
+    // check if it was successful and then redirect to the all page of endpoint
+    request.then((res) => {
+      if (res.status === 200) {
+        window.location.href = `/${endpoint.split('/')[4]}`
+      }
     })
   }
 
