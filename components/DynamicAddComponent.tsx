@@ -15,7 +15,7 @@ export default function DynamicAddComponent({
     e.preventDefault()
     console.log(formData)
     fetch(endpoint, {
-      method: 'POST',
+      method: method,
       body: JSON.stringify(formData),
     })
   }
