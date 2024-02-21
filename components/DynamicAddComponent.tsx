@@ -1,5 +1,6 @@
 'use client'
 import {useDynamicForm} from '@/hooks/useDynamicForm'
+import {formatRequest} from '@/utils/formatRequest'
 import CheckboxSelector from './CheckBoxSelector'
 import Toggle from './Toggle'
 
@@ -13,10 +14,12 @@ export default function DynamicAddComponent({
 
   const handleSubmit = (e: {preventDefault: () => void}) => {
     e.preventDefault()
-    console.log(formData)
+
+    const request = formatRequest(formData)
+
     fetch(endpoint, {
       method: method,
-      body: JSON.stringify(formData),
+      body: JSON.stringify(request),
     })
   }
 
