@@ -1,45 +1,26 @@
+'use client'
 import TableWithHeaderAndAddEntry from '@/components/TableWithHeaderAndAddEntry'
+import {useEffect, useState} from 'react'
 
 export default function Services() {
+  const [services, setServices] = useState(null)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const res = await fetch('http://localhost:3001/api/services')
+      const data = await res.json()
+      setServices(data)
+    }
+
+    fetchData()
+  }, [])
+
   return (
     <div>
       <TableWithHeaderAndAddEntry
         name='Services'
         description='List of all services, currently added to your cluster.'
-        tableRows={[
-          {
-            name: 'Test/ Dev',
-            protocol: 'http, https',
-            host: 'localhost',
-            port: '3000',
-            status: {data: 'Active', useChip: true, color: 'green'},
-            tags: 'test, dev',
-          },
-          {
-            name: 'User Service',
-            protocol: 'https',
-            host: 'domain.com',
-            port: '-',
-            status: {data: 'Active', useChip: true, color: 'green'},
-            tags: 'prod',
-          },
-          {
-            name: 'Finance Service',
-            protocol: 'https, grpc',
-            host: 'domain.com',
-            port: '-',
-            status: {data: 'Disabled', useChip: true, color: 'red'},
-            tags: 'prod',
-          },
-          {
-            name: 'Delivery Service',
-            protocol: 'https, grpc',
-            host: 'domain.com',
-            port: '-',
-            status: {data: 'Active', useChip: true, color: 'green'},
-            tags: 'prod',
-          },
-        ]}
+        tableRows={services ? services : []}
       />
     </div>
   )
