@@ -4,7 +4,7 @@ import ColoredChip from './ColoredChip'
 
 const generateHeaders = (data: Array<{[key: string]: string}>) => {
   if (data.length > 0) {
-    return Object.keys(data[0])
+    return Object.keys(data[0]).filter((key) => key !== 'id')
   }
   return []
 }
@@ -12,25 +12,19 @@ const generateHeaders = (data: Array<{[key: string]: string}>) => {
 function TableCell({
   content,
 }: Readonly<{content: string | {[key: string]: string}}>) {
-  if (content && typeof content === 'object' && content.useChip) {
-    return (
-      <ColoredChip
-        color={content.color || ''}
-        text={content.data || ''}
-        withDot={false}
-      />
-    )
-  } else if (content && typeof content === 'object' && content.useLink) {
-    return (
-      <ColoredChip
-        color={content.color || ''}
-        text={content.data || ''}
-        withDot
-      />
-    )
+  if (typeof content === 'object') {
+    if (Array.isArray(content)) {
+      return content.join(', ')
+    }
+  } else if (typeof content === 'boolean') {
+    if (content === true) {
+      return <ColoredChip text='Active' color='green' withDot={true} />
+    } else {
+      return <ColoredChip text='Inactive' color='red' withDot={true} />
+    }
+  } else {
+    return <>{content}</>
   }
-
-  return <>{content}</>
 }
 
 export default function TableWithHeaderAndAddEntry({
