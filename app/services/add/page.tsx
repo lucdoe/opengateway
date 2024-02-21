@@ -36,7 +36,7 @@ export default function AddService() {
           {fieldtype: 'text', label: 'Tags', placeholder: 'test, tag'},
         ]}
         name='Create Service'
-        endpoint='http://localhost:3001/services'
+        endpoint='http://localhost:3001/api/services'
         method='POST'
       />
     </div>
