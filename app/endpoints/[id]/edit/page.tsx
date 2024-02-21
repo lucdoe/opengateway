@@ -1,5 +1,6 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
 import PageIndicator from '@/components/PageIndicator'
+import {endpointsFields} from '../../page'
 
 export default function EditEndpoint() {
   return (
@@ -15,25 +16,9 @@ export default function EditEndpoint() {
         Edit your Endpoint in the Gateway.
       </p>
       <DynamicAddComponent
-        fields={[
-          {fieldtype: 'toggle', label: 'Enabled', value: 'true'},
-          {fieldtype: 'text', label: 'Name', placeholder: 'Test Name'},
-
-          {fieldtype: 'text', label: 'Path', placeholder: '/test'},
-          {
-            fieldtype: 'text',
-            label: 'Host',
-            placeholder: 'localhost',
-          },
-          {
-            fieldtype: 'checkbox',
-            label: 'Methods',
-            name: 'Methods',
-            fields: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-          },
-        ]}
+        fields={endpointsFields}
         name='Save Endpoint Edit'
-        endpoint='/endpoints'
+        endpoint='http://localhost:3001/api/endpoints'
         method='PUT'
       />
     </div>

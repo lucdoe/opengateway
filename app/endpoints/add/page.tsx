@@ -1,5 +1,6 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
 import PageIndicator from '@/components/PageIndicator'
+import {endpointsFields} from '../page'
 
 export default function AddEndpoint() {
   return (
@@ -15,28 +16,7 @@ export default function AddEndpoint() {
         Add a new Endpoint to the Gateway.
       </p>
       <DynamicAddComponent
-        fields={[
-          {fieldtype: 'toggle', label: 'Enabled', value: 'true'},
-          {fieldtype: 'text', label: 'Name', placeholder: 'Test Name'},
-
-          {fieldtype: 'text', label: 'Path', placeholder: '/test'},
-          {
-            fieldtype: 'text',
-            label: 'Host',
-            placeholder: 'localhost',
-          },
-          {
-            fieldtype: 'checkbox',
-            label: 'Methods',
-            name: 'Methods',
-            fields: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-          },
-          {
-            fieldtype: 'text',
-            label: 'Tags',
-            placeholder: 'test, example, tag',
-          },
-        ]}
+        fields={endpointsFields}
         name='Create Endpoint'
         endpoint='http://localhost:3001/api/endpoints'
         method='POST'
