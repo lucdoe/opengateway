@@ -12,7 +12,7 @@ export default function DynamicAddComponent({
   method,
   initialValues,
 }: Readonly<DynamicAddComponentProps>) {
-  const {formData, handleInputChange} = useDynamicForm(fields, initialValues)
+  const {formData, handleInputChange} = useDynamicForm(initialValues)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
