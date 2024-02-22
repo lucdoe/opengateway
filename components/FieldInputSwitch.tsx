@@ -1,3 +1,4 @@
+import {FieldInputProps} from '@/interfaces/input'
 import CheckboxSelector from './CheckBoxSelector'
 import FieldLabel from './FieldLabel'
 import Toggle from './Toggle'

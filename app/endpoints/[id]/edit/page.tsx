@@ -2,7 +2,7 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
 import PageIndicator from '@/components/PageIndicator'
 import {apiRoutes} from '@/config/config'
-import {endpointsFields} from '@/interfaces/input'
+import {Field, endpointsFields} from '@/interfaces/input'
 import {usePathname} from 'next/navigation'
 import {useEffect, useState} from 'react'
 
@@ -47,7 +47,7 @@ export default function EditEndpoint() {
       </p>
       {initialData && (
         <DynamicAddComponent
-          fields={endpointsFields}
+          fields={endpointsFields as Field[]} 
           initialValues={initialData}
           name='Save Endpoint Edit'
           endpoint={apiRoutes.endpoints.one(id)}

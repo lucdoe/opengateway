@@ -1,4 +1,4 @@
-interface Field {
+export interface Field {
   name?: string
   fieldtype: 'text' | 'textarea' | 'toggle' | 'checkbox'
   label: string
@@ -11,13 +11,13 @@ interface FormData {
   [key: string]: any
 }
 
-interface FieldInputProps {
+export interface FieldInputProps {
   field: Field
   formData: FormData
   handleInputChange: (fieldName: string, value: any) => void
 }
 
-interface DynamicAddComponentProps {
+export interface DynamicAddComponentProps {
   fields: Field[]
   name: string
   endpoint: string

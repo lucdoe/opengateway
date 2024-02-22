@@ -1,5 +1,6 @@
 'use client'
 import {useDynamicForm} from '@/hooks/useDynamicForm'
+import {DynamicAddComponentProps} from '@/interfaces/input'
 import {formatRequest} from '@/utils/formatRequest'
 import FieldInputSwitch from './FieldInputSwitch'
 import SubmitBtn from './SubmitBtn'
