@@ -1,5 +1,6 @@
 'use client'
 import TableWithHeaderAndAddEntry from '@/components/TableWithHeaderAndAddEntry'
+import {apiRoutes} from '@/config/config'
 import {useEffect, useState} from 'react'
 
 export const endpointsFields = [
@@ -7,11 +8,6 @@ export const endpointsFields = [
   {fieldtype: 'text', label: 'Name', placeholder: 'Test Name'},
 
   {fieldtype: 'text', label: 'Path', placeholder: '/test'},
-  {
-    fieldtype: 'text',
-    label: 'Host',
-    placeholder: 'localhost',
-  },
   {
     fieldtype: 'checkbox',
     label: 'Methods',
@@ -30,7 +26,7 @@ export default function Endpoints() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const res = await fetch('http://localhost:3001/api/endpoints')
+      const res = await fetch(apiRoutes.endpoints.all)
       const data = await res.json()
       setEndpoints(data)
     }
@@ -43,7 +39,7 @@ export default function Endpoints() {
       <TableWithHeaderAndAddEntry
         name='Endpoints'
         description='List of all endpoints, currently added to your cluster.'
-        tableRows={endpoints ? endpoints : []}
+        tableRows={endpoints ?? []}
       />
     </div>
   )

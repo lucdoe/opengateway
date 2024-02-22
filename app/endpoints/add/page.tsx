@@ -1,5 +1,6 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
 import PageIndicator from '@/components/PageIndicator'
+import {apiRoutes} from '@/config/config'
 import {endpointsFields} from '../page'
 
 export default function AddEndpoint() {
@@ -18,7 +19,7 @@ export default function AddEndpoint() {
       <DynamicAddComponent
         fields={endpointsFields}
         name='Create Endpoint'
-        endpoint='http://localhost:3001/api/endpoints'
+        endpoint={apiRoutes.endpoints.all}
         method='POST'
       />
     </div>
