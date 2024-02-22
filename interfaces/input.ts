@@ -11,6 +11,25 @@ export interface FormData {
   [key: string]: any
 }
 
+export interface Endpoint {
+  id: string
+  name: string
+  methods: string[]
+  path: string
+  enabled: boolean
+  tags: string[]
+}
+
+export interface Service {
+  id: string
+  name: string
+  protocols: string[]
+  host: string
+  port: string
+  enabled: boolean
+  tags: string[]
+}
+
 export interface FieldInputProps {
   field: Field
   formData: FormData
