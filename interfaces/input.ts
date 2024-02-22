@@ -7,7 +7,7 @@ export interface Field {
   id?: string
 }
 
-interface FormData {
+export interface FormData {
   [key: string]: any
 }
 

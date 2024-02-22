@@ -1,21 +1,7 @@
+import {FormData} from '@/interfaces/input'
 import {ChangeEvent, useEffect, useState} from 'react'
 
-interface FormData {
-  [key: string]: any
-}
-
-interface Field {
-  fieldtype: 'text' | 'textarea' | 'toggle' | 'checkbox'
-  label: string
-  placeholder?: string
-  fields?: string[]
-  name?: string
-}
-
-export const useDynamicForm = (
-  initialFields: Field[],
-  initialValues?: FormData,
-) => {
+export const useDynamicForm = (initialValues?: FormData) => {
   const [formData, setFormData] = useState<FormData>(initialValues ?? {})
 
   useEffect(() => {
@@ -44,7 +30,7 @@ export const useDynamicForm = (
 
     setFormData((prevFormData) => ({
       ...prevFormData,
-      [fieldName.toLowerCase()]: value,
+      [fieldName]: value,
     }))
   }
 
