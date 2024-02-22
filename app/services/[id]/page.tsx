@@ -15,7 +15,7 @@ export default function SingleService() {
     }
 
     fetchData()
-  }, [])
+  }, [pathname])
 
   return (
     <div>
