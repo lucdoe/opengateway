@@ -17,7 +17,7 @@ export default function AddEndpoint() {
         Add a new Endpoint to the Gateway.
       </p>
       <DynamicAddComponent
-        fields={endpointsFields}
+        fields={endpointsFields as Field[]}
         name='Create Endpoint'
         endpoint={apiRoutes.endpoints.all}
         method='POST'

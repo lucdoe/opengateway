@@ -18,7 +18,7 @@ export default function AddService() {
         Endpoints.
       </p>
       <DynamicAddComponent
-        fields={servicesFields}
+        fields={servicesFields as Field[]}
         name='Create Service'
         endpoint={apiRoutes.services.all}
         method='POST'
