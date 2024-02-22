@@ -1,7 +1,7 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
 import PageIndicator from '@/components/PageIndicator'
 import {apiRoutes} from '@/config/config'
-import {servicesFields} from '../page'
+import {servicesFields} from '@/interfaces/input'
 
 export default function AddService() {
   return (
@@ -18,7 +18,7 @@ export default function AddService() {
         Endpoints.
       </p>
       <DynamicAddComponent
-        fields={servicesFields as Field[]}
+        fields={servicesFields}
         name='Create Service'
         endpoint={apiRoutes.services.all}
         method='POST'

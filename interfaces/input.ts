@@ -24,3 +24,41 @@ interface DynamicAddComponentProps {
   method: 'GET' | 'PUT' | 'POST' | 'DELETE'
   initialValues?: FormData
 }
+
+export const endpointsFields = [
+  {fieldtype: 'toggle', label: 'Enabled', value: 'true'},
+  {fieldtype: 'text', label: 'Name', placeholder: 'Test Name'},
+
+  {fieldtype: 'text', label: 'Path', placeholder: '/test'},
+  {
+    fieldtype: 'checkbox',
+    label: 'Methods',
+    name: 'Methods',
+    fields: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  },
+  {
+    fieldtype: 'text',
+    label: 'Tags',
+    placeholder: 'test, example, tag',
+  },
+]
+
+export const servicesFields = [
+  {fieldtype: 'toggle', label: 'Enabled', value: 'true'},
+  {},
+  {fieldtype: 'text', label: 'Name', placeholder: 'Test Name'},
+  {
+    fieldtype: 'checkbox',
+    label: 'Protocols',
+    name: 'Protocols',
+    fields: ['http', 'https', 'grpc', 'grpcs'],
+  },
+  {fieldtype: 'text', label: 'Host', placeholder: 'localhost'},
+  {
+    fieldtype: 'text',
+    label: 'Port',
+    placeholder: '8080',
+  },
+
+  {fieldtype: 'text', label: 'Tags', placeholder: 'test, tag'},
+]
