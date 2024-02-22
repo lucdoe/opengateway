@@ -26,7 +26,7 @@ export default function CheckboxSelector({
                   id={field}
                   name={field}
                   type='checkbox'
-                  checked={checked[field] || false}
+                  checked={checked[field]}
                   onChange={(e) => onChange(field, e.target.checked)}
                   className='h-4 w-4 rounded border-gray-300 text-green-400 focus:ring-green-500'
                 />
