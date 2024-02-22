@@ -16,7 +16,7 @@ export default function EditService() {
       fetch(apiRoutes.services.one(id))
         .then((response) => response.json())
         .then((data) => {
-          const methodsObject = data.methods.reduce(
+          const protocolsObject = data.protocols.reduce(
             (acc: {[x: string]: boolean}, method: string | number) => {
               acc[method] = true
               return acc
@@ -26,7 +26,7 @@ export default function EditService() {
 
           setInitialData({
             ...data,
-            methods: methodsObject,
+            protocols: protocolsObject,
           })
         })
         .catch((error) => console.error('Failed to load service data', error))
