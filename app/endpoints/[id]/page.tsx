@@ -15,7 +15,7 @@ export default function SingleEndpoint() {
     }
 
     fetchData()
-  }, [])
+  }, [pathname])
 
   return (
     <div>

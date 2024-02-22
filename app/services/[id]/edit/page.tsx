@@ -2,9 +2,9 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
 import PageIndicator from '@/components/PageIndicator'
 import {apiRoutes} from '@/config/config'
+import {servicesFields} from '@/interfaces/input'
 import {usePathname} from 'next/navigation'
 import {useEffect, useState} from 'react'
-import {servicesFields} from '../../page'
 
 export default function EditService() {
   const [initialData, setInitialData] = useState<FormData | undefined>()
@@ -47,7 +47,7 @@ export default function EditService() {
       </p>
       {initialData && (
         <DynamicAddComponent
-          fields={servicesFields as Field[]}
+          fields={servicesFields}
           initialValues={initialData}
           name='Save Service Edit'
           endpoint={apiRoutes.services.one(id)}

@@ -1,7 +1,7 @@
 import DynamicAddComponent from '@/components/DynamicAddComponent'
 import PageIndicator from '@/components/PageIndicator'
 import {apiRoutes} from '@/config/config'
-import {endpointsFields} from '../page'
+import {endpointsFields} from '@/interfaces/input'
 
 export default function AddEndpoint() {
   return (
@@ -17,7 +17,7 @@ export default function AddEndpoint() {
         Add a new Endpoint to the Gateway.
       </p>
       <DynamicAddComponent
-        fields={endpointsFields as Field[]}
+        fields={endpointsFields}
         name='Create Endpoint'
         endpoint={apiRoutes.endpoints.all}
         method='POST'
