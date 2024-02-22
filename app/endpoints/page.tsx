@@ -3,24 +3,6 @@ import TableWithHeaderAndAddEntry from '@/components/TableWithHeaderAndAddEntry'
 import {apiRoutes} from '@/config/config'
 import {useEffect, useState} from 'react'
 
-export const endpointsFields = [
-  {fieldtype: 'toggle', label: 'Enabled', value: 'true'},
-  {fieldtype: 'text', label: 'Name', placeholder: 'Test Name'},
-
-  {fieldtype: 'text', label: 'Path', placeholder: '/test'},
-  {
-    fieldtype: 'checkbox',
-    label: 'Methods',
-    name: 'Methods',
-    fields: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  },
-  {
-    fieldtype: 'text',
-    label: 'Tags',
-    placeholder: 'test, example, tag',
-  },
-]
-
 export default function Endpoints() {
   const [endpoints, setEndpoints] = useState(null)
 
