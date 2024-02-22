@@ -1,4 +1,4 @@
-import {ChangeEvent, useState} from 'react'
+import {ChangeEvent, useEffect, useState} from 'react'
 
 interface FormData {
   [key: string]: any
@@ -12,8 +12,17 @@ interface Field {
   name?: string
 }
 
-export const useDynamicForm = (initialFields: Field[]) => {
-  const [formData, setFormData] = useState<FormData>({})
+export const useDynamicForm = (
+  initialFields: Field[],
+  initialValues?: FormData,
+) => {
+  const [formData, setFormData] = useState<FormData>(initialValues ?? {})
+
+  useEffect(() => {
+    if (initialValues) {
+      setFormData(initialValues)
+    }
+  }, [initialValues])
 
   const handleInputChange = (
     fieldName: string,
@@ -23,20 +32,19 @@ export const useDynamicForm = (initialFields: Field[]) => {
       | boolean,
   ) => {
     let value: any
+    const isEvent = eventOrValue instanceof Event
 
-    if (typeof eventOrValue === 'boolean') {
-      value = eventOrValue
-    } else if (
-      (eventOrValue as ChangeEvent<HTMLInputElement>).target.type === 'checkbox'
-    ) {
-      value = (eventOrValue as ChangeEvent<HTMLInputElement>).target.checked
+    if (isEvent) {
+      const target = eventOrValue.target as HTMLInputElement
+      const isCheckbox = target.type === 'checkbox'
+      value = isCheckbox ? target.checked : target.value
     } else {
-      value = (eventOrValue as ChangeEvent<HTMLInputElement>).target.value
+      value = eventOrValue
     }
 
     setFormData((prevFormData) => ({
       ...prevFormData,
-      [fieldName]: value,
+      [fieldName.toLowerCase()]: value,
     }))
   }
 
