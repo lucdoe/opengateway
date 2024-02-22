@@ -1,10 +1,29 @@
 'use client'
+import RenderSingleItem from '@/components/RenderSingleItem'
+import SingleItemHeader from '@/components/SingleItemHeader'
 import {apiRoutes} from '@/config/config'
 import {usePathname} from 'next/navigation'
 import {useEffect, useState} from 'react'
 
+interface Service {
+  id: string
+  name: string
+  protocols: [string]
+  host: string
+  port: string
+  enabled: boolean
+  tags: [string]
+}
 export default function SingleService() {
-  const [service, setService] = useState(null)
+  const [service, setService] = useState<Service>({
+    id: '',
+    name: '',
+    protocols: [''],
+    host: '',
+    port: '',
+    enabled: true,
+    tags: [''],
+  })
   const pathname = usePathname()
 
   useEffect(() => {
@@ -19,17 +38,12 @@ export default function SingleService() {
 
   return (
     <div>
-      <header>
-        <h1 className='text-3xl font-bold tracking-tight text-gray-900'>
-          Single Service
-        </h1>
-      </header>
-      <p className='mt-2 text-sm text-gray-700'>
-        Page to see all the details of a single Service.
-      </p>
-      <div className='mt-4'>
-        <pre className='text-gray-800'>{JSON.stringify(service, null, 2)}</pre>
-      </div>
+      <SingleItemHeader
+        category='Service'
+        name={service.name}
+        text='Page to see the details of a single Service.'
+      />
+      <RenderSingleItem item={service} />
     </div>
   )
 }
