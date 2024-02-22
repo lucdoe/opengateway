@@ -1,6 +1,7 @@
 'use client'
 import DocumentationView from '@/components/DocumentationView'
 import StatsView from '@/components/StatsView'
+import {apiRoutes} from '@/config/config'
 import {useEffect, useState} from 'react'
 
 export default function Dashboard() {
@@ -9,13 +10,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchServices = async () => {
-      const res = await fetch(`http://localhost:3001/api/services`)
+      const res = await fetch(apiRoutes.services.all)
       const data = await res.json()
       setServices(data.length)
     }
 
     const fetchEndpoints = async () => {
-      const res = await fetch(`http://localhost:3001/api/endpoints`)
+      const res = await fetch(apiRoutes.endpoints.all)
       const data = await res.json()
       setEndpoints(data.length)
     }

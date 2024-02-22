@@ -1,4 +1,5 @@
 'use client'
+import {apiRoutes} from '@/config/config'
 import {usePathname} from 'next/navigation'
 import {useEffect, useState} from 'react'
 
@@ -8,9 +9,7 @@ export default function SingleEndpoint() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const res = await fetch(
-        `http://localhost:3001/api/endpoints/${pathname.split('/').pop()}`,
-      )
+      const res = await fetch(apiRoutes.endpoints.one(pathname.split('/')[2]))
       const data = await res.json()
       setService(data)
     }

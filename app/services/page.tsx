@@ -1,5 +1,6 @@
 'use client'
 import TableWithHeaderAndAddEntry from '@/components/TableWithHeaderAndAddEntry'
+import {apiRoutes} from '@/config/config'
 import {useEffect, useState} from 'react'
 
 export const servicesFields = [
@@ -27,7 +28,7 @@ export default function Services() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const res = await fetch('http://localhost:3001/api/services')
+      const res = await fetch(apiRoutes.services.all)
       const data = await res.json()
       setServices(data)
     }
@@ -40,7 +41,7 @@ export default function Services() {
       <TableWithHeaderAndAddEntry
         name='Services'
         description='List of all services, currently added to your cluster.'
-        tableRows={services ? services : []}
+        tableRows={services ?? []}
       />
     </div>
   )
