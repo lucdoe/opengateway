@@ -9,4 +9,8 @@ export const apiRoutes = {
     all: `${apiURL}/services`,
     one: (id: string) => `${apiURL}/services/${id}`,
   },
+  middlewares: {
+    all: `${apiURL}/middlewares`,
+    one: (id: string) => `${apiURL}/middlewares/${id}`,
+  },
 }
