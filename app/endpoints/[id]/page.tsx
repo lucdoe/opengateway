@@ -35,6 +35,7 @@ export default function SingleEndpoint() {
         category='Endpoint'
         name={endpoint.name}
         text='Page to see the details of a single Endpoint.'
+        id={endpoint.id}
       />
       <RenderSingleItem item={endpoint} />
     </div>

@@ -42,6 +42,7 @@ export default function SingleService() {
         category='Service'
         name={service.name}
         text='Page to see the details of a single Service.'
+        id={service.id}
       />
       <RenderSingleItem item={service} />
     </div>
