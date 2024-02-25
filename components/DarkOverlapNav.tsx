@@ -26,7 +26,7 @@ export default function DarkOverlapNav() {
     {
       name: 'Middlewares',
       href: '/middlewares',
-      current: pathname === '/middlewares',
+      current: pathname.includes('/middlewares'),
     },
   ]
 
