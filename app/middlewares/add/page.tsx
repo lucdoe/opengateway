@@ -16,6 +16,7 @@ export default function AddMiddleware() {
 
     fetchData()
   }, [])
+
   return (
     <div>
       <header>

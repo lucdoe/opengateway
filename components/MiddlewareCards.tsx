@@ -1,6 +1,24 @@
+import {apiRoutes} from '@/config/config'
+
 export default function MiddlewareCards({
   middlewares,
 }: Readonly<{middlewares: any[]}>) {
+  const handleAddMiddleware = async (middleware: any) => {
+    const res = await fetch(apiRoutes.middlewares.one(middleware.id), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        enabled: true,
+      }),
+    })
+    if (res.ok) {
+      alert(`${middleware.name} has been added to your Gateway.`)
+      location.reload()
+    }
+  }
+
   return (
     <ul className='grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
       {middlewares.map((middleware) => (
@@ -27,6 +45,7 @@ export default function MiddlewareCards({
             <div className=''>
               <button
                 type='button'
+                onClick={() => handleAddMiddleware(middleware)}
                 className='w-full py-2 text-sm font-medium text-indigo-600 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2'>
                 + Add Middleware
               </button>
