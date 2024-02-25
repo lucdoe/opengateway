@@ -81,3 +81,14 @@ export const servicesFields = [
 
   {fieldtype: 'text', label: 'Tags', placeholder: 'test, tag'},
 ]
+
+export const middlewaresFields = [
+  {fieldtype: 'toggle', label: 'Enabled', value: 'true'},
+  {fieldtype: 'text', label: 'Name', placeholder: 'Test Name'},
+  {fieldtype: 'text', label: 'Description', placeholder: 'Describe...'},
+  {
+    fieldtype: 'text',
+    label: 'Context',
+    placeholder: 'Route, Service, Global...',
+  },
+]
