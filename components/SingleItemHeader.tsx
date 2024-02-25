@@ -2,10 +2,12 @@ export default function SingleItemHeader({
   category,
   name,
   text,
+  id,
 }: Readonly<{
   category: string
   name: string
   text: string
+  id: string
 }>) {
   return (
     <div className='border-b border-gray-200 pb-5 sm:flex sm:items-center sm:justify-between'>
@@ -19,6 +21,11 @@ export default function SingleItemHeader({
       <div className='mt-3 sm:ml-4 sm:mt-0'>
         <button
           type='button'
+          onClick={() =>
+            (window.location.href = `/${
+              category.toLowerCase() + 's'
+            }/${id}/edit`)
+          }
           className='inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'>
           Edit {category}
         </button>
