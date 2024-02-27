@@ -1,0 +1,78 @@
+version: '3.8'
+
+# run before docker-compose up:
+# export DOCKER_CONTENT_TRUST=1
+
+services:
+  gateway_backend:
+    build:
+      context: .
+      target: final
+    ports:
+      - 8080:8080
+    networks:
+      - external
+    links:
+      - redis
+      - postgres
+
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    env_file:
+      - .env.redis
+    environment:
+      - REDIS_USER=${REDIS_USER}
+      - REDIS_PW=${REDIS_PW}
+    ports:
+      - ${REDIS_PORT}:6379
+    volumes:
+      - redis-data:/data
+    restart: always
+    networks:
+      - internal
+    user: '1001'
+
+  postgres:
+    container_name: postgres
+    image: postgres:16-alpine
+    env_file:
+      - .env.postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PW}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - ${POSTGRES_PORT}:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - internal
+    user: '1001'
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:8-alpine
+    env_file:
+      - .env.pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_MAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PW}
+    ports:
+      - ${PGADMIN_PORT}:80
+    restart: always
+    depends_on:
+      - postgres
+    networks:
+      - external
+    links:
+      - postgres
+
+volumes:
+  redis-data:
+  postgres-data:
+
+networks:
+  external:
+  internal:
