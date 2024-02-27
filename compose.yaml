@@ -20,7 +20,7 @@ services:
     container_name: redis
     image: redis:7-alpine
     env_file:
-      - .env.redis
+      - .env
     environment:
       - REDIS_USER=${REDIS_USER}
       - REDIS_PW=${REDIS_PW}
@@ -37,7 +37,7 @@ services:
     container_name: postgres
     image: postgres:16-alpine
     env_file:
-      - .env.postgres
+      - .env
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PW}
@@ -53,9 +53,9 @@ services:
 
   pgadmin:
     container_name: pgadmin
-    image: dpage/pgadmin4:8-alpine
+    image: dpage/pgadmin4:8.3
     env_file:
-      - .env.pgadmin
+      - .env
     environment:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_MAIL}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PW}
