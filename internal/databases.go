@@ -27,7 +27,8 @@ func InitializeRedis() error {
 }
 
 func InitializePostgres() (*gorm.DB, error) {
-	dsn := "host=localhost user=postgres password=postgres dbname=capstone_gateway port=5432 sslmode=disable TimeZone=Europe/Berlin"
+	// use them in db connection
+	dsn := "host=postgres user=postgres password=postgres dbname=postgres port=5432 sslmode=disable TimeZone=Europe/Berlin"
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
@@ -40,7 +41,7 @@ func MigrateDB(db *gorm.DB) error {
 		&Service{},
 		&Endpoint{},
 		&Middleware{},
-		&MiddlewareConfiguration{},
+		&MiddlewareConfig{},
 		&Path{},
 		&Tag{},
 		&Protocol{},
