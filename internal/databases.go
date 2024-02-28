@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"log"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
@@ -10,10 +11,11 @@ import (
 
 // https://redis.io/docs/connect/clients/go/
 var RDB *redis.Client
+var DB *gorm.DB
 
 func InitializeRedis() error {
 	RDB = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     "redis:6379",
 		Password: "",
 		DB:       0,
 	})
@@ -26,18 +28,8 @@ func InitializeRedis() error {
 	return nil
 }
 
-func InitializePostgres() (*gorm.DB, error) {
-	// use them in db connection
-	dsn := "host=postgres user=postgres password=postgres dbname=postgres port=5432 sslmode=disable TimeZone=Europe/Berlin"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
-func MigrateDB(db *gorm.DB) error {
-	err := db.AutoMigrate(
+func MigrateDB() error {
+	err := DB.AutoMigrate(
 		&Service{},
 		&Endpoint{},
 		&Middleware{},
@@ -48,6 +40,20 @@ func MigrateDB(db *gorm.DB) error {
 		&HTTPHeader{},
 		&HTTPMethod{},
 	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func InitializePostgres() error {
+	var err error
+	dsn := "host=postgres user=postgres password=postgres dbname=postgres port=5432 sslmode=disable TimeZone=Europe/Berlin"
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Panicf("Failed to connect to database: %v", err)
+	}
+	err = MigrateDB()
 	if err != nil {
 		return err
 	}
