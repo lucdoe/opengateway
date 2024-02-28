@@ -3,25 +3,19 @@ package main
 import (
 	"log"
 
-	"github.com/gin-gonic/gin"
-	i "github.com/lucdoe/gateway_admin_api/internal"
+	"github.com/lucdoe/gateway_admin_api/internal"
 )
 
 func main() {
-	i.InitializeRedis()
-	db, err := i.InitializePostgres()
-	if err != nil {
-		log.Fatal(err)
+	app := internal.InitializeAPP()
+
+	if err := app.InitializeCache(); err != nil {
+		log.Fatal("Failed to initialize Cache:", err)
 	}
-	err = i.MigrateDB(db)
-	if err != nil {
-		log.Fatal(err)
+
+	if err := app.InitializeDB(); err != nil {
+		log.Fatal("Failed to initialize Database:", err)
 	}
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
-	r.Run() // listen and serve on
+
+	app.Run(":8080")
 }
