@@ -3,19 +3,22 @@ package main
 import (
 	"log"
 
-	"github.com/lucdoe/gateway_admin_api/internal"
+	"github.com/lucdoe/gateway_admin_api/app"
+	"github.com/lucdoe/gateway_admin_api/internal/databases"
 )
 
 func main() {
-	app := internal.InitializeAPP()
-
-	if err := app.InitializeCache(); err != nil {
-		log.Fatal("Failed to initialize Cache:", err)
+	err := databases.InitializeRedis()
+	if err != nil {
+		log.Fatal("Failed to initialize Redis:", err)
 	}
 
-	if err := app.InitializeDB(); err != nil {
+	db, err := databases.InitializePostgres()
+	if err != nil {
 		log.Fatal("Failed to initialize Database:", err)
 	}
+
+	app := app.InitializeAPP(db)
 
 	app.Run(":8080")
 }
