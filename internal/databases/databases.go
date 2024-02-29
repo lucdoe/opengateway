@@ -1,8 +1,7 @@
-package internal
+package databases
 
 import (
 	"context"
-	"log"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
@@ -28,8 +27,8 @@ func InitializeRedis() error {
 	return nil
 }
 
-func MigrateDB() error {
-	err := DB.AutoMigrate(
+func MigrateDB(db *gorm.DB) error {
+	err := db.AutoMigrate(
 		&Service{},
 		&Endpoint{},
 		&Middleware{},
@@ -46,16 +45,15 @@ func MigrateDB() error {
 	return nil
 }
 
-func InitializePostgres() error {
-	var err error
+// In databases.go
+func InitializePostgres() (*gorm.DB, error) {
 	dsn := "host=postgres user=postgres password=postgres dbname=postgres port=5432 sslmode=disable TimeZone=Europe/Berlin"
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Panicf("Failed to connect to database: %v", err)
+		return nil, err
 	}
-	err = MigrateDB()
-	if err != nil {
-		return err
+	if err = MigrateDB(db); err != nil {
+		return nil, err
 	}
-	return nil
+	return db, nil
 }
