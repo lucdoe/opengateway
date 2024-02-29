@@ -13,7 +13,8 @@ RUN go mod download
 
 # Copy the source code
 COPY cmd/*.go ./cmd/
-COPY internal/*.go ./internal/
+COPY app/*.go ./app/
+COPY internal ./internal/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux go build -o /docker-go ./cmd
