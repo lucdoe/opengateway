@@ -47,3 +47,16 @@ func (sc *ServiceController) CreateService(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, service)
 }
+
+func (sc *ServiceController) UpdateService(c *gin.Context) {
+	var service Service
+	if err := c.BindJSON(&service); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := sc.Service.UpdateService(&service); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, service)
+}

@@ -4,6 +4,7 @@ type IService interface {
 	GetAllServices() ([]Service, error)
 	GetServiceByID(id string) (*Service, error)
 	CreateService(*Service) error
+	UpdateService(*Service) error
 }
 
 func (s *Service) GetAllServices() ([]Service, error) {
@@ -24,6 +25,13 @@ func (s *Service) GetServiceByID(id string) (*Service, error) {
 
 func (s *Service) CreateService(srvc *Service) error {
 	if err := DB.Create(srvc).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) UpdateService(srvc *Service) error {
+	if err := DB.Save(srvc).Error; err != nil {
 		return err
 	}
 	return nil
