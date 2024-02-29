@@ -3,6 +3,7 @@ package internal
 type IService interface {
 	GetAllServices() ([]Service, error)
 	GetServiceByID(id string) (*Service, error)
+	CreateService(*Service) error
 }
 
 func (s *Service) GetAllServices() ([]Service, error) {
@@ -19,4 +20,11 @@ func (s *Service) GetServiceByID(id string) (*Service, error) {
 		return nil, err
 	}
 	return &service, nil
+}
+
+func (s *Service) CreateService(srvc *Service) error {
+	if err := DB.Create(srvc).Error; err != nil {
+		return err
+	}
+	return nil
 }
