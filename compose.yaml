@@ -58,6 +58,14 @@ services:
       - internal
       - external
 
+  gateway_frontend:
+    image: gateway_frontend
+    build: ../gateway_gui
+    ports:
+      - 3000:3000
+    networks:
+      - external
+
 volumes:
   redis-data:
   postgres-data:
