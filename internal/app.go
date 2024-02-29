@@ -14,12 +14,10 @@ func InitializeAPP() *App {
 	app := &App{
 		Router: gin.Default(),
 	}
-	app.setupRoutes()
-	return app
-}
 
-func (app *App) setupRoutes() {
-	app.Router.GET("/services", NewServiceController(&Service{}).GetAllServices)
+	app.SetupRoutes()
+
+	return app
 }
 
 func (app *App) InitializeCache() error {
