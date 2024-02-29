@@ -6,10 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Routes() *gin.Engine {
-	r := gin.Default()
+func (app *App) SetupRoutes() *gin.Engine {
+	r := app.Router
 
-	// define routes for services, endpoints, middlewares, and tags
+	r.GET("/services", SController(&Service{}).GetAllServices)
+	r.GET("/services/:id", SController(&Service{}).GetServiceByID)
 
 	return r
 }
