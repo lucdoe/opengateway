@@ -5,39 +5,29 @@
 # https://docs.docker.com/engine/reference/builder/
 
 ################################################################################
+
 # Create a stage for building the application.
 ARG GO_VERSION=1.21.1
 FROM golang:${GO_VERSION} AS build
 WORKDIR /src
 
-# Download dependencies as a separate step to take advantage of Docker's caching.
-# Leverage a cache mount to /go/pkg/mod/ to speed up subsequent builds.
-# Leverage bind mounts to go.sum and go.mod to avoid having to copy them into
-# the container.
-RUN --mount=type=cache,target=/go/pkg/mod/ \
-    --mount=type=bind,source=go.sum,target=go.sum \
-    --mount=type=bind,source=go.mod,target=go.mod \
-    go mod download -x
+# Copy the go.mod and go.sum files into the working directory
+COPY go.mod go.sum ./
 
-# Build the application.
-# Leverage a cache mount to /go/pkg/mod/ to speed up subsequent builds.
-# Leverage a bind mount to the current directory to avoid having to copy the
-# source code into the container.
-RUN --mount=type=cache,target=/go/pkg/mod/ \
-    --mount=type=bind,target=. \
-    CGO_ENABLED=0 go build -o /bin/server ./
+# Download dependencies. Note: There's no need for the --mount directive here
+RUN go mod download
+
+# Copy the rest of your application's source code
+COPY . .
+
+# Build the application
+RUN CGO_ENABLED=0 go build -o /bin/server ./cmd/opengateway/
 
 ################################################################################
+
 # Create a new stage for running the application that contains the minimal
 # runtime dependencies for the application. This often uses a different base
-# image from the build stage where the necessary files are copied from the build
-# stage.
-#
-# The example below uses the alpine image as the foundation for running the app.
-# By specifying the "latest" tag, it will also use whatever happens to be the
-# most recent version of that image when you build your Dockerfile. If
-# reproducability is important, consider using a versioned tag
-# (e.g., alpine:3.17.2) or SHA (e.g., alpine@sha256:c41ab5c992deb4fe7e5da09f67a8804a46bd0592bfdf0b1847dde0e0889d2bff).
+# image from the build stage where the necessary files are copied from the build stage.
 FROM alpine:3.18 AS final
 
 # Install any runtime dependencies that are needed to run your application.
@@ -66,8 +56,7 @@ USER appuser
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
 
-# Copy the config directory into the container
-COPY config/ /app/config/
+COPY config.yaml /app/
 
 # Set the working directory to /app
 WORKDIR /app
@@ -75,5 +64,11 @@ WORKDIR /app
 # Expose the port that the application listens on.
 EXPOSE 8080
 
+# Add a healthcheck to the container
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:8080/health || exit 1
+
 # What the container should run when it is started.
 ENTRYPOINT [ "/bin/server" ]
+
+
