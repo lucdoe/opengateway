@@ -1,0 +1,91 @@
+title: Sample API Gateway for Example Company
+contact:
+  name: API Support
+  url: https://www.example.com/support
+  email: support@example.com
+version: 1.0.1
+
+globalMiddlewares:
+  - name: CORS
+    middleware: CORS
+    description: CORS Middleware for Example Company
+    config:
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+      headers:
+        - Authorization
+        - Content-Type
+        - X-Request-ID
+      origins:
+        - "*"
+      credentials: true
+      maxAge: 86400
+
+  - name: Security-Headers
+    middleware: SecurityHeaders
+    description: Security Headers Middleware for Example Company
+    config:
+      xssProtection: "true" 
+      contentTypeOptions: true 
+      frameOptions: "true" 
+      referrerPolicy: "true" 
+      featurePolicy: true 
+      contentSecurityPolicy: "true" 
+      permissionsPolicy: true 
+      strictTransportSecurity: true 
+
+  - name: Rate-Limit
+    middleware: RateLimit
+    description: Rate Limit Middleware for Example Company
+    config:
+      max: 50
+      duration: 1m
+
+  - name: Body-Limit
+    middleware: BodyLimit
+    description: Body Limit Middleware for Example Company
+    config:
+      limit: 1mb
+
+  - name: GZIP
+    middleware: GZIP
+    description: GZIP Middleware for Example Company
+
+  - name: Logger
+    middleware: Logger
+    description: Logger Middleware for Example Company
+
+  - name: JWT
+    middleware: JWT
+    description: JWT Middleware for Example Company
+    config:
+      secret: "secret"
+
+services:
+  - name: SampleService
+    description: Sample Service for Example Company
+    contact:
+      name: Sample Service Team
+      email: sampleserviceteam@example.com
+      note: For any issues or queries, please contact the Sample Service Team on slack.
+    protocol: http
+    host: sample.example.com
+    basePath: /api/v1
+    port: 8080
+    url: "{protocol}://{host}:{port}{basePath}"
+    endpoints:
+      - path: /sample
+        methods:
+          - GET
+        description: Sample Endpoint for Example Company
+        middlewares:
+          - name: SampleMiddleware
+            middleware: SampleMiddleware
+            description: Sample Middleware for Example Company
+            methods:
+              - GET
