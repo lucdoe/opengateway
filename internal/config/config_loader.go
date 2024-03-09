@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 
 	"gopkg.in/yaml.v3"
 )
@@ -15,16 +14,18 @@ type ConfigLoaderI interface {
 	LoadFromFile(path string) (*TopLevel, error)
 }
 
-type Loader struct{}
-
-func NewLoader() *Loader {
-	return &Loader{}
+type Loader struct {
+	FileReader FileReader
 }
 
-func (y *Loader) LoadConfigFromFile(filePath string) (*TopLevel, error) {
+func NewLoader(fileReader FileReader) *Loader {
+	return &Loader{FileReader: fileReader}
+}
+
+func (l *Loader) LoadConfigFromFile(filePath string) (*TopLevel, error) {
 	var config TopLevel
 
-	data, err := os.ReadFile(filePath)
+	data, err := l.FileReader.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config file: %w", err)
 	}
