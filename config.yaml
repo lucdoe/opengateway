@@ -7,7 +7,6 @@ version: 1.0.1
 
 globalMiddlewares:
   - name: CORS
-    middleware: CORS
     description: CORS Middleware for Example Company
     config:
       methods:
@@ -26,45 +25,28 @@ globalMiddlewares:
       credentials: true
       maxAge: 86400
 
-  - name: Security-Headers
-    middleware: SecurityHeaders
+  - name: SecurityHeaders
     description: Security Headers Middleware for Example Company
     config:
-      xssProtection: "true" 
-      contentTypeOptions: true 
-      frameOptions: "true" 
-      referrerPolicy: "true" 
-      featurePolicy: true 
-      contentSecurityPolicy: "true" 
-      permissionsPolicy: true 
-      strictTransportSecurity: true 
+      xssProtection: "true"
+      contentTypeOptions: "true"
+      frameOptions: "true"
+      referrerPolicy: "true"
+      featurePolicy: "true"
+      contentSecurityPolicy: "true"
+      permissionsPolicy: "true"
+      strictTransportSecurity: "true"
 
-  - name: Rate-Limit
-    middleware: RateLimit
-    description: Rate Limit Middleware for Example Company
-    config:
-      max: 50
-      duration: 1m
-
-  - name: Body-Limit
-    middleware: BodyLimit
+  - name: BodyLimit
     description: Body Limit Middleware for Example Company
     config:
       limit: 1mb
 
   - name: GZIP
-    middleware: GZIP
     description: GZIP Middleware for Example Company
 
   - name: Logger
-    middleware: Logger
     description: Logger Middleware for Example Company
-
-  - name: JWT
-    middleware: JWT
-    description: JWT Middleware for Example Company
-    config:
-      secret: "secret"
 
 services:
   - name: SampleService
@@ -77,15 +59,26 @@ services:
     host: sample.example.com
     basePath: /api/v1
     port: 8080
-    url: "{protocol}://{host}:{port}{basePath}"
     endpoints:
       - path: /sample
         methods:
           - GET
         description: Sample Endpoint for Example Company
         middlewares:
-          - name: SampleMiddleware
-            middleware: SampleMiddleware
-            description: Sample Middleware for Example Company
-            methods:
-              - GET
+
+  - name: SampleService2
+    description: Sample Service 2 for Example Company
+    contact:
+      name: Sample Service 2 Team
+      email:
+    protocol: http
+    host: sample2.example.com
+    basePath: /api/v1
+    port: 8081
+    endpoints:
+      - path: /sample
+        methods:
+          - GET
+          - POST
+        description: Sample Endpoint for Example Company
+        middlewares:
