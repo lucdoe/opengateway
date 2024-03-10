@@ -56,9 +56,9 @@ services:
       email: sampleserviceteam@example.com
       note: For any issues or queries, please contact the Sample Service Team on slack.
     protocol: http
-    host: sample.example.com
+    host: localhost
     basePath: /api/v1
-    port: 8080
+    port: 3000
     endpoints:
       - path: /sample
         methods:
@@ -72,8 +72,8 @@ services:
       name: Sample Service 2 Team
       email:
     protocol: http
-    host: sample2.example.com
-    basePath: /api/v1
+    host: localhost
+    basePath: /api/v2
     port: 8081
     endpoints:
       - path: /sample
