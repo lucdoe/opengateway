@@ -1,4 +1,4 @@
-package utils__test
+package utils_test
 
 import (
 	"testing"
@@ -7,8 +7,9 @@ import (
 )
 
 func TestConstructURL(t *testing.T) {
-	// Define test cases
-	tests := []struct {
+	constructor := utils.GatewayURLConstructor()
+
+	testCases := []struct {
 		name    string
 		baseURL string
 		path    string
@@ -37,21 +38,18 @@ func TestConstructURL(t *testing.T) {
 		},
 	}
 
-	for _, testcase := range tests {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := constructor.ConstructURL(tc.baseURL, tc.path)
 
-		t.Run(testcase.name, func(t *testing.T) {
-
-			got, err := utils.ConstructURL(testcase.baseURL, testcase.path)
-
-			if (err != nil) != testcase.wantErr {
-				t.Errorf("ConstructURL() error = %v, wantErr %v", err, testcase.wantErr)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("ConstructURL() error = %v, wantErr %v", err, tc.wantErr)
 				return
 			}
 
-			if !testcase.wantErr && got.String() != testcase.want {
-				t.Errorf("ConstructURL() got = %v, want %v", got, testcase.want)
+			if !tc.wantErr && got.String() != tc.want {
+				t.Errorf("ConstructURL() got = %v, want %v", got, tc.want)
 			}
-
 		})
 	}
 }
