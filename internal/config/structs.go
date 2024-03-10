@@ -26,16 +26,16 @@ type Config struct {
 	Methods                 []string `yaml:"methods" json:"methods"`
 	Headers                 []string `yaml:"headers" json:"headers"`
 	Origins                 []string `yaml:"origins" json:"origins"`
-	Credentials             *bool    `yaml:"credentials,omitempty" json:"credentials,omitempty"`
+	Credentials             *string  `yaml:"credentials,omitempty" json:"credentials,omitempty"`
 	MaxAge                  *int64   `yaml:"maxAge,omitempty" json:"maxAge,omitempty"`
 	XSSProtection           *string  `yaml:"xssProtection,omitempty" json:"xssProtection,omitempty"`
-	ContentTypeOptions      *bool    `yaml:"contentTypeOptions,omitempty" json:"contentTypeOptions,omitempty"`
+	ContentTypeOptions      *string  `yaml:"contentTypeOptions,omitempty" json:"contentTypeOptions,omitempty"`
 	FrameOptions            *string  `yaml:"frameOptions,omitempty" json:"frameOptions,omitempty"`
 	ReferrerPolicy          *string  `yaml:"referrerPolicy,omitempty" json:"referrerPolicy,omitempty"`
-	FeaturePolicy           *bool    `yaml:"featurePolicy,omitempty" json:"featurePolicy,omitempty"`
+	FeaturePolicy           *string  `yaml:"featurePolicy,omitempty" json:"featurePolicy,omitempty"`
 	ContentSecurityPolicy   *string  `yaml:"contentSecurityPolicy,omitempty" json:"contentSecurityPolicy,omitempty"`
-	PermissionsPolicy       *bool    `yaml:"permissionsPolicy,omitempty" json:"permissionsPolicy,omitempty"`
-	StrictTransportSecurity *bool    `yaml:"strictTransportSecurity,omitempty" json:"strictTransportSecurity,omitempty"`
+	PermissionsPolicy       *string  `yaml:"permissionsPolicy,omitempty" json:"permissionsPolicy,omitempty"`
+	StrictTransportSecurity *string  `yaml:"strictTransportSecurity,omitempty" json:"strictTransportSecurity,omitempty"`
 	Max                     *int64   `yaml:"max,omitempty" json:"max,omitempty"`
 	Duration                *string  `yaml:"duration,omitempty" json:"duration,omitempty"`
 	Limit                   *string  `yaml:"limit,omitempty" json:"limit,omitempty"`

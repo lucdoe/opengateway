@@ -7,7 +7,7 @@ import (
 
 type CORS struct {
 	AccessControlAllowOrigin      string
-	AccessControlAllowCredentials bool
+	AccessControlAllowCredentials string
 	AccessControlExposeHeaders    string
 	AccessControlMaxAge           string
 	AccessControlAllowMethods     string
@@ -21,7 +21,7 @@ func CORSHandler(c CORS) func(http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Methods", getValidMethods(c.AccessControlAllowMethods))
 			w.Header().Set("Access-Control-Allow-Headers", c.AccessControlAllowHeaders)
 			w.Header().Set("Access-Control-Expose-Headers", c.AccessControlExposeHeaders)
-			w.Header().Set("Access-Control-Allow-Credentials", boolToString(c.AccessControlAllowCredentials))
+			w.Header().Set("Access-Control-Allow-Credentials", c.AccessControlAllowCredentials)
 			w.Header().Set("Access-Control-Max-Age", c.AccessControlMaxAge)
 
 			if r.Method == http.MethodOptions {
@@ -60,11 +60,4 @@ func getValidMethods(methods string) string {
 	}
 
 	return strings.Join(allowedMethods, ",")
-}
-
-func boolToString(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
 }
