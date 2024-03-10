@@ -2,6 +2,16 @@ package utils
 
 import "net/url"
 
-func ConstructURL(baseURL, path string) (*url.URL, error) {
+type URLConstructorI interface {
+	ConstructURL(baseURL, path string) (*url.URL, error)
+}
+
+type URLConstructor struct{}
+
+func (u *URLConstructor) ConstructURL(baseURL, path string) (*url.URL, error) {
 	return url.Parse(baseURL + path)
+}
+
+func GatewayURLConstructor() URLConstructorI {
+	return &URLConstructor{}
 }
