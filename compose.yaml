@@ -1,35 +1,75 @@
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Docker compose reference guide at
-# https://docs.docker.com/compose/compose-file/
+version: '3.8'
 
-# Here the instructions define your application as a service called "server".
-# This service is built from the Dockerfile in the current directory.
-# You can add other services your application may depend on here, such as a
-# database or a cache. For examples, see the Awesome Compose repository:
-# https://github.com/docker/awesome-compose
 services:
-  api_gateway:
-    build:
-      context: .
-      target: final
-    ports:
-      - '8080:8080'
-    depends_on:
-      redis:
-        condition: service_healthy
-
   redis:
-    image: redis:latest
-    restart: always
-    ports:
-      - '6379:6379'
+    image: redis:7-alpine
+    env_file:
+      - .env
+    environment:
+      - REDIS_USER=${REDIS_USER}
+      - REDIS_PW=${REDIS_PW}
     volumes:
       - redis-data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 3
+    restart: always
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:16-alpine
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PW}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
+    ports:
+      - 5432:5432
+    networks:
+      - internal
+
+  pgadmin:
+    image: dpage/pgadmin4:8.3
+    env_file:
+      - .env
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_MAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PW}
+    ports:
+      - 5050:80
+    restart: always
+    depends_on:
+      - postgres
+    networks:
+      - internal
+      - external
+
+  gateway_backend:
+    image: gateway_backend
+    build: ./
+    ports:
+      - 8080:8080
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - internal
+      - external
+
+  gateway_frontend:
+    image: gateway_frontend
+    build: ../gateway_gui
+    ports:
+      - 3000:3000
+    networks:
+      - external
 
 volumes:
   redis-data:
+  postgres-data:
+
+networks:
+  internal:
+  external:
