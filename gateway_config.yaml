@@ -1,0 +1,35 @@
+Services:
+  CasesService:
+    PORT: 3422
+    URL: http://localhost
+    SecretKey: verySecretKey
+    Endpoints:
+      - Name: GETCases
+        HTTPMethod: GET
+        Path: /cases
+      - Name: GETSingleCase
+        HTTPMethod: GET
+        Path: /cases/:id
+      - Name: POSTCase
+        HTTPMethod: POST
+        Path: /cases
+        AllowedJSON:
+          - caseName
+          - caseDescription
+          - caseStatus
+      - Name: PUTCase
+        HTTPMethod: PUT
+        Path: /cases/:id
+        AllowedJSON:
+          - caseName
+          - caseDescription
+          - caseStatus
+
+  UsersService:
+    PORT: 3527
+    URL: http://localhost
+    SecretKey: verySecretKey
+    Endpoints:
+      - Name: GETSingleUser
+        HTTPMethod: GET
+        Path: /users/:id
