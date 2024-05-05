@@ -1,0 +1,84 @@
+title: Sample API Gateway for Example Company
+contact:
+  name: API Support
+  url: https://www.example.com/support
+  email: support@example.com
+version: 1.0.1
+
+globalMiddlewares:
+  - name: CORS
+    description: CORS Middleware for Example Company
+    config:
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+      headers:
+        - Authorization
+        - Content-Type
+        - X-Request-ID
+      origins:
+        - "*"
+      credentials: true
+      maxAge: 86400
+
+  - name: SecurityHeaders
+    description: Security Headers Middleware for Example Company
+    config:
+      xssProtection: "true"
+      contentTypeOptions: "true"
+      frameOptions: "true"
+      referrerPolicy: "true"
+      featurePolicy: "true"
+      contentSecurityPolicy: "true"
+      permissionsPolicy: "true"
+      strictTransportSecurity: "true"
+
+  - name: BodyLimit
+    description: Body Limit Middleware for Example Company
+    config:
+      limit: 1mb
+
+  - name: GZIP
+    description: GZIP Middleware for Example Company
+
+  - name: Logger
+    description: Logger Middleware for Example Company
+
+services:
+  - name: SampleService
+    description: Sample Service for Example Company
+    contact:
+      name: Sample Service Team
+      email: sampleserviceteam@example.com
+      note: For any issues or queries, please contact the Sample Service Team on slack.
+    protocol: http
+    host: localhost
+    basePath: /api/v1
+    port: 3000
+    endpoints:
+      - path: /sample
+        methods:
+          - GET
+        description: Sample Endpoint for Example Company
+        middlewares:
+
+  - name: SampleService2
+    description: Sample Service 2 for Example Company
+    contact:
+      name: Sample Service 2 Team
+      email:
+    protocol: http
+    host: localhost
+    basePath: /api/v2
+    port: 8081
+    endpoints:
+      - path: /sample
+        methods:
+          - GET
+          - POST
+        description: Sample Endpoint for Example Company
+        middlewares:
