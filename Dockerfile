@@ -1,64 +1,41 @@
-FROM node:18-alpine AS base
+# syntax=docker/dockerfile:1
 
-# install dependencies
-FROM base AS deps
-# adding missing shared libraries (due to alpine)
-RUN apk add --no-cache libc6-compat
+FROM golang:alpine3.19 AS builder
+
+# Install git and bash. Bash is required for wait-for-it.sh
+RUN apk update && apk add --no-cache git bash
+
 WORKDIR /app
 
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-RUN \
-    if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm ci; \
-    elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
-    else echo "Lockfile not found." && exit 1; \
-    fi
+# Download Go modules
+COPY go.mod go.sum ./
+RUN go mod download
 
+# Copy the source code
+COPY cmd/*.go ./cmd/
+COPY app/*.go ./app/
+COPY internal ./internal/
 
-# build source
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Build
+RUN CGO_ENABLED=0 GOOS=linux go build -o /docker-go ./cmd
 
-# disable telemetry (next analytics)
-ENV NEXT_TELEMETRY_DISABLED 1
+# Final stage
+FROM alpine:3.19
 
-RUN \
-    if [ -f yarn.lock ]; then yarn run build; \
-    elif [ -f package-lock.json ]; then npm run build; \
-    elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm run build; \
-    else echo "Lockfile not found." && exit 1; \
-    fi
+# Install bash for wait-for-it.sh
+RUN apk add --no-cache bash
 
+WORKDIR /root/
 
-# production image environment
-FROM base AS runner
-WORKDIR /app
+# Copy the built binary from the builder stage
+COPY --from=builder /docker-go .
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+# Add wait-for-it
+COPY wait-for-it.sh /wait-for-it.sh
+RUN chmod +x /wait-for-it.sh
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Optional: Expose port
+EXPOSE 8080
 
-COPY --from=builder /app/public ./public
-
-# set permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
-# leverage output traces to reduce image size
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-
-EXPOSE 3000
-
-# set hostname and port
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
-
-# server.js is created by next build 
-CMD ["node", "server.js"]
+# Use wait-for-it.sh to wait for the postgres service to be available before starting the application
+CMD ["/wait-for-it.sh", "postgres:5432", "--", "./docker-go"]
