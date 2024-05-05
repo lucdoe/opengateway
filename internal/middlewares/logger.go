@@ -4,48 +4,41 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-const logFilePathTemplate = "logs/%s.log"
-
-type LogLevel int
-
 const (
-	INFO LogLevel = iota
+	logFilePathTemplate        = "logs/%s.log"
+	INFO                LogLVL = iota
 	ERROR
 )
 
+type LogLVL int
 type Logger struct {
 	Out *os.File
 }
 
-func CustomLogger() *Logger {
-	l := &Logger{}
-	f, err := os.OpenFile(getLogFileName(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err == nil {
-		l.Out = f
-	} else {
-		l.Out = os.Stderr
-		fmt.Println("Failed to log to file, using default stderr")
-	}
-	return l
+func getLogFileName() string {
+	return fmt.Sprintf(logFilePathTemplate, time.Now().Format("2006-01-02"))
 }
 
-func (l *Logger) log(level LogLevel, fields map[string]interface{}) {
+func (l *Logger) log(lvl LogLVL, fields map[string]interface{}) {
+	var lvlStr string
+
 	fields["@timestamp"] = time.Now().Format(time.RFC3339)
-	var levelStr string
-	switch level {
+
+	switch lvl {
 	case INFO:
-		levelStr = "info"
+		lvlStr = "info"
 	case ERROR:
-		levelStr = "error"
+		lvlStr = "error"
 	}
-	fields["event.kind"] = levelStr
+
+	fields["event.kind"] = lvlStr
 	logData, _ := json.Marshal(fields)
+
 	l.Out.Write(logData)
 	l.Out.WriteString("\n")
 }
@@ -58,26 +51,16 @@ func (l *Logger) Error(fields map[string]interface{}) {
 	l.log(ERROR, fields)
 }
 
-func setupLogger() *Logger {
-	return CustomLogger()
-}
-
-func getLogFileName() string {
-	return fmt.Sprintf(logFilePathTemplate, time.Now().Format("2006-01-02"))
-}
-
-func maskIP(ip string) string {
-	IPv6 := strings.Count(ip, ":") >= 2
-	IPv4 := strings.Count(ip, ".") >= 3
-
-	if IPv6 {
-		i := strings.LastIndex(ip, ":")
-		return ip[:i] + ":***"
-	} else if IPv4 {
-		i := strings.LastIndex(ip, ".")
-		return ip[:i] + ".***"
+func customLogger() *Logger {
+	l := &Logger{}
+	f, err := os.OpenFile(getLogFileName(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err == nil {
+		l.Out = f
+	} else {
+		l.Out = os.Stderr
+		fmt.Println("Failed to log to file, using default stderr")
 	}
-	return ip
+	return l
 }
 
 func logRequestDetails(c *gin.Context, l *Logger) {
@@ -90,7 +73,6 @@ func logRequestDetails(c *gin.Context, l *Logger) {
 		"url.original":              c.Request.URL.Path,
 		"http.response.status_code": c.Writer.Status(),
 		"event.duration":            int(latency.Milliseconds()),
-		"client.ip":                 maskIP(c.ClientIP()),
 		"user_agent.original":       c.Request.UserAgent(),
 		"http.request.referrer":     c.Request.Referer(),
 		"event.outcome":             "success",
@@ -105,6 +87,6 @@ func logRequestDetails(c *gin.Context, l *Logger) {
 }
 
 func LogRequest(c *gin.Context) {
-	l := setupLogger()
+	l := customLogger()
 	logRequestDetails(c, l)
 }
