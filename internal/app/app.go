@@ -1,34 +1,36 @@
 package app
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/lucdoe/capstone/internal"
-	"github.com/lucdoe/capstone/internal/middlewares"
+	"github.com/lucdoe/capstone_gateway/internal"
+	"github.com/lucdoe/capstone_gateway/internal/middlewares"
 )
 
-type App struct {
-	Router *gin.Engine
-}
-
-func APIGatewayAPP(config *internal.Config) (*App, error) {
-	r := gin.New()
-
-	middlewares.InitilizeMiddlewares(r)
-
-	for serviceName, service := range config.Services {
+func SetupRoutes(r internal.RouterInterface, config *internal.Config) {
+	for _, service := range config.Services {
 		for _, endpoint := range service.Endpoints {
+			hc := HandlerConfig{
+				EndpointURL: service.URL + endpoint.Path,
+				Endpoint:    endpoint,
+				Key:         service.SecretKey,
+				CheckKey:    endpoint.Auth.ApplyAuth,
+			}
+
 			switch endpoint.HTTPMethod {
 			case "GET":
-				r.GET(endpoint.Path, middlewares.ValidateRequest(endpoint.AllowedJSON))
+				r.GET(endpoint.Path, hc.AssembleEndpointMiddlewares()...)
 			case "POST":
-				r.POST(endpoint.Path, middlewares.ValidateRequest(endpoint.AllowedJSON))
+				r.POST(endpoint.Path, hc.AssembleEndpointMiddlewares()...)
 			case "PUT":
-				r.PUT(endpoint.Path, middlewares.ValidateRequest(endpoint.AllowedJSON))
+				r.PUT(endpoint.Path, hc.AssembleEndpointMiddlewares()...)
 			case "PATCH":
-				r.PATCH(endpoint.Path, middlewares.ValidateRequest(endpoint.AllowedJSON))
+				r.PATCH(endpoint.Path, hc.AssembleEndpointMiddlewares()...)
 			}
-			r.Use(middlewares.Proxy(serviceName, endpoint))
 		}
 	}
-	return &App{Router: r}, nil
+}
+
+func APIGatewayApp(router internal.RouterInterface, config *internal.Config) (*internal.App, error) {
+	middlewares.InitilizeMiddlewares(router, config)
+	SetupRoutes(router, config)
+	return &internal.App{Router: router}, nil
 }

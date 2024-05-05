@@ -1,0 +1,140 @@
+CORS:
+  Apply: true
+  Origins: ["http://localhost:3000"]
+  Headers: ["Accept", "Content-Type", "Content-Length"]
+
+Compression:
+  Apply: true
+
+Services:
+  TestService:
+    URL: http://localhost:3000
+    SecretKey: verySecretKey
+    Protocol: HTTP
+
+    Endpoints:
+      - Name: POSTTest
+        HTTPMethod: POST
+        Path: /test
+
+        QueryParams:
+          - Key: "id"
+            Type: "string"
+          - Key: "size"
+            Type: "int"
+
+        Auth:
+          ApplyAuth: true
+          Method: JWT
+          Algorithm: RS256
+          Scope:
+            ApplyScope: true
+            Names: [READ_TEST_DATA]
+
+        Body:
+          ApplyValidation: false
+          Type: "JSON"
+          Fields:
+            userId: "string"
+            address:
+              street: "string"
+
+        Resiliance:
+          ApplyRateLimit: true
+          RequestsPerMinute: 60
+
+      - Name: GETTest
+        HTTPMethod: GET
+        Path: /test
+
+        QueryParams:
+          - Key: "id"
+            Type: "string"
+          - Key: "size"
+            Type: "int"
+
+        Auth:
+          ApplyAuth: false
+          Method: JWT
+          Algorithm: RS256
+          Scope:
+            ApplyScope: true
+            Names: [READ_TEST_DATA]
+
+        Body:
+          ApplyValidation: false
+          Type: "JSON"
+          Fields:
+            userId: "string"
+            address:
+              street: "string"
+
+        Resiliance:
+          ApplyRateLimit: true
+          RequestsPerMinute: 60
+
+  TestService1:
+    URL: http://localhost:3001
+    SecretKey: verySecretKey
+    Protocol: HTTP
+
+    Endpoints:
+      - Name: POSTTest
+        HTTPMethod: POST
+        Path: /rest
+
+        QueryParams:
+          - Key: "id"
+            Type: "string"
+          - Key: "size"
+            Type: "int"
+
+        Auth:
+          ApplyAuth: false
+          Method: JWT
+          Algorithm: RS256
+          Scope:
+            ApplyScope: true
+            Names: [READ_TEST_DATA]
+
+        Body:
+          ApplyValidation: false
+          Type: "JSON"
+          Fields:
+            userId: "string"
+            address:
+              street: "string"
+
+        Resiliance:
+          ApplyRateLimit: true
+          RequestsPerMinute: 60
+
+      - Name: GETTest
+        HTTPMethod: GET
+        Path: /rest
+
+        QueryParams:
+          - Key: "id"
+            Type: "string"
+          - Key: "size"
+            Type: "int"
+
+        Auth:
+          ApplyAuth: false
+          Method: JWT
+          Algorithm: RS256
+          Scope:
+            ApplyScope: true
+            Names: [READ_TEST_DATA]
+
+        Body:
+          ApplyValidation: false
+          Type: "JSON"
+          Fields:
+            userId: "string"
+            address:
+              street: "string"
+
+        Resiliance:
+          ApplyRateLimit: true
+          RequestsPerMinute: 60
