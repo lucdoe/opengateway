@@ -5,55 +5,59 @@ import (
 	"strings"
 )
 
-type CORSMiddleware interface {
-	Handle(next http.Handler) http.Handler
+type CORS struct {
+	AccessControlAllowOrigin      string
+	AccessControlAllowCredentials string
+	AccessControlExposeHeaders    string
+	AccessControlMaxAge           string
+	AccessControlAllowMethods     string
+	AccessControlAllowHeaders     string
 }
 
-type concreteCORSMiddleware struct {
-	AllowedOrigins []string
-	AllowedMethods []string
-	AllowedHeaders []string
-}
+func CORSHandler(c CORS) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", c.getAllowOrigin())
+			w.Header().Set("Access-Control-Allow-Methods", getValidMethods(c.AccessControlAllowMethods))
+			w.Header().Set("Access-Control-Allow-Headers", c.AccessControlAllowHeaders)
+			w.Header().Set("Access-Control-Expose-Headers", c.AccessControlExposeHeaders)
+			w.Header().Set("Access-Control-Allow-Credentials", c.AccessControlAllowCredentials)
+			w.Header().Set("Access-Control-Max-Age", c.AccessControlMaxAge)
 
-func NewCORSMiddleware(origins, methods, headers []string) CORSMiddleware {
-	return &concreteCORSMiddleware{
-		AllowedOrigins: origins,
-		AllowedMethods: methods,
-		AllowedHeaders: headers,
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
-func (c *concreteCORSMiddleware) Handle(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-
-		if len(c.AllowedOrigins) == 0 || contains(c.AllowedOrigins, origin) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-		}
-
-		if r.Method == http.MethodOptions {
-			if len(c.AllowedMethods) > 0 {
-				w.Header().Set("Access-Control-Allow-Methods", joinStrings(c.AllowedMethods, ","))
-			}
-			if len(c.AllowedHeaders) > 0 {
-				w.Header().Set("Access-Control-Allow-Headers", joinStrings(c.AllowedHeaders, ","))
-			}
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+func (c *CORS) getAllowOrigin() string {
+	if c.AccessControlAllowOrigin == "" {
+		return "*"
+	}
+	return c.AccessControlAllowOrigin
 }
 
-func contains(slice []string, value string) bool {
-	for _, item := range slice {
-		if item == value {
-			return true
+func getValidMethods(methods string) string {
+	validMethods := map[string]bool{
+		"GET": true, "HEAD": true, "POST": true, "PUT": true,
+		"DELETE": true, "CONNECT": true, "OPTIONS": true, "TRACE": true, "PATCH": true,
+	}
+
+	methodsSlice := strings.Split(methods, ",")
+	var allowedMethods []string
+	for _, method := range methodsSlice {
+		if validMethods[strings.ToUpper(method)] {
+			allowedMethods = append(allowedMethods, method)
 		}
 	}
-	return false
-}
 
-func joinStrings(slice []string, sep string) string {
-	return strings.Join(slice, sep)
+	if len(allowedMethods) == 0 {
+		return "GET"
+	}
+
+	return strings.Join(allowedMethods, ",")
 }
