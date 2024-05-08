@@ -1,0 +1,21 @@
+name: open-gateway-generator
+author: lucdoe 42179648+lucdoe@users.noreply.github.com
+license: MIT
+year: 2024
+version: 0.1.0
+
+header: "Welcome to the Open-Gateway CLI tool!"
+
+description: >
+  The Open Gateway CLI tool is a code generator that helps you create the necessary code to setup your Open Gateway project. 
+  It will help you configure the Gateway to your needs and generate the necessary code to get you started.
+
+footer: "For more information, visit https://github.com/lucdoe/open-gateway/generator"
+
+use: "og-gen"
+
+aliases: ["open-gateway-generator", "og-generator", "open-gateway-gen"]
+
+examples: |
+  og-gen generate gateway
+  og-gen create service
