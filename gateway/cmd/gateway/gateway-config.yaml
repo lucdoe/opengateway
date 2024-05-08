@@ -1,0 +1,9 @@
+gateway_config:
+  version: 1.0
+  services:
+    - name: test-service
+      url: /tests
+      config: ./configs/test-service.yaml
+    - name: foo-service
+      url: /foos
+      config: ./configs/foo-service.yaml
