@@ -7,7 +7,7 @@ C4 context diagram (overview of the system) is shown below: <br>
 ![C4 diagram context](https://github.com/lucdoe/open-gateway/blob/main/docs/c4-context.png?raw=true)
 
 C4 container diagram (overview of the system's containers) is shown below: <br>
-![C4 diagram container](https://github.com/lucdoe/open-gateway/blob/main/docs/c4-container.png?raw=true)
+![C4 diagram container](https://github.com/lucdoe/open-gateway/blob/main/docs/C4-container.png?raw=true)
 
 C4 components diagram (overview of the system's components) is shown below: <br>
 ![C4 diagram components](https://github.com/lucdoe/open-gateway/blob/main/docs/c4-components.png?raw=true)
