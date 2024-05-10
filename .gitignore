@@ -24,3 +24,5 @@ go.work
 # Ignore ENV file
 .env
 *.env
+
+*log
