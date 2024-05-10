@@ -26,12 +26,14 @@ type Endpoint struct {
 	QueryParams []QueryParam           `yaml:"QueryParams"`
 	Auth        AuthConfig             `yaml:"Auth"`
 	Body        map[string]interface{} `yaml:"Body"`
+	Plugins     []string               `yaml:"Plugins"`
 }
 
 type Service struct {
 	URL       string     `yaml:"URL"`
 	Protocol  string     `yaml:"Protocol"`
 	Endpoints []Endpoint `yaml:"Endpoints"`
+	Plugins   []string   `yaml:"Plugins"`
 }
 
 type Config struct {

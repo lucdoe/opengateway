@@ -2,6 +2,8 @@ Services:
   starwars:
     URL: "https://swapi.dev/api"
     Protocol: "HTTPS"
+    Plugins:
+      - "logger"
     Endpoints:
       - Name: "List People"
         HTTPMethod: "GET"
