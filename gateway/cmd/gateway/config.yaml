@@ -1,0 +1,34 @@
+Services:
+  starwars:
+    URL: "https://swapi.dev/api"
+    Protocol: "HTTPS"
+    Endpoints:
+      - Name: "List People"
+        HTTPMethod: "GET"
+        Path: "/people"
+        QueryParams:
+          - Key: "page"
+            Value: "1"
+        Auth:
+          ApplyAuth: false
+
+      - Name: "Get Person"
+        HTTPMethod: "GET"
+        Path: "/people/1"
+        Auth:
+          ApplyAuth: false
+
+      - Name: "List Starships"
+        HTTPMethod: "GET"
+        Path: "/starships"
+        QueryParams:
+          - Key: "page"
+            Value: "1"
+        Auth:
+          ApplyAuth: false
+
+      - Name: "Get Starship"
+        HTTPMethod: "GET"
+        Path: "/starships/9"
+        Auth:
+          ApplyAuth: false
