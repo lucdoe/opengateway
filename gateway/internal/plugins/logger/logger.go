@@ -15,6 +15,8 @@ type Logger interface {
 	Init() error
 	Info(msg string, r *http.Request, duration time.Duration)
 	Error(msg string)
+	Apply(next http.Handler) http.Handler
+	Configure(settings map[string]interface{}) error
 }
 
 type OSLogger struct {
@@ -42,7 +44,7 @@ func (l *OSLogger) Init() error {
 
 func (l *OSLogger) Info(msg string, r *http.Request, duration time.Duration) {
 	if r != nil {
-		msg += fmt.Sprintf(" | Request: %s %s from %s in %dms", r.Method, r.URL.Path, r.RemoteAddr, duration.Milliseconds())
+		msg += fmt.Sprintf(" %s: %s %s from %s in %dms", msg, r.Method, r.URL.Path, r.RemoteAddr, duration.Milliseconds())
 	}
 	l.log("INFO", msg)
 }
@@ -61,4 +63,17 @@ func (l *OSLogger) log(level, msg string) {
 			fmt.Fprintf(os.Stderr, "Error writing to log file: %v\n", err)
 		}
 	}
+}
+
+func (l *OSLogger) Apply(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		duration := time.Since(start)
+		l.Info("Request", r, duration)
+	})
+}
+
+func (l *OSLogger) Configure(settings map[string]interface{}) error {
+	return nil
 }

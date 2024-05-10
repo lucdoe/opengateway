@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -65,5 +66,46 @@ func TestOSLoggerError(t *testing.T) {
 	fmt.Println(logOutput)
 	if !strings.Contains(logOutput, expectedParts) {
 		t.Errorf("Log output does not contain expected part: %s", expectedParts)
+	}
+}
+
+func TestApplyMiddleware(t *testing.T) {
+	mockFile := new(MockFileWriter)
+	log := logger.NewLogger("", mockFile)
+	if err := log.Init(); err != nil {
+		t.Fatalf("Failed to initialize logger: %v", err)
+	}
+
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	req, err := http.NewRequest("GET", "/test", nil)
+	if err != nil {
+		t.Fatalf("Could not create HTTP request: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+
+	middleware := log.Apply(mockHandler)
+
+	middleware.ServeHTTP(recorder, req)
+
+	if status := recorder.Code; status != http.StatusOK {
+		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	logOutput := mockFile.String()
+	expectedParts := []string{
+		"INFO",
+		"Request",
+		"/test",
+		"GET",
+	}
+	for _, part := range expectedParts {
+		if !strings.Contains(logOutput, part) {
+			t.Errorf("Log output does not contain expected part '%s'. Full log: %s", part, logOutput)
+		}
 	}
 }
