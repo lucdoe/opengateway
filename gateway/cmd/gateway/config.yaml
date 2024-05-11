@@ -3,9 +3,9 @@ Services:
     URL: "https://swapi.dev/api"
     Protocol: "HTTPS"
     Plugins:
-      - "logger"
       - "cache"
       - "rate-limit"
+      - "logger"
     Endpoints:
       - Name: "List People"
         HTTPMethod: "GET"

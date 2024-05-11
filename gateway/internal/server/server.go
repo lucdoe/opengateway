@@ -50,13 +50,22 @@ func (s *Server) setupRoutes(cfg *config.Config) {
 }
 
 func applyServiceMiddlewares(s *Server, plugins []string) {
+	orderedMiddlewareKeys := []string{"logger", "rate-limit", "cache"}
+
+	includedMiddlewares := make(map[string]bool)
 	for _, plugin := range plugins {
-		middleware, exists := s.Middlewares[plugin]
-		if !exists {
-			log.Printf("Middleware %s not found", plugin)
-			continue
+		includedMiddlewares[plugin] = true
+	}
+
+	for _, key := range orderedMiddlewareKeys {
+		if includedMiddlewares[key] {
+			middleware, exists := s.Middlewares[key]
+			if !exists {
+				log.Printf("Middleware %s not found", key)
+				continue
+			}
+			s.Router.Use(middleware.Middleware)
 		}
-		s.Router.Use(middleware.Middleware)
 	}
 }
 
