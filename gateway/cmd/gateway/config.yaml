@@ -3,9 +3,10 @@ Services:
     URL: "https://swapi.dev/api"
     Protocol: "HTTPS"
     Plugins:
-      - "cache"
       - "rate-limit"
       - "logger"
+      - "cache"
+      - "cors"
     Endpoints:
       - Name: "List People"
         HTTPMethod: "GET"
@@ -18,7 +19,7 @@ Services:
 
       - Name: "Get Person"
         HTTPMethod: "GET"
-        Path: "/people/1"
+        Path: "/people/{id}"
         Auth:
           ApplyAuth: false
 
@@ -33,6 +34,6 @@ Services:
 
       - Name: "Get Starship"
         HTTPMethod: "GET"
-        Path: "/starships/9"
+        Path: "/starships/{id}"
         Auth:
           ApplyAuth: false

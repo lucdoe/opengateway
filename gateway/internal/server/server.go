@@ -50,7 +50,7 @@ func (s *Server) setupRoutes(cfg *config.Config) {
 }
 
 func applyServiceMiddlewares(s *Server, plugins []string) {
-	orderedMiddlewareKeys := []string{"logger", "rate-limit", "cache"}
+	orderedMiddlewareKeys := []string{"logger", "cors", "rate-limit", "cache"}
 
 	includedMiddlewares := make(map[string]bool)
 	for _, plugin := range plugins {
