@@ -19,8 +19,8 @@ func InitMiddleware() (map[string]Middleware, error) {
 		return nil, err
 	}
 
-	cache := cache.NewCacheMiddleware("localhost:6379", "")
-	rateLimiter := ratelimit.NewRateLimitService(cache, 1, time.Minute)
+	cache := cache.NewCache("localhost:6379", "")
+	rateLimiter := ratelimit.NewRateLimitService(cache, 60, time.Minute)
 
 	middlewares := map[string]Middleware{
 		"logger":     logger,

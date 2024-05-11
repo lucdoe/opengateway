@@ -7,18 +7,21 @@ import (
 	"time"
 )
 
-type RateLimiter interface {
+type Cache interface {
 	Increment(key string, window time.Duration) (int64, error)
+}
+
+type RateLimiter interface {
 	Middleware(next http.Handler) http.Handler
 }
 
 type RateLimitService struct {
-	Store  RateLimiter
+	Store  Cache
 	Limit  int64
 	Window time.Duration
 }
 
-func NewRateLimitService(store RateLimiter, limit int64, window time.Duration) *RateLimitService {
+func NewRateLimitService(store Cache, limit int64, window time.Duration) *RateLimitService {
 	return &RateLimitService{
 		Store:  store,
 		Limit:  limit,
@@ -34,7 +37,7 @@ func (r *RateLimitService) RateLimit(key string) (count int64, remaining int64, 
 
 	curRemaining := r.Limit - curCount
 	if curRemaining < 0 {
-		return count, 0, 0, errors.New("rate limit exceeded")
+		return curCount, 0, 0, errors.New("rate limit exceeded")
 	}
 
 	return curCount, curRemaining, r.Window, nil

@@ -18,7 +18,7 @@ type cacheStore struct {
 	client *redis.Client
 }
 
-func NewCacheMiddleware(addr string, password string) CacheMiddleware {
+func NewCache(addr string, password string) CacheMiddleware {
 	client := redis.NewClient(&redis.Options{
 		Addr:     addr,
 		Password: password,
