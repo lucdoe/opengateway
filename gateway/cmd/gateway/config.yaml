@@ -4,6 +4,8 @@ Services:
     Protocol: "HTTPS"
     Plugins:
       - "logger"
+      - "cache"
+      - "rate-limit"
     Endpoints:
       - Name: "List People"
         HTTPMethod: "GET"
