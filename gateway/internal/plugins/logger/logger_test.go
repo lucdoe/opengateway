@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
 )
@@ -30,9 +29,8 @@ func TestOSLogger(t *testing.T) {
 
 	request, _ := http.NewRequest("GET", "/test", nil)
 	request.RemoteAddr = "123.123.123.123"
-	duration := 50 * time.Millisecond
 
-	log.Info("A simple request", request, duration)
+	log.Info("A simple request", request)
 
 	expectedParts := []string{
 		"INFO",

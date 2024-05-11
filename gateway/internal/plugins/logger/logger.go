@@ -13,7 +13,7 @@ type FileWriter interface {
 
 type Logger interface {
 	Init() error
-	Info(msg string, r *http.Request, duration time.Duration)
+	Info(msg string, r *http.Request)
 	Error(msg string)
 	Apply(next http.Handler) http.Handler
 	Configure(settings map[string]interface{}) error
@@ -42,9 +42,9 @@ func (l *OSLogger) Init() error {
 	return nil
 }
 
-func (l *OSLogger) Info(msg string, r *http.Request, duration time.Duration) {
+func (l *OSLogger) Info(msg string, r *http.Request) {
 	if r != nil {
-		msg += fmt.Sprintf(" %s: %s %s from %s in %dms", msg, r.Method, r.URL.Path, r.RemoteAddr, duration.Milliseconds())
+		msg += fmt.Sprintf(" %s: %s %s from %s", msg, r.Method, r.URL.Path, r.RemoteAddr)
 	}
 	l.log("INFO", msg)
 }
@@ -67,10 +67,8 @@ func (l *OSLogger) log(level, msg string) {
 
 func (l *OSLogger) Apply(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
+		l.Info("Request", r)
 		next.ServeHTTP(w, r)
-		duration := time.Since(start)
-		l.Info("Request", r, duration)
 	})
 }
 
