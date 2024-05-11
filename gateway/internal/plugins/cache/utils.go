@@ -9,11 +9,9 @@ import (
 )
 
 func generateCacheKey(r *http.Request) string {
-	serviceIdentifier := r.Context().Value("service") // Ensure these are set somewhere earlier in the middleware chain
-	endpointIdentifier := r.Context().Value("endpoint")
-
-	sortedParams := sortQueryParams(r.URL.Query())
-	return fmt.Sprintf("%s:%s:%s:%s:%s", serviceIdentifier, endpointIdentifier, r.Method, r.URL.Path, sortedParams)
+	path := r.URL.Path
+	address := r.RemoteAddr
+	return fmt.Sprintf("%s:%s:%s:%s", r.Method, path, sortQueryParams(r.URL.Query()), address)
 }
 
 func sortQueryParams(params url.Values) string {
