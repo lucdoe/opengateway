@@ -6,43 +6,57 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/open-gateway/gateway/internal/config"
-	plugin "github.com/lucdoe/open-gateway/gateway/internal/plugins"
 	"github.com/lucdoe/open-gateway/gateway/internal/proxy"
 )
 
 type Server struct {
-	Router  *mux.Router
-	Plugins *plugin.Manager
+	Router      *mux.Router
+	Middlewares map[string]Middleware
 }
 
-func NewServer() *Server {
-	return &Server{
-		Router:  mux.NewRouter(),
-		Plugins: plugin.NewManager(),
+func NewServer(cfg *config.Config) (*Server, error) {
+	router := mux.NewRouter()
+	mws, err := InitMiddleware()
+	if err != nil {
+		return nil, err
 	}
+
+	server := &Server{
+		Router:      router,
+		Middlewares: mws,
+	}
+	server.setupRoutes(cfg)
+	return server, nil
 }
 
-func (s *Server) SetupRoutes(cfg *config.Config) {
+func (s *Server) setupRoutes(cfg *config.Config) {
+	proxyService := proxy.NewProxyService()
+
 	for _, service := range cfg.Services {
-		serviceHandler := func(next http.Handler) http.Handler {
-			return s.Plugins.ApplyPlugins(service.Plugins, next)
-		}
+		applyServiceMiddlewares(s, service.Plugins)
 
 		for _, endpoint := range service.Endpoints {
 			targetURL := service.URL
 			handler := func(w http.ResponseWriter, r *http.Request) {
-				proxyService := proxy.NewProxyService()
 				err := proxyService.ReverseProxy(targetURL, w, r)
 				if err != nil {
 					http.Error(w, "Proxy error", http.StatusInternalServerError)
 				}
 			}
 
-			endpointHandler := serviceHandler(http.HandlerFunc(handler))
-
-			wrappedHandler := s.Plugins.ApplyPlugins(endpoint.Plugins, endpointHandler)
-			s.Router.HandleFunc(endpoint.Path, wrappedHandler.ServeHTTP).Methods(endpoint.HTTPMethod)
+			s.Router.HandleFunc(endpoint.Path, handler).Methods(endpoint.HTTPMethod)
 		}
+	}
+}
+
+func applyServiceMiddlewares(s *Server, plugins []string) {
+	for _, plugin := range plugins {
+		middleware, exists := s.Middlewares[plugin]
+		if !exists {
+			log.Printf("Middleware %s not found", plugin)
+			continue
+		}
+		s.Router.Use(middleware.Middleware)
 	}
 }
 
