@@ -2,6 +2,8 @@ package ratelimit_test
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -19,64 +21,58 @@ func (m *MockRateLimiter) Increment(key string, window time.Duration) (int64, er
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockRateLimiter) Expire(key string, window time.Duration) error {
-	args := m.Called(key, window)
-	return args.Error(0)
+func (m *MockRateLimiter) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count, err := m.Increment(r.RemoteAddr, 1*time.Minute)
+		if err != nil {
+			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+		w.Header().Set("X-Rate-Limit-Count", string(rune(count)))
+	})
 }
 
-func TestRateLimitService(t *testing.T) {
+func TestRateLimitMiddleware(t *testing.T) {
 	mockLimiter := new(MockRateLimiter)
 	limit := int64(10)
 	window := time.Minute
 	service := ratelimit.NewRateLimitService(mockLimiter, limit, window)
 
-	tests := []struct {
-		name          string
-		key           string
-		incrementResp int64
-		incrementErr  error
-		expectedError string
-	}{
-		{
-			name:          "Below limit",
-			key:           "user1",
-			incrementResp: 5,
-		},
-		{
-			name:          "At limit",
-			key:           "user2",
-			incrementResp: 10,
-		},
-		{
-			name:          "Above limit",
-			key:           "user3",
-			incrementResp: 11,
-			expectedError: "rate limit exceeded",
-		},
-		{
-			name:          "Storage error",
-			key:           "user4",
-			incrementErr:  errors.New("storage failure"),
-			expectedError: "storage failure",
-		},
-	}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mockLimiter.On("Increment", tc.key, window).Return(tc.incrementResp, tc.incrementErr).Once()
+	middleware := service.Middleware(handler)
 
-			count, remaining, _, err := service.RateLimit(tc.key)
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "123.123.123.123"
 
-			if tc.expectedError != "" {
-				assert.Error(t, err)
-				assert.Equal(t, tc.expectedError, err.Error())
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.incrementResp, count)
-				assert.Equal(t, limit-count, remaining)
-			}
+	t.Run("Under limit", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		mockLimiter.On("Increment", req.RemoteAddr, window).Return(int64(1), nil).Once()
+		middleware.ServeHTTP(recorder, req)
 
-			mockLimiter.AssertExpectations(t)
-		})
-	}
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		assert.Equal(t, "10", recorder.Header().Get("X-RateLimit-Limit"))
+		assert.Equal(t, "9", recorder.Header().Get("X-RateLimit-Remaining"))
+	})
+
+	t.Run("Rate limit exceeded", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		mockLimiter.On("Increment", req.RemoteAddr, window).Return(int64(11), nil).Once()
+		middleware.ServeHTTP(recorder, req)
+
+		assert.Equal(t, http.StatusTooManyRequests, recorder.Code)
+		assert.Equal(t, "0", recorder.Header().Get("X-RateLimit-Remaining"))
+	})
+
+	t.Run("Increment error", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		mockLimiter.On("Increment", req.RemoteAddr, window).Return(int64(0), errors.New("redis error")).Once()
+		middleware.ServeHTTP(recorder, req)
+
+		assert.Equal(t, http.StatusInternalServerError, recorder.Code) // Assuming you handle all errors as 500s
+	})
 }

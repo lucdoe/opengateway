@@ -2,12 +2,14 @@ package ratelimit
 
 import (
 	"errors"
+	"net/http"
+	"strconv"
 	"time"
 )
 
 type RateLimiter interface {
 	Increment(key string, window time.Duration) (int64, error)
-	Expire(key string, window time.Duration) error
+	Middleware(next http.Handler) http.Handler
 }
 
 type RateLimitService struct {
@@ -36,4 +38,21 @@ func (r *RateLimitService) RateLimit(key string) (count int64, remaining int64, 
 	}
 
 	return curCount, curRemaining, r.Window, nil
+}
+
+func (r *RateLimitService) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		key := req.RemoteAddr
+		_, remaining, window, err := r.RateLimit(key)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusTooManyRequests)
+			return
+		}
+
+		w.Header().Set("X-RateLimit-Limit", strconv.FormatInt(r.Limit, 10))
+		w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(remaining, 10))
+		w.Header().Set("X-RateLimit-Reset", window.String())
+
+		next.ServeHTTP(w, req)
+	})
 }
