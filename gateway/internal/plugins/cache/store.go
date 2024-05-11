@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lucdoe/open-gateway/gateway/internal/server"
+	"github.com/lucdoe/open-gateway/gateway/internal"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -42,7 +42,7 @@ func (s *cacheStore) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		recorder := server.NewResponseRecorder(w)
+		recorder := internal.NewResponseRecorder(w)
 		next.ServeHTTP(recorder, r)
 
 		if recorder.StatusCode == http.StatusOK {
