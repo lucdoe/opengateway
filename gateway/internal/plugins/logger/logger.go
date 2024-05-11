@@ -12,11 +12,8 @@ type FileWriter interface {
 }
 
 type Logger interface {
-	Init() error
 	Info(msg string, r *http.Request)
-	Error(msg string)
-	Apply(next http.Handler) http.Handler
-	Configure(settings map[string]interface{}) error
+	Middleware(next http.Handler) http.Handler
 }
 
 type OSLogger struct {
@@ -24,22 +21,19 @@ type OSLogger struct {
 	file     FileWriter
 }
 
-func NewLogger(filePath string, file FileWriter) Logger {
+func NewLogger(filePath string, file FileWriter) (Logger, error) {
+	if file == nil {
+		var err error
+		file, err = os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open log file: %w", err)
+		}
+	}
+
 	return &OSLogger{
 		filePath: filePath,
 		file:     file,
-	}
-}
-
-func (l *OSLogger) Init() error {
-	if l.file == nil {
-		var err error
-		l.file, err = os.OpenFile(l.filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			return fmt.Errorf("failed to open log file: %w", err)
-		}
-	}
-	return nil
+	}, nil
 }
 
 func (l *OSLogger) Info(msg string, r *http.Request) {
@@ -47,10 +41,6 @@ func (l *OSLogger) Info(msg string, r *http.Request) {
 		msg += fmt.Sprintf(" %s: %s %s from %s", msg, r.Method, r.URL.Path, r.RemoteAddr)
 	}
 	l.log("INFO", msg)
-}
-
-func (l *OSLogger) Error(msg string) {
-	l.log("ERROR", msg)
 }
 
 func (l *OSLogger) log(level, msg string) {
@@ -65,13 +55,9 @@ func (l *OSLogger) log(level, msg string) {
 	}
 }
 
-func (l *OSLogger) Apply(next http.Handler) http.Handler {
+func (l *OSLogger) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l.Info("Request", r)
 		next.ServeHTTP(w, r)
 	})
-}
-
-func (l *OSLogger) Configure(settings map[string]interface{}) error {
-	return nil
 }

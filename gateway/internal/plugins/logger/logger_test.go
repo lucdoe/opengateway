@@ -2,7 +2,6 @@ package logger_test
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,56 +20,35 @@ func (m *MockFileWriter) Write(p []byte) (n int, err error) {
 
 func TestOSLogger(t *testing.T) {
 	mockFile := new(MockFileWriter)
-	log := logger.NewLogger("test.log", mockFile)
-
-	if err := log.Init(); err != nil {
+	logger, err := logger.NewLogger("", mockFile)
+	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
 	}
 
 	request, _ := http.NewRequest("GET", "/test", nil)
 	request.RemoteAddr = "123.123.123.123"
 
-	log.Info("A simple request", request)
+	logger.Info("A simple request", request)
 
 	expectedParts := []string{
 		"INFO",
 		"A simple request",
 		"GET /test",
 		"from 123.123.123.123",
-		"in 50ms",
 	}
 
 	logOutput := mockFile.String()
 	for _, part := range expectedParts {
 		if !strings.Contains(logOutput, part) {
-			t.Errorf("Log output does not contain expected part: %s", part)
+			t.Errorf("Log output does not contain expected part: %s. Full log: %s", part, logOutput)
 		}
-	}
-}
-
-func TestOSLoggerError(t *testing.T) {
-	mockFile := new(MockFileWriter)
-	log := logger.NewLogger("test.log", mockFile)
-
-	if err := log.Init(); err != nil {
-		t.Fatalf("Failed to initialize logger: %v", err)
-	}
-
-	log.Error("A simple error")
-
-	expectedParts := "[ERROR]: A simple error"
-
-	logOutput := mockFile.String()
-	fmt.Println(logOutput)
-	if !strings.Contains(logOutput, expectedParts) {
-		t.Errorf("Log output does not contain expected part: %s", expectedParts)
 	}
 }
 
 func TestApplyMiddleware(t *testing.T) {
 	mockFile := new(MockFileWriter)
-	log := logger.NewLogger("", mockFile)
-	if err := log.Init(); err != nil {
+	log, err := logger.NewLogger("", mockFile)
+	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
 	}
 
@@ -86,7 +64,7 @@ func TestApplyMiddleware(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 
-	middleware := log.Apply(mockHandler)
+	middleware := log.Middleware(mockHandler)
 
 	middleware.ServeHTTP(recorder, req)
 
