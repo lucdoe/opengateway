@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cache"
+	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
 	ratelimit "github.com/lucdoe/open-gateway/gateway/internal/plugins/rate-limit"
 )
@@ -22,10 +23,19 @@ func InitMiddleware() (map[string]Middleware, error) {
 	cache := cache.NewCache("localhost:6379", "")
 	rateLimiter := ratelimit.NewRateLimitService(cache, 60, time.Minute)
 
+	corsConfig := cors.CORSConfig{
+		Origins: "*",
+		Methods: "GET, POST, PUT, DELETE, OPTIONS",
+		Headers: "Content-Type, Authorization",
+	}
+	corsMiddleware := cors.NewCors(corsConfig)
+
 	middlewares := map[string]Middleware{
 		"logger":     logger,
 		"cache":      cache,
 		"rate-limit": rateLimiter,
+		"cors":       corsMiddleware,
 	}
+
 	return middlewares, nil
 }
