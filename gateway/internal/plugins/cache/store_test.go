@@ -16,7 +16,7 @@ func TestIncrementAndExpire(t *testing.T) {
 	}
 	defer mr.Close()
 
-	cacheMiddleware := cache.NewCacheMiddleware(mr.Addr(), "")
+	cacheMiddleware := cache.NewCache(mr.Addr(), "")
 
 	key := "testkey"
 	window := 1 * time.Minute
@@ -38,7 +38,7 @@ func TestIncrementFailure(t *testing.T) {
 
 	mr.Close()
 
-	cacheMiddleware := cache.NewCacheMiddleware(mr.Addr(), "")
+	cacheMiddleware := cache.NewCache(mr.Addr(), "")
 
 	_, err = cacheMiddleware.Increment("shouldFail", 1*time.Minute)
 	assert.Error(t, err, "Increment should error when Redis is down")
