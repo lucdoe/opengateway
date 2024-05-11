@@ -5,53 +5,56 @@ import (
 	"net/http"
 	"time"
 
-	server "github.com/lucdoe/open-gateway/gateway/internal/server"
+	"github.com/lucdoe/open-gateway/gateway/internal/server"
 	"github.com/redis/go-redis/v9"
 )
 
-type Cache interface {
-	Init() error
+type CacheMiddleware interface {
+	Middleware(next http.Handler) http.Handler
 	Increment(key string, window time.Duration) (int64, error)
-	Expire(key string, window time.Duration) error
-	Apply(next http.Handler) http.Handler
-	Configure(settings map[string]interface{}) error
 }
 
-type CacheStore struct {
+type cacheStore struct {
 	client *redis.Client
 }
 
-func NewRedisStore() Cache {
-	return &CacheStore{}
-}
-
-func (s *CacheStore) Init() error {
-	s.client = redis.NewClient(&redis.Options{
-		Addr:     "",
-		Password: "",
+func NewCacheMiddleware(addr string, password string) CacheMiddleware {
+	client := redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: password,
 	})
-	if _, err := s.client.Ping(context.Background()).Result(); err != nil {
-		return err
+
+	if _, err := client.Ping(context.Background()).Result(); err != nil {
+		panic(err)
 	}
-	return nil
+
+	return &cacheStore{client: client}
 }
 
-func (s *CacheStore) Get(key string) (string, error) {
-	ctx := context.Background()
-	result, err := s.client.Get(ctx, key).Result()
-	if err != nil {
-		return "", err
-	}
-	return result, nil
+func (s *cacheStore) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cacheKey := generateCacheKey(r)
+		cachedResponse, err := s.get(cacheKey)
+		if err == nil && cachedResponse != "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(cachedResponse))
+			return
+		}
+
+		recorder := server.NewResponseRecorder(w)
+		next.ServeHTTP(recorder, r)
+
+		if recorder.StatusCode == http.StatusOK {
+			responseBody := recorder.Body.String()
+			s.set(cacheKey, responseBody, 10*time.Minute)
+		}
+
+		recorder.CopyBody(w)
+	})
 }
 
-func (s *CacheStore) Set(key string, value string, window time.Duration) error {
-	ctx := context.Background()
-	_, err := s.client.Set(ctx, key, value, window).Result()
-	return err
-}
-
-func (s *CacheStore) Increment(key string, window time.Duration) (int64, error) {
+func (s *cacheStore) Increment(key string, window time.Duration) (int64, error) {
 	ctx := context.Background()
 	count, err := s.client.Incr(ctx, key).Result()
 	if err != nil {
@@ -69,36 +72,12 @@ func (s *CacheStore) Increment(key string, window time.Duration) (int64, error) 
 	return count, nil
 }
 
-func (s *CacheStore) Expire(key string, window time.Duration) error {
-	ctx := context.Background()
-	_, err := s.client.Expire(ctx, key, window).Result()
+func (s *cacheStore) get(key string) (string, error) {
+	result, err := s.client.Get(context.Background(), key).Result()
+	return result, err
+}
+
+func (s *cacheStore) set(key string, value string, window time.Duration) error {
+	_, err := s.client.Set(context.Background(), key, value, window).Result()
 	return err
-}
-
-func (s *CacheStore) Apply(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cacheKey := generateCacheKey(r)
-
-		cachedResponse, err := s.Get(cacheKey)
-		if err == nil && cachedResponse != "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(cachedResponse))
-			return
-		}
-
-		recorder := server.NewResponseRecorder(w)
-		next.ServeHTTP(recorder, r)
-
-		if recorder.StatusCode == http.StatusOK {
-			responseBody := recorder.Body.String()
-			s.Set(cacheKey, responseBody, 10*time.Minute)
-		}
-
-		recorder.CopyBody(w)
-	})
-}
-
-func (s *CacheStore) Configure(settings map[string]interface{}) error {
-	return nil
 }
