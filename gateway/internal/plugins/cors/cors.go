@@ -4,6 +4,14 @@ import (
 	"strings"
 )
 
+type CORS interface {
+	ValidateOrigin(origin string) bool
+	ValidateMethod(method string) bool
+	ValidateHeaders(headers string) bool
+	GetAllowedMethods() string
+	GetAllowedHeaders() string
+}
+
 type CORSConfig struct {
 	Origins string
 	Methods string
@@ -57,4 +65,12 @@ func (c *Cors) ValidateHeaders(requestedHeaders string) bool {
 		}
 	}
 	return true
+}
+
+func (c *Cors) GetAllowedMethods() string {
+	return c.Methods
+}
+
+func (c *Cors) GetAllowedHeaders() string {
+	return c.Headers
 }
