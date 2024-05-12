@@ -6,45 +6,43 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/open-gateway/gateway/internal/config"
-	"github.com/lucdoe/open-gateway/gateway/internal/proxy"
 )
+
+type ProxyService interface {
+	ReverseProxy(targetURL string, w http.ResponseWriter, r *http.Request) error
+}
 
 type Server struct {
 	Router      *mux.Router
 	Middlewares map[string]Middleware
+	Proxy       ProxyService
 }
 
-func NewServer(cfg *config.Config) (*Server, error) {
-	router := mux.NewRouter()
-	mws, err := InitMiddleware()
-	if err != nil {
-		return nil, err
-	}
-
+func NewServer(cfg *config.Config, router *mux.Router, proxy ProxyService, mws map[string]Middleware) *Server {
 	server := &Server{
 		Router:      router,
 		Middlewares: mws,
+		Proxy:       proxy,
 	}
-	server.setupRoutes(cfg)
-	return server, nil
+	server.SetupRoutes(cfg)
+	return server
 }
 
-func (s *Server) setupRoutes(cfg *config.Config) {
-	proxyService := proxy.NewProxyService()
-
+func (s *Server) SetupRoutes(cfg *config.Config) {
 	for _, service := range cfg.Services {
 		applyServiceMiddlewares(s, service.Plugins)
 
 		for _, endpoint := range service.Endpoints {
-			targetURL := service.URL
-			handler := func(w http.ResponseWriter, r *http.Request) {
-				err := proxyService.ReverseProxy(targetURL, w, r)
-				if err != nil {
-					http.Error(w, "Proxy error", http.StatusInternalServerError)
-				}
-			}
-
+			handler := MakeHandler(s.Proxy, service.URL)
 			s.Router.HandleFunc(endpoint.Path, handler).Methods(endpoint.HTTPMethod)
+		}
+	}
+}
+
+func MakeHandler(proxy ProxyService, targetURL string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := proxy.ReverseProxy(targetURL, w, r); err != nil {
+			http.Error(w, "Proxy error", http.StatusInternalServerError)
 		}
 	}
 }
@@ -52,21 +50,20 @@ func (s *Server) setupRoutes(cfg *config.Config) {
 func applyServiceMiddlewares(s *Server, plugins []string) {
 	orderedMiddlewareKeys := []string{"logger", "cors", "rate-limit", "cache"}
 
-	includedMiddlewares := make(map[string]bool)
-	for _, plugin := range plugins {
-		includedMiddlewares[plugin] = true
-	}
-
 	for _, key := range orderedMiddlewareKeys {
-		if includedMiddlewares[key] {
-			middleware, exists := s.Middlewares[key]
-			if !exists {
-				log.Printf("Middleware %s not found", key)
-				continue
-			}
-			s.Router.Use(middleware.Middleware)
+		if _, ok := s.Middlewares[key]; ok && contains(plugins, key) {
+			s.Router.Use(s.Middlewares[key].Middleware)
 		}
 	}
+}
+
+func contains(slice []string, item string) bool {
+	for _, sliceItem := range slice {
+		if sliceItem == item {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) Run() error {
