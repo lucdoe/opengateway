@@ -48,7 +48,17 @@ func (r *RateLimitService) Middleware(next http.Handler) http.Handler {
 		key := req.RemoteAddr
 		_, remaining, window, err := r.RateLimit(key)
 		if err != nil {
+			w.Header().Set("X-RateLimit-Limit", strconv.FormatInt(r.Limit, 10))
+			w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(remaining, 10))
+			w.Header().Set("X-RateLimit-Reset", window.String())
+
+			if err.Error() == "redis error" {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			http.Error(w, err.Error(), http.StatusTooManyRequests)
+
 			return
 		}
 
