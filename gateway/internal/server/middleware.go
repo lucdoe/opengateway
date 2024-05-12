@@ -21,7 +21,7 @@ func InitMiddleware() (map[string]Middleware, error) {
 		return nil, err
 	}
 
-	cache := cache.NewCache("localhost:6379", "")
+	cache := cache.NewRedisCache("localhost:6379", "")
 	rateLimiter := ratelimit.NewRateLimitService(cache, 60, time.Minute)
 
 	corsConfig := cors.CORSConfig{
@@ -33,7 +33,7 @@ func InitMiddleware() (map[string]Middleware, error) {
 
 	middlewares := map[string]Middleware{
 		"logger":     mw.NewLoggingMiddleware(logger),
-		"cache":      cache,
+		"cache":      mw.NewCacheMiddleware(cache),
 		"rate-limit": mw.NewRateLimitMiddleware(rateLimiter),
 		"cors":       mw.NewCORSMiddleware(corsMiddleware),
 	}

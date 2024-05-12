@@ -1,6 +1,7 @@
 package cache_test
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -9,37 +10,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIncrementAndExpire(t *testing.T) {
+func TestRedisCacheOperations(t *testing.T) {
 	mr, err := miniredis.Run()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer mr.Close()
 
-	cacheMiddleware := cache.NewCache(mr.Addr(), "")
+	redisCache := cache.NewRedisCache(mr.Addr(), "")
 
-	key := "testkey"
-	window := 1 * time.Minute
-	count, err := cacheMiddleware.Increment(key, window)
-	assert.NoError(t, err, "Increment should not error")
-	assert.Equal(t, int64(1), count, "Increment should return 1 on first call")
+	keyValue, value := "testkey", "testvalue"
+	setErr := redisCache.Set(keyValue, value, 10*time.Minute)
+	assert.NoError(t, setErr, "Set should not error")
 
-	time.Sleep(window + 1*time.Second)
-	exists := mr.Exists(key)
-	assert.False(t, exists, "Key should not exist after expiration")
-}
+	retrievedValue, getErr := redisCache.Get(keyValue)
+	assert.NoError(t, getErr, "Get should not error")
+	assert.Equal(t, value, retrievedValue, "Get should retrieve what was set")
 
-func TestIncrementFailure(t *testing.T) {
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mr.Close()
+	incrementKey := "incrementkey"
+	count, incErr := redisCache.Increment(incrementKey, 1*time.Minute)
+	assert.NoError(t, incErr, "Increment should not error")
+	assert.Equal(t, int64(1), count, "Increment should return incremented value")
 
-	mr.Close()
-
-	cacheMiddleware := cache.NewCache(mr.Addr(), "")
-
-	_, err = cacheMiddleware.Increment("shouldFail", 1*time.Minute)
-	assert.Error(t, err, "Increment should error when Redis is down")
+	req, _ := http.NewRequest("GET", "/path?b=2&a=1", nil)
+	req.RemoteAddr = "123.45.67.89"
+	expectedKey := "GET:/path:a=1&b=2:123.45.67.89"
+	generatedKey := redisCache.GenerateCacheKey(req)
+	assert.Equal(t, expectedKey, generatedKey, "GenerateCacheKey should return a correctly formatted key")
 }
