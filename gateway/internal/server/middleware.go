@@ -8,6 +8,7 @@ import (
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
 	ratelimit "github.com/lucdoe/open-gateway/gateway/internal/plugins/rate-limit"
+	mw "github.com/lucdoe/open-gateway/gateway/internal/server/middleware"
 )
 
 type Middleware interface {
@@ -33,7 +34,7 @@ func InitMiddleware() (map[string]Middleware, error) {
 	middlewares := map[string]Middleware{
 		"logger":     logger,
 		"cache":      cache,
-		"rate-limit": rateLimiter,
+		"rate-limit": mw.NewRateLimitMiddleware(rateLimiter),
 		"cors":       corsMiddleware,
 	}
 
