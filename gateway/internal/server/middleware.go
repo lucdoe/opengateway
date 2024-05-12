@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,7 +20,11 @@ type Middleware interface {
 }
 
 func InitMiddleware() (map[string]Middleware, error) {
-	logger, err := logger.NewLogger("server.log", nil)
+	logFileOpener := logger.DefaultFileOpener{}
+	timeProvider := logger.RealTime{}
+	errorOutput := os.Stderr
+
+	logger, err := logger.NewLogger("server.log", nil, errorOutput, timeProvider, logFileOpener)
 	if err != nil {
 		return nil, err
 	}

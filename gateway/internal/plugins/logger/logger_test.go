@@ -2,40 +2,77 @@ package logger_test
 
 import (
 	"bytes"
+	"errors"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
 )
 
 type MockFileWriter struct {
-	bytes.Buffer
+	Writer   *bytes.Buffer
+	WriteErr error
 }
 
 func (m *MockFileWriter) Write(p []byte) (n int, err error) {
-	return m.Buffer.Write(p)
+	if m.WriteErr != nil {
+		return 0, m.WriteErr
+	}
+	return m.Writer.Write(p)
 }
 
-func TestOSLogger(t *testing.T) {
-	mockFile := new(MockFileWriter)
-	logger, err := logger.NewLogger("", mockFile)
+type MockFileOpener struct {
+	File    logger.FileWriter
+	OpenErr error
+}
+
+func (m *MockFileOpener) OpenFile(name string, flag int, perm os.FileMode) (logger.FileWriter, error) {
+	if m.OpenErr != nil {
+		return nil, m.OpenErr
+	}
+	return m.File, nil
+}
+
+type MockTimeProvider struct {
+	FixedTime time.Time
+}
+
+func (m *MockTimeProvider) Now() time.Time {
+	return m.FixedTime
+}
+
+func TestOSLoggerInfo(t *testing.T) {
+	buffer := &bytes.Buffer{}
+	mockWriter := &MockFileWriter{Writer: buffer}
+	mockOpener := &MockFileOpener{File: mockWriter}
+	mockTime := &MockTimeProvider{FixedTime: time.Date(2020, time.January, 1, 12, 0, 0, 0, time.UTC)}
+	errorBuffer := &bytes.Buffer{}
+
+	l, err := logger.NewLogger("testpath", nil, errorBuffer, mockTime, mockOpener)
 	if err != nil {
-		t.Fatalf("Failed to initialize logger: %v", err)
+		t.Fatalf("Failed to create logger: %v", err)
 	}
 
-	logger.Info("A simple request", "GET /test from 123.123.123.123")
-
-	expectedParts := []string{
-		"INFO",
-		"A simple request",
-		"GET /test",
-		"from 123.123.123.123",
+	msg, details := "test message", "test details"
+	l.Info(msg, details)
+	expectedLog := "2020-01-01 12:00:00 [INFO]: test message test details\n"
+	if got := buffer.String(); got != expectedLog {
+		t.Errorf("Expected log '%s', got '%s'", expectedLog, got)
 	}
 
-	logOutput := mockFile.String()
-	for _, part := range expectedParts {
-		if !strings.Contains(logOutput, part) {
-			t.Errorf("Log output does not contain expected part: %s. Full log: %s", part, logOutput)
-		}
+	mockWriter.WriteErr = errors.New("write failure")
+	l.Info(msg, details)
+	expectedErr := "Error writing to log file: write failure\n"
+	if got := errorBuffer.String(); !strings.Contains(got, expectedErr) {
+		t.Errorf("Expected error log to contain '%s', got '%s'", expectedErr, got)
 	}
+
+	mockOpener.OpenErr = errors.New("open failure")
+	_, err = logger.NewLogger("testpath", nil, errorBuffer, mockTime, mockOpener)
+	if err == nil || !strings.Contains(err.Error(), "open failure") {
+		t.Errorf("Expected file open error to be 'open failure', got '%v'", err)
+	}
+
 }
