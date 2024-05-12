@@ -2,23 +2,28 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
+	"sort"
+	"strings"
 	"time"
 
-	"github.com/lucdoe/open-gateway/gateway/internal"
 	"github.com/redis/go-redis/v9"
 )
 
-type CacheMiddleware interface {
-	Middleware(next http.Handler) http.Handler
+type Cache interface {
+	Get(key string) (string, error)
+	Set(key string, value string, expiration time.Duration) error
 	Increment(key string, window time.Duration) (int64, error)
+	GenerateCacheKey(rq *http.Request) string
 }
 
-type cacheStore struct {
+type RedisCache struct {
 	client *redis.Client
 }
 
-func NewCache(addr string, password string) CacheMiddleware {
+func NewRedisCache(addr string, password string) *RedisCache {
 	client := redis.NewClient(&redis.Options{
 		Addr:     addr,
 		Password: password,
@@ -28,56 +33,48 @@ func NewCache(addr string, password string) CacheMiddleware {
 		panic(err)
 	}
 
-	return &cacheStore{client: client}
+	return &RedisCache{client: client}
 }
 
-func (s *cacheStore) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cacheKey := generateCacheKey(r)
-		cachedResponse, err := s.get(cacheKey)
-		if err == nil && cachedResponse != "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(cachedResponse))
-			return
-		}
-
-		recorder := internal.NewResponseRecorder(w)
-		next.ServeHTTP(recorder, r)
-
-		if recorder.StatusCode == http.StatusOK {
-			responseBody := recorder.Body.String()
-			s.set(cacheKey, responseBody, 10*time.Minute)
-		}
-
-		recorder.CopyBody(w)
-	})
+func (r *RedisCache) Get(key string) (string, error) {
+	return r.client.Get(context.Background(), key).Result()
 }
 
-func (s *cacheStore) Increment(key string, window time.Duration) (int64, error) {
+func (r *RedisCache) Set(key string, value string, expiration time.Duration) error {
+	_, err := r.client.Set(context.Background(), key, value, expiration).Result()
+	return err
+}
+
+func (r *RedisCache) Increment(key string, window time.Duration) (int64, error) {
 	ctx := context.Background()
-	count, err := s.client.Incr(ctx, key).Result()
+	count, err := r.client.Incr(ctx, key).Result()
 	if err != nil {
 		return 0, err
 	}
 
-	var isFirstRun = count == 1
-	if isFirstRun {
-		_, err = s.client.Expire(ctx, key, window).Result()
-		if err != nil {
-			return count, err
-		}
+	if count == 1 {
+		_, err := r.client.Expire(ctx, key, window).Result()
+		return count, err
 	}
 
 	return count, nil
 }
 
-func (s *cacheStore) get(key string) (string, error) {
-	result, err := s.client.Get(context.Background(), key).Result()
-	return result, err
+func (r *RedisCache) GenerateCacheKey(rq *http.Request) string {
+	path := rq.URL.Path
+	address := rq.RemoteAddr
+	return fmt.Sprintf("%s:%s:%s:%s", rq.Method, path, r.sortQueryParams(rq.URL.Query()), address)
 }
 
-func (s *cacheStore) set(key string, value string, window time.Duration) error {
-	_, err := s.client.Set(context.Background(), key, value, window).Result()
-	return err
+func (r *RedisCache) sortQueryParams(params url.Values) string {
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var sortedParams []string
+	for _, k := range keys {
+		sortedParams = append(sortedParams, fmt.Sprintf("%s=%s", k, params.Get(k)))
+	}
+	return strings.Join(sortedParams, "&")
 }
