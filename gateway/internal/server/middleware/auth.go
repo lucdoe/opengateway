@@ -4,14 +4,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/auth"
+	auth "github.com/lucdoe/open-gateway/gateway/internal/plugins/auth"
 )
 
 type AuthMiddleware struct {
-	AuthService *auth.Auth
+	AuthService auth.AuthInterface
 }
 
-func NewAuthMiddleware(as *auth.Auth) *AuthMiddleware {
+func NewAuthMiddleware(as auth.AuthInterface) *AuthMiddleware {
 	return &AuthMiddleware{
 		AuthService: as,
 	}

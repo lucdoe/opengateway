@@ -6,9 +6,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type Authenticator interface {
-	Validate(tokenStr string) (jwt.Claims, error)
-	ParseToken(tokenStr string) (*jwt.RegisteredClaims, error)
+type AuthInterface interface {
+	Validate(token string) (jwt.Claims, error)
 }
 
 type Auth struct {
