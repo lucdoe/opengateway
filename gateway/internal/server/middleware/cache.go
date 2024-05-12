@@ -34,8 +34,9 @@ func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 		if recorder.StatusCode == http.StatusOK {
 			responseBody := recorder.Body.String()
 			cm.Cache.Set(cacheKey, responseBody, 10*time.Minute)
+			w.Write([]byte(responseBody))
+		} else {
+			recorder.CopyBody(w)
 		}
-
-		recorder.CopyBody(w)
 	})
 }
