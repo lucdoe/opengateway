@@ -54,7 +54,7 @@ func TestJWTServiceValidate(t *testing.T) {
 		},
 		{
 			name:       "Invalid signing method",
-			tokenStr:   "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.e30.HMhSiB95MEDIHjjV0a4DZ_qhHafRwXQ8D_lrcRrZO0eVHd7I9X3VZUz3oZ_Hoge2HaHQ3Yp6qjJODH3X8LFrIw", // Invalid signing method
+			tokenStr:   "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.e30.HMhSiB95MEDIHjjV0a4DZ_qhHafRwXQ8D_lrcRrZO0eVHd7I9X3VZUz3oZ_Hoge2HaHQ3Yp6qjJODH3X8LFrIw",
 			wantErr:    true,
 			errMessage: "signature is invalid",
 		},

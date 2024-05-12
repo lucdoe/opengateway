@@ -73,6 +73,6 @@ func TestRateLimitMiddleware(t *testing.T) {
 		mockLimiter.On("Increment", req.RemoteAddr, window).Return(int64(0), errors.New("redis error")).Once()
 		middleware.ServeHTTP(recorder, req)
 
-		assert.Equal(t, http.StatusInternalServerError, recorder.Code) // Assuming you handle all errors as 500s
+		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	})
 }
