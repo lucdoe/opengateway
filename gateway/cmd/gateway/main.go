@@ -3,22 +3,28 @@ package main
 import (
 	"log"
 
+	"github.com/gorilla/mux"
 	c "github.com/lucdoe/open-gateway/gateway/internal/config"
+	"github.com/lucdoe/open-gateway/gateway/internal/proxy"
 	srv "github.com/lucdoe/open-gateway/gateway/internal/server"
 )
 
 func main() {
 	cfg, err := c.NewParser("./cmd/gateway/config.yaml").Parse()
 	if err != nil {
-		log.Fatalf("failed to parse configuration: %v", err)
+		log.Fatalf("Failed to parse configuration: %v", err)
 	}
 
-	s, err := srv.NewServer(cfg)
+	router := mux.NewRouter()
+	proxyService := proxy.NewProxyService()
+	middlewares, err := srv.InitMiddleware()
 	if err != nil {
-		log.Fatalf("failed to create server: %v", err)
+		log.Fatalf("Failed to initialize middlewares: %v", err)
 	}
+
+	s := srv.NewServer(cfg, router, proxyService, middlewares)
 
 	if err := s.Run(); err != nil {
-		log.Fatalf("failed to run the server: %v", err)
+		log.Fatalf("Failed to run the server: %v", err)
 	}
 }
