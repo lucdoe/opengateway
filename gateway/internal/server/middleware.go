@@ -32,7 +32,7 @@ func InitMiddleware() (map[string]Middleware, error) {
 	corsMiddleware := cors.NewCors(corsConfig)
 
 	middlewares := map[string]Middleware{
-		"logger":     logger,
+		"logger":     mw.NewLoggingMiddleware(logger),
 		"cache":      cache,
 		"rate-limit": mw.NewRateLimitMiddleware(rateLimiter),
 		"cors":       corsMiddleware,
