@@ -7,10 +7,10 @@ import (
 )
 
 type CORSMiddleware struct {
-	CORS *cors.Cors
+	CORS cors.CORS
 }
 
-func NewCORSMiddleware(cors *cors.Cors) *CORSMiddleware {
+func NewCORSMiddleware(cors cors.CORS) *CORSMiddleware {
 	return &CORSMiddleware{
 		CORS: cors,
 	}
@@ -41,7 +41,7 @@ func (cm *CORSMiddleware) Middleware(next http.Handler) http.Handler {
 
 func (cm *CORSMiddleware) setCORSHeaders(w http.ResponseWriter, origin string) {
 	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Methods", cm.CORS.Methods)
-	w.Header().Set("Access-Control-Allow-Headers", cm.CORS.Headers)
+	w.Header().Set("Access-Control-Allow-Methods", cm.CORS.GetAllowedMethods())
+	w.Header().Set("Access-Control-Allow-Headers", cm.CORS.GetAllowedHeaders())
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 }
