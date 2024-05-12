@@ -70,7 +70,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 	t.Run("Increment error", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
-		mockLimiter.On("Increment", req.RemoteAddr, window).Return(int64(0), errors.New("redis error")).Once()
+		mockLimiter.On("Increment", req.RemoteAddr, window).Return(int64(2), errors.New("redis error")).Once()
 		middleware.ServeHTTP(recorder, req)
 
 		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
