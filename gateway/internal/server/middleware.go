@@ -35,7 +35,7 @@ func InitMiddleware() (map[string]Middleware, error) {
 		"logger":     mw.NewLoggingMiddleware(logger),
 		"cache":      cache,
 		"rate-limit": mw.NewRateLimitMiddleware(rateLimiter),
-		"cors":       corsMiddleware,
+		"cors":       mw.NewCORSMiddleware(corsMiddleware),
 	}
 
 	return middlewares, nil

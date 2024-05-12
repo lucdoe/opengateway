@@ -1,120 +1,87 @@
 package cors_test
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
 )
 
-func TestCorsMiddlewareOriginValidation(t *testing.T) {
+func TestValidateOrigin(t *testing.T) {
+	corsConfig := cors.CORSConfig{
+		Origins: "http://example.com, http://example.org, *",
+		Methods: "GET, POST",
+		Headers: "Content-Type, Authorization",
+	}
+	c := cors.NewCors(corsConfig)
+
 	tests := []struct {
 		name         string
 		origin       string
 		expectedPass bool
 	}{
 		{"Allowed Origin", "http://example.com", true},
+		{"Another Allowed Origin", "http://example.org", true},
 		{"Disallowed Origin", "http://notallowed.com", false},
 		{"Wildcard Origin", "*", true},
 	}
 
-	corsConfig := cors.CORSConfig{
-		Origins: "http://example.com, http://example.org, *",
-		Methods: "GET, POST",
-		Headers: "Content-Type, Authorization",
-	}
-	corsMiddleware := cors.NewCors(corsConfig)
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "http://localhost/", nil)
-			req.Header.Set("Origin", tc.origin)
-			rr := httptest.NewRecorder()
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-
-			corsHandler := corsMiddleware.Middleware(handler)
-			corsHandler.ServeHTTP(rr, req)
-
-			if (rr.Code == http.StatusOK) != tc.expectedPass {
-				t.Errorf("Expected pass: %v, got: %v, for origin: %v", tc.expectedPass, rr.Code == http.StatusOK, tc.origin)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if pass := c.ValidateOrigin(tt.origin); pass != tt.expectedPass {
+				t.Errorf("ValidateOrigin(%q) = %v, want %v", tt.origin, pass, tt.expectedPass)
 			}
 		})
 	}
 }
 
-func TestCorsMiddlewareMethodValidation(t *testing.T) {
+func TestValidateMethod(t *testing.T) {
 	corsConfig := cors.CORSConfig{
 		Origins: "*",
 		Methods: "GET, POST",
 		Headers: "Content-Type",
 	}
-	corsMiddleware := cors.NewCors(corsConfig)
+	c := cors.NewCors(corsConfig)
 
-	req := httptest.NewRequest("OPTIONS", "http://localhost/", nil)
-	req.Header.Set("Origin", "http://example.com")
-	req.Header.Set("Access-Control-Request-Method", "DELETE")
-	rr := httptest.NewRecorder()
+	tests := []struct {
+		method       string
+		expectedPass bool
+	}{
+		{"GET", true},
+		{"POST", true},
+		{"DELETE", false},
+	}
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	corsHandler := corsMiddleware.Middleware(handler)
-	corsHandler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusForbidden {
-		t.Errorf("Expected StatusForbidden for method DELETE, got: %v", rr.Code)
+	for _, tt := range tests {
+		t.Run(tt.method, func(t *testing.T) {
+			if pass := c.ValidateMethod(tt.method); pass != tt.expectedPass {
+				t.Errorf("ValidateMethod(%q) = %v, want %v", tt.method, pass, tt.expectedPass)
+			}
+		})
 	}
 }
 
-func TestCorsMiddlewareHeaderValidation(t *testing.T) {
+func TestValidateHeaders(t *testing.T) {
 	corsConfig := cors.CORSConfig{
 		Origins: "*",
 		Methods: "GET, POST",
-		Headers: "Content-Type",
+		Headers: "Content-Type, Authorization",
 	}
-	corsMiddleware := cors.NewCors(corsConfig)
+	c := cors.NewCors(corsConfig)
 
-	req := httptest.NewRequest("OPTIONS", "http://localhost/", nil)
-	req.Header.Set("Origin", "http://example.com")
-	req.Header.Set("Access-Control-Request-Headers", "X-Custom-Header")
-	rr := httptest.NewRecorder()
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	corsHandler := corsMiddleware.Middleware(handler)
-	corsHandler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusForbidden {
-		t.Errorf("Expected StatusForbidden for header X-Custom-Header, got: %v", rr.Code)
+	tests := []struct {
+		headers      string
+		expectedPass bool
+	}{
+		{"Content-Type", true},
+		{"Authorization", true},
+		{"X-Custom-Header", false},
 	}
-}
 
-func TestCorsMiddlewareCredentials(t *testing.T) {
-	corsConfig := cors.CORSConfig{
-		Origins: "*",
-		Methods: "GET, POST",
-		Headers: "Content-Type",
-	}
-	corsMiddleware := cors.NewCors(corsConfig)
-
-	req := httptest.NewRequest("GET", "http://localhost/", nil)
-	req.Header.Set("Origin", "http://example.com")
-	rr := httptest.NewRecorder()
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	corsHandler := corsMiddleware.Middleware(handler)
-	corsHandler.ServeHTTP(rr, req)
-
-	if rr.Header().Get("Access-Control-Allow-Credentials") != "true" {
-		t.Errorf("Expected true for Access-Control-Allow-Credentials, got: %v", rr.Header().Get("Access-Control-Allow-Credentials"))
+	for _, tt := range tests {
+		t.Run(tt.headers, func(t *testing.T) {
+			if pass := c.ValidateHeaders(tt.headers); pass != tt.expectedPass {
+				t.Errorf("ValidateHeaders(%q) = %v, want %v", tt.headers, pass, tt.expectedPass)
+			}
+		})
 	}
 }
