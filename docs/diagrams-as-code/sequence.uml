@@ -1,0 +1,40 @@
+@startuml
+
+' General Note at the top of the diagram
+note over Client, Service: This sequence diagram illustrates the request and response flow \
+through the API Gateway with all plugins activated.
+
+actor Client
+entity "RequestHandler" as RequestHandler
+entity "Middleware" as Middleware
+entity "Authentication" as Auth
+entity "Caching" as Cache
+entity "Logging" as Logger
+entity "RateLimiter" as RateLimiter
+entity "CORS" as CORS
+entity "ProxyRouter" as ProxyRouter
+entity "Service" as Service
+
+Client -> RequestHandler : Sends API Request
+RequestHandler -> Logger : Logs Request
+Logger -> Auth : Forwards Request
+Auth -> RateLimiter : Validates Authentication
+RateLimiter -> RateLimiter : Checks Rate Limits
+RateLimiter -> CORS : Forwards Request
+CORS -> Middleware : Applies CORS Policies
+Middleware -> Middleware : Applies Middleware Logic
+Middleware -> Cache : Checks Cache
+Cache -> ProxyRouter : Forwards to Router if Not Cached
+ProxyRouter -> Service : Routes to Service
+Service -> Service : Service Processes Request
+Service -> ProxyRouter : Returns Response
+ProxyRouter -> Cache : Caches Response
+Cache -> Middleware : Forwards Response
+Middleware -> CORS : Applies Response Middleware
+CORS -> RateLimiter : Forwards Response
+RateLimiter -> Auth : Forwards Response
+Auth -> Logger : Forwards Response
+Logger -> RequestHandler : Logs Response
+RequestHandler -> Client : Sends Final Response
+
+@enduml
