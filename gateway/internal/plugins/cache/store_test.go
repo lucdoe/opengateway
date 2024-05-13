@@ -17,7 +17,11 @@ func TestRedisCacheOperations(t *testing.T) {
 	}
 	defer mr.Close()
 
-	redisCache := cache.NewRedisCache(mr.Addr(), "")
+	cacheConfig := cache.CacheConfig{
+		Addr:     mr.Addr(),
+		Password: "",
+	}
+	redisCache := cache.NewRedisCache(cacheConfig)
 
 	keyValue, value := "testkey", "testvalue"
 	setErr := redisCache.Set(keyValue, value, 10*time.Minute)
