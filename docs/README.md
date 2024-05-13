@@ -10,7 +10,7 @@ C4 container diagram (overview of the system's containers) is shown below: <br>
 ![C4 diagram container](https://github.com/lucdoe/open-gateway/blob/main/docs/diagrams-as-image/container.png?raw=true)
 
 C4 components diagram (overview of the system's components) is shown below: <br>
-![C4 diagram components](https://github.com/lucdoe/open-gateway/blob/main/docs/diagrams-as-image/components.png?raw=true)
+![C4 diagram components](https://github.com/lucdoe/open-gateway/blob/main/docs/diagrams-as-image/component.png?raw=true)
 
 UML Sequence diagram (overview of the system's sequence) is shown below: <br>
 ![UML Sequence diagram](https://github.com/lucdoe/open-gateway/blob/main/docs/diagrams-as-image/sequence.png?raw=true)
