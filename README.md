@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/lucdoe/open-gateway/branch/main/graph/badge.svg?token=SDFO3CX9ZN)](https://codecov.io/gh/lucdoe/open-gateway)
+
 # Open Gateway Global Readme
 
 Welcome to the open-gateway project. This project is a collection of tools and services that can be used to create a gateway for small to mid-sized projects.
