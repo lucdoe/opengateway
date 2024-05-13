@@ -16,25 +16,25 @@ type RateLimiter interface {
 	GetLimit() int64
 }
 
-type RateLimitService struct {
+type RateLimitConfig struct {
 	Store  Cache
 	Limit  int64
 	Window time.Duration
 }
 
-func NewRateLimitService(store Cache, limit int64, window time.Duration) *RateLimitService {
-	return &RateLimitService{
-		Store:  store,
-		Limit:  limit,
-		Window: window,
+func NewRateLimitService(cfg RateLimitConfig) *RateLimitConfig {
+	return &RateLimitConfig{
+		Store:  cfg.Store,
+		Limit:  cfg.Limit,
+		Window: cfg.Window,
 	}
 }
 
-func (r *RateLimitService) GetLimit() int64 {
+func (r *RateLimitConfig) GetLimit() int64 {
 	return r.Limit
 }
 
-func (r *RateLimitService) RateLimit(key string) (count int64, remaining int64, window time.Duration, err error) {
+func (r *RateLimitConfig) RateLimit(key string) (count int64, remaining int64, window time.Duration, err error) {
 	curCount, err := r.Store.Increment(key, r.Window)
 	if err != nil {
 		return 0, 0, 0, err
