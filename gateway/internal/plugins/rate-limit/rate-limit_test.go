@@ -20,10 +20,18 @@ func (m *MockCache) Increment(key string, window time.Duration) (int64, error) {
 }
 
 func TestRateLimitService(t *testing.T) {
-	mockCache := new(MockCache)
-	limit := int64(10)
+	rlConfig := ratelimit.RateLimitConfig{
+		Store:  new(MockCache),
+		Limit:  10,
+		Window: time.Minute,
+	}
+
+	service := ratelimit.NewRateLimitService(rlConfig)
+
+	mockCache := service.Store.(*MockCache)
+
 	window := time.Minute
-	service := ratelimit.NewRateLimitService(mockCache, limit, window)
+	limit := int64(10)
 
 	t.Run("Under limit", func(t *testing.T) {
 		mockCache.On("Increment", "123.123.123.123", window).Return(int64(1), nil).Once()
