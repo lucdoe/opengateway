@@ -5,12 +5,15 @@ import (
 	"time"
 )
 
+var ErrRateLimitExceeded = errors.New("rate limit exceeded")
+
 type Cache interface {
 	Increment(key string, window time.Duration) (int64, error)
 }
 
 type RateLimiter interface {
 	RateLimit(key string) (count int64, remaining int64, window time.Duration, err error)
+	GetLimit() int64
 }
 
 type RateLimitService struct {
@@ -27,6 +30,10 @@ func NewRateLimitService(store Cache, limit int64, window time.Duration) *RateLi
 	}
 }
 
+func (r *RateLimitService) GetLimit() int64 {
+	return r.Limit
+}
+
 func (r *RateLimitService) RateLimit(key string) (count int64, remaining int64, window time.Duration, err error) {
 	curCount, err := r.Store.Increment(key, r.Window)
 	if err != nil {
@@ -35,7 +42,7 @@ func (r *RateLimitService) RateLimit(key string) (count int64, remaining int64, 
 
 	curRemaining := r.Limit - curCount
 	if curRemaining < 0 {
-		return curCount, 0, 0, errors.New("rate limit exceeded")
+		return curCount, 0, 0, ErrRateLimitExceeded
 	}
 
 	return curCount, curRemaining, r.Window, nil
