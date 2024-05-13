@@ -12,19 +12,52 @@ import (
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
 	"github.com/lucdoe/open-gateway/gateway/internal/proxy"
-	srv "github.com/lucdoe/open-gateway/gateway/internal/server"
+	"github.com/lucdoe/open-gateway/gateway/internal/server"
 )
 
-func main() {
-	cfg, err := config.NewParser("./cmd/gateway/config.yaml").Parse()
+type ConfigLoader interface {
+	LoadConfig(path string) (*config.Config, error)
+}
+
+type DefaultConfigLoader struct{}
+
+func (d *DefaultConfigLoader) LoadConfig(path string) (*config.Config, error) {
+	return config.NewParser(path).Parse()
+}
+
+type MiddlewareInitializer interface {
+	InitMiddleware(cfg server.MiddlewareConfig) (map[string]server.Middleware, error)
+}
+
+type DefaultMiddlewareInitializer struct{}
+
+func (d *DefaultMiddlewareInitializer) InitMiddleware(cfg server.MiddlewareConfig) (map[string]server.Middleware, error) {
+	return server.InitMiddleware(cfg, os.Stderr)
+}
+
+type ServerDependencies struct {
+	ConfigLoader          ConfigLoader
+	MiddlewareInitializer MiddlewareInitializer
+	Router                *mux.Router
+	ProxyService          proxy.ProxyService
+}
+
+func InitializeServer(deps ServerDependencies) (*server.Server, error) {
+	cfg, err := deps.ConfigLoader.LoadConfig("./cmd/gateway/config.yaml")
 	if err != nil {
-		log.Fatalf("Failed to parse configuration: %v", err)
+		return nil, err
 	}
 
-	router := mux.NewRouter()
-	proxyService := proxy.NewProxyService()
+	middlewares, err := deps.MiddlewareInitializer.InitMiddleware(middlewareConfig(cfg))
+	if err != nil {
+		return nil, err
+	}
 
-	middlewareConfig := srv.MiddlewareConfig{
+	return server.NewServer(cfg, deps.Router, deps.ProxyService, middlewares), nil
+}
+
+func middlewareConfig(cfg *config.Config) server.MiddlewareConfig {
+	return server.MiddlewareConfig{
 		LoggerConfig: logger.LoggerConfig{
 			FilePath:     "server.log",
 			FileWriter:   nil,
@@ -49,13 +82,21 @@ func main() {
 			Headers: "Content-Type, Authorization",
 		},
 	}
+}
 
-	middlewares, err := srv.InitMiddleware(middlewareConfig, os.Stderr)
-	if err != nil {
-		log.Fatalf("Failed to initialize middlewares: %v", err)
+func main() {
+	deps := ServerDependencies{
+		ConfigLoader:          &DefaultConfigLoader{},
+		MiddlewareInitializer: &DefaultMiddlewareInitializer{},
+		Router:                mux.NewRouter(),
+		ProxyService:          proxy.NewProxyService(),
 	}
 
-	server := srv.NewServer(cfg, router, proxyService, middlewares)
+	server, err := InitializeServer(deps)
+	if err != nil {
+		log.Fatalf("Failed to initialize the server: %v", err)
+	}
+
 	if err := server.Run(); err != nil {
 		log.Fatalf("Failed to run the server: %v", err)
 	}
