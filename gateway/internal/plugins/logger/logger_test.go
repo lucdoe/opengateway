@@ -44,13 +44,21 @@ func (m *MockTimeProvider) Now() time.Time {
 }
 
 func TestOSLoggerInfo(t *testing.T) {
-	buffer := &bytes.Buffer{}
+	buffer := new(bytes.Buffer)
 	mockWriter := &MockFileWriter{Writer: buffer}
 	mockOpener := &MockFileOpener{File: mockWriter}
 	mockTime := &MockTimeProvider{FixedTime: time.Date(2020, time.January, 1, 12, 0, 0, 0, time.UTC)}
-	errorBuffer := &bytes.Buffer{}
+	errorBuffer := new(bytes.Buffer)
 
-	l, err := logger.NewLogger("testpath", nil, errorBuffer, mockTime, mockOpener)
+	cfg := logger.LoggerConfig{
+		FilePath:     "testpath",
+		FileWriter:   mockWriter,
+		ErrOutput:    errorBuffer,
+		TimeProvider: mockTime,
+		FileOpener:   mockOpener,
+	}
+
+	l, err := logger.NewLogger(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
@@ -69,10 +77,17 @@ func TestOSLoggerInfo(t *testing.T) {
 		t.Errorf("Expected error log to contain '%s', got '%s'", expectedErr, got)
 	}
 
+	cfgNoFileWriter := logger.LoggerConfig{
+		FilePath:     "testpath",
+		FileWriter:   nil,
+		ErrOutput:    errorBuffer,
+		TimeProvider: mockTime,
+		FileOpener:   mockOpener,
+	}
+
 	mockOpener.OpenErr = errors.New("open failure")
-	_, err = logger.NewLogger("testpath", nil, errorBuffer, mockTime, mockOpener)
+	_, err = logger.NewLogger(cfgNoFileWriter)
 	if err == nil || !strings.Contains(err.Error(), "open failure") {
 		t.Errorf("Expected file open error to be 'open failure', got '%v'", err)
 	}
-
 }
