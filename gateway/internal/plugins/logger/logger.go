@@ -38,15 +38,14 @@ type OSLogger struct {
 	timeProvider TimeProvider
 }
 
-func NewLogger(cfg LoggerConfig) (Logger, error) {
+func NewLogger(cfg LoggerConfig) Logger {
 	cfg.setDefaults()
 
-	if cfg.FileWriter == nil {
-		var err error
-		cfg.FileWriter, err = cfg.FileOpener.OpenFile(cfg.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open log file: %w", err)
-		}
+	var err error
+	cfg.FileWriter, err = cfg.FileOpener.OpenFile(cfg.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		panic(err)
+
 	}
 
 	return &OSLogger{
@@ -54,7 +53,7 @@ func NewLogger(cfg LoggerConfig) (Logger, error) {
 		file:         cfg.FileWriter,
 		errOutput:    cfg.ErrOutput,
 		timeProvider: cfg.TimeProvider,
-	}, nil
+	}
 }
 
 func (l *OSLogger) Info(msg string, details string) {
