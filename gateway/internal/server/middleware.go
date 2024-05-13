@@ -53,7 +53,7 @@ func InitMiddleware() (map[string]Middleware, error) {
 
 	middlewares := map[string]Middleware{
 		"logger":     mw.NewLoggingMiddleware(logger),
-		"cache":      mw.NewCacheMiddleware(cache),
+		"cache":      mw.NewCacheMiddleware(cache, &mw.StandardResponseUtil{}),
 		"rate-limit": mw.NewRateLimitMiddleware(rateLimiter),
 		"cors":       mw.NewCORSMiddleware(corsMiddleware),
 		"auth":       mw.NewAuthMiddleware(auth),

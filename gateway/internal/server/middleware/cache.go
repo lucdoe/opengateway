@@ -9,22 +9,45 @@ import (
 )
 
 type CacheMiddleware struct {
-	Cache cache.Cache
+	Cache        cache.Cache
+	ResponseUtil ResponseUtil
 }
 
-func NewCacheMiddleware(c cache.Cache) *CacheMiddleware {
-	return &CacheMiddleware{Cache: c}
+func NewCacheMiddleware(c cache.Cache, ru ResponseUtil) *CacheMiddleware {
+	return &CacheMiddleware{
+		Cache:        c,
+		ResponseUtil: ru,
+	}
+}
+
+type ResponseUtil interface {
+	CopyStatusAndHeader(src, dst http.ResponseWriter)
+	WriteResponse(w http.ResponseWriter, statusCode int, contentType string, content []byte)
+}
+
+type StandardResponseUtil struct{}
+
+func (s *StandardResponseUtil) CopyStatusAndHeader(src, dst http.ResponseWriter) {
+	dst.WriteHeader(src.(*internal.ResponseRecorder).StatusCode)
+	for k, vv := range src.Header() {
+		for _, v := range vv {
+			dst.Header().Add(k, v)
+		}
+	}
+}
+
+func (s *StandardResponseUtil) WriteResponse(w http.ResponseWriter, statusCode int, contentType string, content []byte) {
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(statusCode)
+	w.Write(content)
 }
 
 func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cacheKey := cm.Cache.GenerateCacheKey(r)
-
 		cachedResponse, err := cm.Cache.Get(cacheKey)
 		if err == nil && cachedResponse != "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(cachedResponse))
+			cm.ResponseUtil.WriteResponse(w, http.StatusOK, "application/json", []byte(cachedResponse))
 			return
 		}
 
@@ -34,9 +57,9 @@ func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 		if recorder.StatusCode == http.StatusOK {
 			responseBody := recorder.Body.String()
 			cm.Cache.Set(cacheKey, responseBody, 10*time.Minute)
-			w.Write([]byte(responseBody))
+			cm.ResponseUtil.WriteResponse(w, http.StatusOK, "application/json", []byte(responseBody))
 		} else {
-			recorder.CopyBody(w)
+			cm.ResponseUtil.CopyStatusAndHeader(recorder, w)
 		}
 	})
 }
