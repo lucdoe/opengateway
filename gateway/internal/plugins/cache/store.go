@@ -21,6 +21,7 @@ type Cache interface {
 	Get(key string) (string, error)
 	Set(key string, value string, expiration time.Duration) error
 	GenerateCacheKey(r *http.Request) string
+	Increment(key string, window time.Duration) (int64, error)
 }
 
 type RedisCache struct {
