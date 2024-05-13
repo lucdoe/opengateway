@@ -8,6 +8,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/open-gateway/gateway/internal/config"
 	"github.com/lucdoe/open-gateway/gateway/internal/server"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type mockProxyService struct {
@@ -16,6 +18,15 @@ type mockProxyService struct {
 
 func (m *mockProxyService) ReverseProxy(targetURL string, w http.ResponseWriter, r *http.Request) error {
 	return m.err
+}
+
+type MockServerRunner struct {
+	mock.Mock
+}
+
+func (m *MockServerRunner) ListenAndServe(addr string, handler http.Handler) error {
+	args := m.Called(addr, handler)
+	return args.Error(0)
 }
 
 func TestMakeHandler(t *testing.T) {
@@ -89,7 +100,7 @@ func TestSetupRoutes(t *testing.T) {
 	middlewares := map[string]server.Middleware{}
 
 	s := server.NewServer(cfg, router, proxyService, middlewares)
-	s.SetupRoutes(cfg) 
+	s.SetupRoutes(cfg)
 
 	ts := httptest.NewServer(router)
 	defer ts.Close()
@@ -98,7 +109,7 @@ func TestSetupRoutes(t *testing.T) {
 		name     string
 		method   string
 		path     string
-		expected int 
+		expected int
 	}{
 		{"List People", "GET", "/people", http.StatusOK},
 		{"Get Person", "GET", "/people/1", http.StatusOK},
@@ -118,6 +129,41 @@ func TestSetupRoutes(t *testing.T) {
 			if resp.StatusCode != tc.expected {
 				t.Errorf("Expected status %d, got %d", tc.expected, resp.StatusCode)
 			}
+		})
+	}
+}
+
+func TestServerRun(t *testing.T) {
+	mockRunner := new(MockServerRunner)
+	mockRunner.On("ListenAndServe", ":4000", mock.Anything).Return(nil)
+
+	s := server.Server{
+		Router: mux.NewRouter(),
+		Runner: mockRunner,
+	}
+
+	err := s.Run()
+	assert.NoError(t, err)
+	mockRunner.AssertExpectations(t)
+}
+
+func TestContains(t *testing.T) {
+	tests := []struct {
+		name     string
+		slice    []string
+		item     string
+		expected bool
+	}{
+		{"Item Present", []string{"apple", "banana", "orange"}, "banana", true},
+		{"Item Absent", []string{"apple", "banana", "orange"}, "grape", false},
+		{"Empty Slice", []string{}, "apple", false},
+		{"Nil Slice", nil, "apple", false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := server.Contains(test.slice, test.item)
+			assert.Equal(t, test.expected, result)
 		})
 	}
 }
