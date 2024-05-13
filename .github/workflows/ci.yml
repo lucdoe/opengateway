@@ -17,11 +17,9 @@ jobs:
 
       - name: Get dependencies
         run: go get -v -t -d ./...
-        working-directory: ./gateway
 
       - name: Test with coverage
         run: go test -v -coverprofile=coverage.out ./...
-        working-directory: ./gateway
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1
