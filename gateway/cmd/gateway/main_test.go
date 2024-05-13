@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/open-gateway/gateway/internal/config"
@@ -36,11 +37,38 @@ func (m *MockProxyService) ReverseProxy(serviceName string, rw http.ResponseWrit
 	return args.Error(0)
 }
 
+type MockCacheService struct {
+	mock.Mock
+}
+
+func (m *MockCacheService) Increment(key string, window time.Duration) (int64, error) {
+	args := m.Called(key, window)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockCacheService) Get(key string) (string, error) {
+	args := m.Called(key)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockCacheService) Set(key string, value string, expiration time.Duration) error {
+	args := m.Called(key, value, expiration)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) GenerateCacheKey(r *http.Request) string {
+	args := m.Called(r)
+	return args.String(0)
+}
+
 func TestInitializeServerSuccess(t *testing.T) {
 	mockConfigLoader := new(MockConfigLoader)
 	mockRouter := NewMockRouter()
 	mockProxyService := new(MockProxyService)
 	mockProxyService.On("ReverseProxy", mock.Anything, mock.Anything).Return(nil)
+
+	mockCacheService := new(MockCacheService)
+	mockCacheService.On("Increment", mock.Anything, mock.Anything).Return(1, nil)
 
 	cfg := &config.Config{
 		Services: map[string]config.Service{
@@ -72,6 +100,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 		ConfigLoader: mockConfigLoader,
 		Router:       mockRouter.Router,
 		ProxyService: mockProxyService,
+		CacheService: mockCacheService,
 	}
 
 	server, err := InitializeServer(deps)
