@@ -24,14 +24,14 @@ type JWTConfig struct {
 	Scope         string
 }
 
-func NewAuthService(config JWTConfig) (*Auth, error) {
+func NewAuthService(config JWTConfig) *Auth {
 	if len(config.SecretKey) == 0 {
-		return nil, fmt.Errorf("secret key must not be empty")
+		panic("secret key must not be empty")
 	}
 	if config.SigningMethod == nil {
-		return nil, fmt.Errorf("signing method must not be nil")
+		panic("signing method must not be nil")
 	}
-	return &Auth{config: config}, nil
+	return &Auth{config: config}
 }
 
 func (j *Auth) Validate(tokenStr string) (jwt.Claims, error) {
