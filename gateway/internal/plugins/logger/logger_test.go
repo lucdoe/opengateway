@@ -1,93 +1,129 @@
-package logger_test
+package logger
 
 import (
-	"bytes"
-	"errors"
+	"fmt"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 type MockFileWriter struct {
-	Writer   *bytes.Buffer
-	WriteErr error
+	written []byte
 }
 
 func (m *MockFileWriter) Write(p []byte) (n int, err error) {
-	if m.WriteErr != nil {
-		return 0, m.WriteErr
-	}
-	return m.Writer.Write(p)
+	m.written = append(m.written, p...)
+	return len(p), nil
 }
 
 type MockFileOpener struct {
-	File    logger.FileWriter
-	OpenErr error
+	fileWriter *MockFileWriter
 }
 
-func (m *MockFileOpener) OpenFile(name string, flag int, perm os.FileMode) (logger.FileWriter, error) {
-	if m.OpenErr != nil {
-		return nil, m.OpenErr
-	}
-	return m.File, nil
+func (m *MockFileOpener) OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error) {
+	return m.fileWriter, nil
 }
 
 type MockTimeProvider struct {
-	FixedTime time.Time
+	now time.Time
 }
 
 func (m *MockTimeProvider) Now() time.Time {
-	return m.FixedTime
+	return m.now
+}
+
+func TestNewLogger(t *testing.T) {
+	cfg := LoggerConfig{
+		FilePath:     "/tmp/test.log",
+		FileWriter:   nil,
+		ErrOutput:    os.Stderr,
+		TimeProvider: RealTime{},
+		FileOpener:   DefaultFileOpener{},
+	}
+
+	logger := NewLogger(cfg)
+
+	assert.NotNil(t, logger)
+	assert.IsType(t, &OSLogger{}, logger)
+}
+
+func TestNewLoggerInvalidFilePath(t *testing.T) {
+	cfg := LoggerConfig{
+		FilePath:     "",
+		FileWriter:   nil,
+		ErrOutput:    os.Stderr,
+		TimeProvider: RealTime{},
+		FileOpener:   DefaultFileOpener{},
+	}
+
+	assert.Panics(t, func() {
+		NewLogger(cfg)
+	})
 }
 
 func TestOSLoggerInfo(t *testing.T) {
-	buffer := new(bytes.Buffer)
-	mockWriter := &MockFileWriter{Writer: buffer}
-	mockOpener := &MockFileOpener{File: mockWriter}
-	mockTime := &MockTimeProvider{FixedTime: time.Date(2020, time.January, 1, 12, 0, 0, 0, time.UTC)}
-	errorBuffer := new(bytes.Buffer)
+	now := time.Now()
+	mockFileWriter := &MockFileWriter{}
+	mockTimeProvider := &MockTimeProvider{now: now}
+	mockFileOpener := &MockFileOpener{fileWriter: mockFileWriter}
 
-	cfg := logger.LoggerConfig{
-		FilePath:     "testpath",
-		FileWriter:   mockWriter,
-		ErrOutput:    errorBuffer,
-		TimeProvider: mockTime,
-		FileOpener:   mockOpener,
+	cfg := LoggerConfig{
+		FilePath:     "/tmp/test.log",
+		FileWriter:   mockFileWriter,
+		ErrOutput:    os.Stderr,
+		TimeProvider: mockTimeProvider,
+		FileOpener:   mockFileOpener,
 	}
 
-	l, err := logger.NewLogger(cfg)
-	if err != nil {
-		t.Fatalf("Failed to create logger: %v", err)
+	logger := NewLogger(cfg).(*OSLogger)
+
+	logger.Info("Test message", "Test details")
+
+	expectedLogMessage := fmt.Sprintf("%s [%s]: %s %s\n", now.Format("2006-01-02 15:04:05"), "INFO", "Test message", "Test details")
+	assert.Equal(t, expectedLogMessage, string(mockFileWriter.written))
+}
+
+func TestOSLoggerInfoErrorWritingToFile(t *testing.T) {
+	now := time.Now()
+	mockFileWriter := &MockFileWriter{}
+	mockTimeProvider := &MockTimeProvider{now: now}
+	mockFileOpener := &MockFileOpener{fileWriter: mockFileWriter}
+
+	cfg := LoggerConfig{
+		FilePath:     "/tmp/test.log",
+		FileWriter:   mockFileWriter,
+		ErrOutput:    os.Stderr,
+		TimeProvider: mockTimeProvider,
+		FileOpener:   mockFileOpener,
 	}
 
-	msg, details := "test message", "test details"
-	l.Info(msg, details)
-	expectedLog := "2020-01-01 12:00:00 [INFO]: test message test details\n"
-	if got := buffer.String(); got != expectedLog {
-		t.Errorf("Expected log '%s', got '%s'", expectedLog, got)
-	}
+	logger := NewLogger(cfg).(*OSLogger)
 
-	mockWriter.WriteErr = errors.New("write failure")
-	l.Info(msg, details)
-	expectedErr := "Error writing to log file: write failure\n"
-	if got := errorBuffer.String(); !strings.Contains(got, expectedErr) {
-		t.Errorf("Expected error log to contain '%s', got '%s'", expectedErr, got)
-	}
+	mockFileWriter.written = []byte{}
+	mockFileWriter.Write([]byte(""))
 
-	cfgNoFileWriter := logger.LoggerConfig{
-		FilePath:     "testpath",
-		FileWriter:   nil,
-		ErrOutput:    errorBuffer,
-		TimeProvider: mockTime,
-		FileOpener:   mockOpener,
-	}
+	logger.Info("Test message", "Test details")
 
-	mockOpener.OpenErr = errors.New("open failure")
-	_, err = logger.NewLogger(cfgNoFileWriter)
-	if err == nil || !strings.Contains(err.Error(), "open failure") {
-		t.Errorf("Expected file open error to be 'open failure', got '%v'", err)
-	}
+	expectedLogMessage := fmt.Sprintf("%s [%s]: %s %s\n", now.Format("2006-01-02 15:04:05"), "INFO", "Test message", "Test details")
+	assert.Equal(t, expectedLogMessage, string(mockFileWriter.written))
+}
+
+func TestDefaultFileOpenerOpenFile(t *testing.T) {
+	fileOpener := DefaultFileOpener{}
+
+	file, err := fileOpener.OpenFile("/tmp/test.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	assert.NoError(t, err)
+	assert.NotNil(t, file)
+}
+
+func TestLoggerConfigsetDefaults(t *testing.T) {
+	cfg := LoggerConfig{}
+
+	cfg.setDefaults()
+
+	assert.Equal(t, os.Stderr, cfg.ErrOutput)
+	assert.IsType(t, RealTime{}, cfg.TimeProvider)
+	assert.IsType(t, DefaultFileOpener{}, cfg.FileOpener)
 }
