@@ -1,10 +1,7 @@
 package server
 
 import (
-	"fmt"
-	"io"
 	"net/http"
-	"time"
 
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/auth"
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cache"
@@ -19,31 +16,21 @@ type Middleware interface {
 }
 
 type MiddlewareConfig struct {
-	LoggerConfig      logger.LoggerConfig
-	JWTConfig         auth.JWTConfig
-	RedisAddr         string
-	RedisPassword     string
-	RateLimitCapacity int64
-	RateLimitWindow   time.Duration
-	CORSConfig        cors.CORSConfig
+	LoggerConfig    logger.LoggerConfig
+	JWTConfig       auth.JWTConfig
+	CacheConfig     cache.CacheConfig
+	RateLimitConfig ratelimit.RateLimitConfig
+	CORSConfig      cors.CORSConfig
 }
 
-func InitMiddleware(cfg MiddlewareConfig, errorOutput io.Writer) (map[string]Middleware, error) {
-	logCfg := cfg.LoggerConfig
-	logCfg.ErrOutput = errorOutput
-	log, err := logger.NewLogger(logCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize logger: %w", err)
-	}
-
-	authService, err := auth.NewAuthService(cfg.JWTConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AuthService: %w", err)
-	}
-
-	cacheService := cache.NewRedisCache(cfg.RedisAddr, cfg.RedisPassword)
-	rateLimiter := ratelimit.NewRateLimitService(cacheService, cfg.RateLimitCapacity, cfg.RateLimitWindow)
-	corsMiddleware := cors.NewCors(cfg.CORSConfig)
+func InitMiddleware(
+	cfg MiddlewareConfig,
+	log logger.Logger,
+	authService auth.AuthInterface,
+	cacheService cache.Cache,
+	rateLimiter ratelimit.RateLimiter,
+	corsMiddleware cors.CORS,
+) (map[string]Middleware, error) {
 
 	middlewares := map[string]Middleware{
 		"logger":     mw.NewLoggingMiddleware(log),
