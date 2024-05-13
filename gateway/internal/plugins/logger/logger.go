@@ -23,37 +23,37 @@ type TimeProvider interface {
 	Now() time.Time
 }
 
+type LoggerConfig struct {
+	FilePath     string
+	FileWriter   FileWriter
+	ErrOutput    io.Writer
+	TimeProvider TimeProvider
+	FileOpener   FileOpener
+}
+
 type OSLogger struct {
 	filePath     string
 	file         FileWriter
 	errOutput    io.Writer
 	timeProvider TimeProvider
-	fileOpener   FileOpener
 }
 
-func NewLogger(filePath string, file FileWriter, errOutput io.Writer, timeProvider TimeProvider, fileOpener FileOpener) (Logger, error) {
-	if file == nil {
-		if fileOpener == nil {
-			fileOpener = DefaultFileOpener{}
-		}
+func NewLogger(cfg LoggerConfig) (Logger, error) {
+	cfg.setDefaults()
+
+	if cfg.FileWriter == nil {
 		var err error
-		file, err = fileOpener.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		cfg.FileWriter, err = cfg.FileOpener.OpenFile(cfg.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}
 	}
-	if errOutput == nil {
-		errOutput = os.Stderr
-	}
-	if timeProvider == nil {
-		timeProvider = RealTime{}
-	}
+
 	return &OSLogger{
-		filePath:     filePath,
-		file:         file,
-		errOutput:    errOutput,
-		timeProvider: timeProvider,
-		fileOpener:   fileOpener,
+		filePath:     cfg.FilePath,
+		file:         cfg.FileWriter,
+		errOutput:    cfg.ErrOutput,
+		timeProvider: cfg.TimeProvider,
 	}, nil
 }
 
@@ -77,4 +77,16 @@ type DefaultFileOpener struct{}
 
 func (d DefaultFileOpener) OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error) {
 	return os.OpenFile(name, flag, perm)
+}
+
+func (cfg *LoggerConfig) setDefaults() {
+	if cfg.ErrOutput == nil {
+		cfg.ErrOutput = os.Stderr
+	}
+	if cfg.TimeProvider == nil {
+		cfg.TimeProvider = RealTime{}
+	}
+	if cfg.FileOpener == nil {
+		cfg.FileOpener = DefaultFileOpener{}
+	}
 }
