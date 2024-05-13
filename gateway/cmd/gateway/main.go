@@ -32,6 +32,7 @@ type ServerDependencies struct {
 	MiddlewareInitializer server.MiddlewareConfig
 	Router                *mux.Router
 	ProxyService          proxy.ProxyService
+	CacheService          cache.Cache
 }
 
 func InitializeServer(deps ServerDependencies) (*server.Server, error) {
@@ -40,10 +41,7 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 		return nil, err
 	}
 
-	cacheService := cache.NewRedisCache(cache.CacheConfig{
-		Addr:     "localhost:6379",
-		Password: "",
-	})
+	cacheService := deps.CacheService
 
 	rateLimiter := ratelimit.NewRateLimitService(ratelimit.RateLimitConfig{
 		Store:  cacheService,
@@ -95,6 +93,10 @@ func main() {
 		ConfigLoader: &DefaultConfigLoader{},
 		Router:       mux.NewRouter(),
 		ProxyService: proxy.NewProxyService(),
+		CacheService: cache.NewRedisCache(cache.CacheConfig{
+			Addr:     "localhost:6379",
+			Password: "",
+		}),
 	}
 
 	server, err := InitializeServer(deps)
