@@ -12,6 +12,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type CacheConfig struct {
+	Addr     string
+	Password string
+}
+
 type Cache interface {
 	Get(key string) (string, error)
 	Set(key string, value string, expiration time.Duration) error
@@ -22,10 +27,10 @@ type RedisCache struct {
 	client *redis.Client
 }
 
-func NewRedisCache(addr string, password string) *RedisCache {
+func NewRedisCache(cfg CacheConfig) *RedisCache {
 	client := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: password,
+		Addr:     cfg.Addr,
+		Password: cfg.Password,
 	})
 
 	if _, err := client.Ping(context.Background()).Result(); err != nil {
