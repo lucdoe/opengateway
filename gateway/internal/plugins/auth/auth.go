@@ -2,12 +2,14 @@ package auth
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 type AuthInterface interface {
 	Validate(token string) (jwt.Claims, error)
+	ParseToken(tokenStr string) (*jwt.RegisteredClaims, error)
 }
 
 type Auth struct {
@@ -37,12 +39,13 @@ func (j *Auth) Validate(tokenStr string) (jwt.Claims, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return claims, nil
 }
 
 func (j *Auth) ParseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if token.Method != jwt.SigningMethodHS256 {
+		if token.Method != j.config.SigningMethod {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return j.config.SecretKey, nil
@@ -55,5 +58,12 @@ func (j *Auth) ParseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
 	if !ok || !token.Valid {
 		return nil, fmt.Errorf("invalid token")
 	}
+
+	audienceStr := strings.Join(claims.Audience, ", ")
+	audienceMatch := audienceStr == j.config.Audience
+	if !audienceMatch {
+		return nil, fmt.Errorf("invalid audience")
+	}
+
 	return claims, nil
 }

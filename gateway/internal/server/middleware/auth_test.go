@@ -20,6 +20,17 @@ func (m *mockAuth) Validate(token string) (jwt.Claims, error) {
 	return nil, errors.New("invalid token")
 }
 
+func (m *mockAuth) ParseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
+	if tokenStr == "valid-token" {
+		return &jwt.RegisteredClaims{
+			Subject:  "123",
+			Issuer:   "test_issuer",
+			Audience: []string{"test_audience"},
+		}, nil
+	}
+	return nil, errors.New("invalid token")
+}
+
 func TestAuthMiddleware(t *testing.T) {
 	tests := []struct {
 		name               string
