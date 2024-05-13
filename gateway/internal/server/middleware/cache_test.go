@@ -1,11 +1,13 @@
 package middleware_test
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/lucdoe/open-gateway/gateway/internal"
 	"github.com/lucdoe/open-gateway/gateway/internal/server/middleware"
 	"github.com/stretchr/testify/mock"
 )
@@ -71,4 +73,56 @@ func TestCacheMiddleware(t *testing.T) {
 
 	mockResponseUtil.AssertCalled(t, "WriteResponse", mock.Anything, http.StatusOK, "application/json", []byte(responseBody))
 	mockCache.AssertExpectations(t)
+}
+
+func TestWriteResponse(t *testing.T) {
+	w := httptest.NewRecorder()
+	content := []byte("Hello, world!")
+	statusCode := http.StatusOK
+	contentType := "text/plain"
+
+	responseUtil := middleware.StandardResponseUtil{}
+	responseUtil.WriteResponse(w, statusCode, contentType, content)
+
+	res := w.Result()
+	resBody, _ := io.ReadAll(res.Body)
+
+	if res.StatusCode != statusCode {
+		t.Errorf("Expected status code %d, got %d", statusCode, res.StatusCode)
+	}
+	if res.Header.Get("Content-Type") != contentType {
+		t.Errorf("Expected content type %s, got %s", contentType, res.Header.Get("Content-Type"))
+	}
+	if string(resBody) != string(content) {
+		t.Errorf("Expected response body %s, got %s", string(content), string(resBody))
+	}
+}
+
+type ResponseRecorderStub struct {
+	httptest.ResponseRecorder
+	StatusCode int
+}
+
+func (rs *ResponseRecorderStub) WriteHeader(statusCode int) {
+	rs.StatusCode = statusCode
+	rs.ResponseRecorder.WriteHeader(statusCode)
+}
+
+func TestCopyStatusAndHeader(t *testing.T) {
+	src := internal.NewResponseRecorder(httptest.NewRecorder())
+	dst := httptest.NewRecorder()
+
+	src.Header().Set("Content-Type", "application/json")
+	src.WriteHeader(http.StatusNotFound)
+
+	responseUtil := middleware.StandardResponseUtil{}
+	responseUtil.CopyStatusAndHeader(src, dst)
+
+	if dst.Header().Get("Content-Type") != "application/json" {
+		t.Errorf("Expected Content-Type 'application/json', got '%s'", dst.Header().Get("Content-Type"))
+	}
+
+	if dst.Code != http.StatusNotFound {
+		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, dst.Code)
+	}
 }
