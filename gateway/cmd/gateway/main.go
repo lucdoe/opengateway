@@ -9,8 +9,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/open-gateway/gateway/internal/config"
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/auth"
+	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cache"
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
 	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
+	ratelimit "github.com/lucdoe/open-gateway/gateway/internal/plugins/rate-limit"
 	"github.com/lucdoe/open-gateway/gateway/internal/proxy"
 	"github.com/lucdoe/open-gateway/gateway/internal/server"
 )
@@ -25,19 +27,9 @@ func (d *DefaultConfigLoader) LoadConfig(path string) (*config.Config, error) {
 	return config.NewParser(path).Parse()
 }
 
-type MiddlewareInitializer interface {
-	InitMiddleware(cfg server.MiddlewareConfig) (map[string]server.Middleware, error)
-}
-
-type DefaultMiddlewareInitializer struct{}
-
-func (d *DefaultMiddlewareInitializer) InitMiddleware(cfg server.MiddlewareConfig) (map[string]server.Middleware, error) {
-	return server.InitMiddleware(cfg, os.Stderr)
-}
-
 type ServerDependencies struct {
 	ConfigLoader          ConfigLoader
-	MiddlewareInitializer MiddlewareInitializer
+	MiddlewareInitializer server.MiddlewareConfig
 	Router                *mux.Router
 	ProxyService          proxy.ProxyService
 }
@@ -48,16 +40,18 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 		return nil, err
 	}
 
-	middlewares, err := deps.MiddlewareInitializer.InitMiddleware(middlewareConfig(cfg))
-	if err != nil {
-		return nil, err
-	}
+	cacheService := cache.NewRedisCache(cache.CacheConfig{
+		Addr:     "localhost:6379",
+		Password: "",
+	})
 
-	return server.NewServer(cfg, deps.Router, deps.ProxyService, middlewares), nil
-}
+	rateLimiter := ratelimit.NewRateLimitService(ratelimit.RateLimitConfig{
+		Store:  cacheService,
+		Limit:  100,
+		Window: 1 * time.Minute,
+	})
 
-func middlewareConfig(cfg *config.Config) server.MiddlewareConfig {
-	return server.MiddlewareConfig{
+	middlewareCfg := server.MiddlewareConfig{
 		LoggerConfig: logger.LoggerConfig{
 			FilePath:     "server.log",
 			FileWriter:   nil,
@@ -72,24 +66,35 @@ func middlewareConfig(cfg *config.Config) server.MiddlewareConfig {
 			Audience:      "ExampleAudience",
 			Scope:         "ExampleScope",
 		},
-		RedisAddr:         "localhost:6379",
-		RedisPassword:     "",
-		RateLimitCapacity: 100,
-		RateLimitWindow:   1 * time.Minute,
+		CacheConfig: cache.CacheConfig{
+			Addr:     "localhost:6379",
+			Password: "",
+		},
+		RateLimitConfig: ratelimit.RateLimitConfig{
+			Store:  cacheService,
+			Limit:  100,
+			Window: 1 * time.Minute,
+		},
 		CORSConfig: cors.CORSConfig{
 			Origins: "*",
 			Methods: "GET, POST, PUT, DELETE, OPTIONS",
 			Headers: "Content-Type, Authorization",
 		},
 	}
+
+	middlewares, err := server.InitMiddleware(middlewareCfg, logger.NewLogger(middlewareCfg.LoggerConfig), auth.NewAuthService(middlewareCfg.JWTConfig), cacheService, rateLimiter, cors.NewCors(middlewareCfg.CORSConfig))
+	if err != nil {
+		return nil, err
+	}
+
+	return server.NewServer(cfg, deps.Router, deps.ProxyService, middlewares), nil
 }
 
 func main() {
 	deps := ServerDependencies{
-		ConfigLoader:          &DefaultConfigLoader{},
-		MiddlewareInitializer: &DefaultMiddlewareInitializer{},
-		Router:                mux.NewRouter(),
-		ProxyService:          proxy.NewProxyService(),
+		ConfigLoader: &DefaultConfigLoader{},
+		Router:       mux.NewRouter(),
+		ProxyService: proxy.NewProxyService(),
 	}
 
 	server, err := InitializeServer(deps)

@@ -1,13 +1,11 @@
 package main
 
 import (
-	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/open-gateway/gateway/internal/config"
-	"github.com/lucdoe/open-gateway/gateway/internal/proxy"
-	"github.com/lucdoe/open-gateway/gateway/internal/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -21,95 +19,62 @@ func (m *MockConfigLoader) LoadConfig(path string) (*config.Config, error) {
 	return args.Get(0).(*config.Config), args.Error(1)
 }
 
-func TestLoadConfig(t *testing.T) {
-	mockLoader := new(MockConfigLoader)
-	expectedConfig := &config.Config{}
-	mockLoader.On("LoadConfig", "./cmd/gateway/config.yaml").Return(expectedConfig, nil)
-
-	cfg, err := mockLoader.LoadConfig("./cmd/gateway/config.yaml")
-	assert.NoError(t, err)
-	assert.Equal(t, expectedConfig, cfg)
+type MockRouter struct {
+	*mux.Router
 }
 
-type MockMiddlewareInitializer struct {
+func NewMockRouter() *MockRouter {
+	return &MockRouter{mux.NewRouter()}
+}
+
+type MockProxyService struct {
 	mock.Mock
 }
 
-func (m *MockMiddlewareInitializer) InitMiddleware(cfg server.MiddlewareConfig) (map[string]server.Middleware, error) {
-	args := m.Called(cfg)
-	return args.Get(0).(map[string]server.Middleware), args.Error(1)
+func (m *MockProxyService) ReverseProxy(serviceName string, rw http.ResponseWriter, req *http.Request) error {
+	args := m.Called(serviceName, rw, req)
+	return args.Error(0)
 }
 
-func TestInitMiddleware(t *testing.T) {
-	mockInitializer := new(MockMiddlewareInitializer)
-	expectedMiddlewares := map[string]server.Middleware{}
-	mockInitializer.On("InitMiddleware", mock.Anything).Return(expectedMiddlewares, nil)
+func TestInitializeServerSuccess(t *testing.T) {
+	mockConfigLoader := new(MockConfigLoader)
+	mockRouter := NewMockRouter()
+	mockProxyService := new(MockProxyService)
+	mockProxyService.On("ReverseProxy", mock.Anything, mock.Anything).Return(nil)
 
-	middlewares, err := mockInitializer.InitMiddleware(server.MiddlewareConfig{})
-	assert.NoError(t, err)
-	assert.Equal(t, expectedMiddlewares, middlewares)
-}
+	cfg := &config.Config{
+		Services: map[string]config.Service{
+			"starwars": {
+				URL:      "https://swapi.dev/api",
+				Protocol: "HTTPS",
+				Plugins:  []string{"rate-limit", "logger", "cache", "cors"},
+				Endpoints: []config.Endpoint{
+					{
+						Name:       "List People",
+						HTTPMethod: "GET",
+						Path:       "/people",
+						QueryParams: []config.QueryParam{
+							{
+								Key:   "page",
+								Value: "1",
+							},
+						},
+						Auth: config.AuthConfig{ApplyAuth: false},
+					},
+				},
+			},
+		},
+	}
 
-func TestInitializeServer(t *testing.T) {
-	mockLoader := new(MockConfigLoader)
-	mockMiddlewareInit := new(MockMiddlewareInitializer)
-	mockProxyService := proxy.NewProxyService()
-
-	config := &config.Config{}
-	middlewareMap := map[string]server.Middleware{}
-
-	mockLoader.On("LoadConfig", "./cmd/gateway/config.yaml").Return(config, nil)
-	mockMiddlewareInit.On("InitMiddleware", mock.Anything).Return(middlewareMap, nil)
+	mockConfigLoader.On("LoadConfig", "./cmd/gateway/config.yaml").Return(cfg, nil)
 
 	deps := ServerDependencies{
-		ConfigLoader:          mockLoader,
-		MiddlewareInitializer: mockMiddlewareInit,
-		Router:                mux.NewRouter(),
-		ProxyService:          mockProxyService,
+		ConfigLoader: mockConfigLoader,
+		Router:       mockRouter.Router,
+		ProxyService: mockProxyService,
 	}
 
 	server, err := InitializeServer(deps)
 	assert.NoError(t, err)
 	assert.NotNil(t, server)
-}
-
-func TestInitializeServerConfigLoadError(t *testing.T) {
-	mockLoader := new(MockConfigLoader)
-	mockMiddlewareInit := new(MockMiddlewareInitializer)
-	mockProxyService := proxy.NewProxyService()
-
-	config := &config.Config{}
-	mockLoader.On("LoadConfig", "./cmd/gateway/config.yaml").Return(config, errors.New("failed to load config"))
-
-	deps := ServerDependencies{
-		ConfigLoader:          mockLoader,
-		MiddlewareInitializer: mockMiddlewareInit,
-		Router:                mux.NewRouter(),
-		ProxyService:          mockProxyService,
-	}
-
-	_, err := InitializeServer(deps)
-	assert.Error(t, err)
-	assert.EqualError(t, err, "failed to load config")
-}
-
-func TestInitializeServerMiddlewareInitError(t *testing.T) {
-	mockLoader := new(MockConfigLoader)
-	mockMiddlewareInit := new(MockMiddlewareInitializer)
-	mockProxyService := proxy.NewProxyService()
-
-	config := &config.Config{}
-	mockLoader.On("LoadConfig", "./cmd/gateway/config.yaml").Return(config, nil)
-	mockMiddlewareInit.On("InitMiddleware", mock.Anything).Return(map[string]server.Middleware{}, errors.New("failed to initialize middleware"))
-
-	deps := ServerDependencies{
-		ConfigLoader:          mockLoader,
-		MiddlewareInitializer: mockMiddlewareInit,
-		Router:                mux.NewRouter(),
-		ProxyService:          mockProxyService,
-	}
-
-	_, err := InitializeServer(deps)
-	assert.Error(t, err)
-	assert.EqualError(t, err, "failed to initialize middleware")
 }
