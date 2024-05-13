@@ -12,10 +12,21 @@ type ProxyService interface {
 	ReverseProxy(targetURL string, w http.ResponseWriter, r *http.Request) error
 }
 
+type ServerRunner interface {
+	ListenAndServe(addr string, handler http.Handler) error
+}
+
+type DefaultServerRunner struct{}
+
+func (dsr *DefaultServerRunner) ListenAndServe(addr string, handler http.Handler) error {
+	return http.ListenAndServe(addr, handler)
+}
+
 type Server struct {
 	Router      *mux.Router
 	Middlewares map[string]Middleware
 	Proxy       ProxyService
+	Runner      ServerRunner
 }
 
 func NewServer(cfg *config.Config, router *mux.Router, proxy ProxyService, mws map[string]Middleware) *Server {
@@ -23,6 +34,7 @@ func NewServer(cfg *config.Config, router *mux.Router, proxy ProxyService, mws m
 		Router:      router,
 		Middlewares: mws,
 		Proxy:       proxy,
+		Runner:      &DefaultServerRunner{},
 	}
 	server.SetupRoutes(cfg)
 	return server
@@ -51,13 +63,13 @@ func applyServiceMiddlewares(s *Server, plugins []string) {
 	orderedMiddlewareKeys := []string{"logger", "cors", "rate-limit", "cache"}
 
 	for _, key := range orderedMiddlewareKeys {
-		if _, ok := s.Middlewares[key]; ok && contains(plugins, key) {
+		if _, ok := s.Middlewares[key]; ok && Contains(plugins, key) {
 			s.Router.Use(s.Middlewares[key].Middleware)
 		}
 	}
 }
 
-func contains(slice []string, item string) bool {
+func Contains(slice []string, item string) bool {
 	for _, sliceItem := range slice {
 		if sliceItem == item {
 			return true
@@ -68,5 +80,5 @@ func contains(slice []string, item string) bool {
 
 func (s *Server) Run() error {
 	log.Println("Starting server on http://localhost:4000")
-	return http.ListenAndServe(":4000", s.Router)
+	return s.Runner.ListenAndServe(":4000", s.Router)
 }
