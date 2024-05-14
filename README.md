@@ -25,7 +25,7 @@ Make sure you have Docker with Docker Compose installed on your machine. Docker 
 2. **Edit the `cmd/gateway/config.yaml` file to your needs**
 3. **Run the gateway with `go run cmd/gateway/main.go`**
 
-## Go - Grade and Metrics
+## Go - Grade
 
 | Metric      | Value        |
 | ----------- | ------------ |
@@ -38,5 +38,31 @@ Make sure you have Docker with Docker Compose installed on your machine. Docker 
 | gocyclo     | 83%          |
 | license     | 100%         |
 | misspell    | 100%         |
+
+## Metrics
+
+### Benchmark Results
+
+We conducted a performance benchmark using `hey` with the following parameters:
+
+- **Total Requests**: 50,000
+- **Concurrency Level**: 130
+
+#### Summary
+
+- **Total Time**: 5.9502 seconds
+- **Requests per Second**: 8,389.5769
+- **Slowest Request**: 0.1654 seconds
+- **Average Request Time**: 0.0147 seconds
+- **Total Data Transferred**: 63,811,840 bytes
+- **Size per Request**: 1,278 bytes
+
+#### Status Code Distribution
+
+- **200 OK**: 49,853 responses
+
+These results provide a clear picture of the API Gateway's performance under load, highlighting its ability to handle a high number of requests efficiently.
+
+## License
 
 The code of this repository is licensed under Apache v2.0. [Read License tldr](<https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)>) for a quick summary.
