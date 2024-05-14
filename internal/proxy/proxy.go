@@ -31,12 +31,24 @@ func NewProxyService() ProxyService {
 }
 
 func (p *Proxy) ReverseProxy(target string, w http.ResponseWriter, r *http.Request) error {
-	url, err := url.Parse(target)
+	parsedURL, err := url.Parse(target)
 	if err != nil {
+		http.Error(w, "Failed to parse target URL", http.StatusInternalServerError)
 		return err
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(url)
+	proxy := httputil.NewSingleHostReverseProxy(parsedURL)
+
+	proxy.Director = func(req *http.Request) {
+		req.URL.Scheme = parsedURL.Scheme
+		req.URL.Host = parsedURL.Host
+		req.URL.Path = parsedURL.Path
+		req.Host = parsedURL.Host
+	}
+
+	proxy.ModifyResponse = func(response *http.Response) error {
+		return nil
+	}
 
 	proxy.ServeHTTP(w, r)
 	return nil
