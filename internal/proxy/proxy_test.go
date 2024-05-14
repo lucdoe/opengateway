@@ -15,6 +15,7 @@
 package proxy_test
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -43,4 +44,84 @@ func TestProxyReverseProxy(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	responseBody, _ := io.ReadAll(res.Body)
 	assert.Equal(t, "hello world", string(responseBody))
+}
+
+func TestProxyReverseProxyWithPost(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "POST", r.Method)
+		body, _ := io.ReadAll(r.Body)
+		assert.Equal(t, "post body", string(body))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("post response"))
+	}))
+	defer testServer.Close()
+
+	proxyService := proxy.NewProxyService()
+
+	req := httptest.NewRequest("POST", "http://example.com", io.NopCloser(io.MultiReader(bytes.NewReader([]byte("post body")))))
+	w := httptest.NewRecorder()
+
+	err := proxyService.ReverseProxy(testServer.URL, w, req)
+	assert.NoError(t, err)
+
+	res := w.Result()
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	responseBody, _ := io.ReadAll(res.Body)
+	assert.Equal(t, "post response", string(responseBody))
+}
+
+func TestProxyReverseProxyWithQueryParams(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "value", r.URL.Query().Get("param"))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("query response"))
+	}))
+	defer testServer.Close()
+
+	proxyService := proxy.NewProxyService()
+
+	req := httptest.NewRequest("GET", "http://example.com?param=value", nil)
+	w := httptest.NewRecorder()
+
+	err := proxyService.ReverseProxy(testServer.URL, w, req)
+	assert.NoError(t, err)
+
+	res := w.Result()
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	responseBody, _ := io.ReadAll(res.Body)
+	assert.Equal(t, "query response", string(responseBody))
+}
+
+func TestProxyReverseProxyHandlesInvalidURL(t *testing.T) {
+	proxyService := proxy.NewProxyService()
+
+	req := httptest.NewRequest("GET", "http://example.com", nil)
+	w := httptest.NewRecorder()
+
+	err := proxyService.ReverseProxy(":", w, req)
+	assert.Error(t, err)
+
+	res := w.Result()
+	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+}
+
+func TestProxyReverseProxyHandlesServerError(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("server error"))
+	}))
+	defer testServer.Close()
+
+	proxyService := proxy.NewProxyService()
+
+	req := httptest.NewRequest("GET", "http://example.com", nil)
+	w := httptest.NewRecorder()
+
+	err := proxyService.ReverseProxy(testServer.URL, w, req)
+	assert.NoError(t, err)
+
+	res := w.Result()
+	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+	responseBody, _ := io.ReadAll(res.Body)
+	assert.Equal(t, "server error", string(responseBody))
 }
