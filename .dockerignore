@@ -1,0 +1,26 @@
+# Ignore docs and licenses directories
+docs
+LICENSE
+LICENSES
+
+# Ignore README and log files
+README.md
+server.log
+cmd/gateway/server.log
+
+# Ignore local Go build artifacts
+*.exe
+*.log
+*.out
+*.test
+
+# Ignore the local vendor directory
+vendor/
+
+# Ignore editor and IDE specific files
+.idea/
+.vscode/
+*.swp
+
+# Ignore binary output
+/app/main

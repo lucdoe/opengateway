@@ -50,7 +50,11 @@ type ServerDependencies struct {
 }
 
 func InitializeServer(deps ServerDependencies) (*server.Server, error) {
-	cfg, err := deps.ConfigLoader.LoadConfig("./cmd/gateway/config.yaml")
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		configPath = "./cmd/gateway/config.yaml"
+	}
+	cfg, err := deps.ConfigLoader.LoadConfig(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -78,10 +82,6 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 			Audience:      "ExampleAudience",
 			Scope:         "ExampleScope",
 		},
-		CacheConfig: cache.CacheConfig{
-			Addr:     "localhost:6379",
-			Password: "",
-		},
 		RateLimitConfig: ratelimit.RateLimitConfig{
 			Store:  cacheService,
 			Limit:  100,
@@ -108,7 +108,7 @@ func main() {
 		Router:       mux.NewRouter(),
 		ProxyService: proxy.NewProxyService(),
 		CacheService: cache.NewRedisCache(cache.CacheConfig{
-			Addr:     "localhost:6379",
+			Addr:     "redis:6379",
 			Password: "",
 		}),
 	}
