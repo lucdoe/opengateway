@@ -61,6 +61,16 @@ We conducted a performance benchmark using `hey` with the following parameters:
 
 - **200 OK**: 49,853 responses
 
+### Load testing (Locust)
+
+We have conducted load testing on our API Gateway using Locust (200 peak, 50 ramp, 5m).
+
+| Type | Name           | Requests | Fails | Median (ms) | Average (ms) | Min (ms) | Max (ms) | Average size (bytes) | Current RPS | Current Failures/s |
+| ---- | -------------- | -------- | ----- | ----------- | ------------ | -------- | -------- | -------------------- | ----------- | ------------------ |
+| GET  | /some-endpoint | 15,532   | 0     | 4           | 4.93         | 1        | 76       | 1,280                | 66.8        | 0                  |
+
+The gateway is performing well under the tested load, with no failures and consistent response times.
+
 These results provide a clear picture of the API Gateway's performance under load, highlighting its ability to handle a high number of requests efficiently.
 
 ## License
