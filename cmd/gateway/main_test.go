@@ -108,7 +108,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 		},
 		Plugins: config.PluginConfig{
 			LoggerConfig: config.LoggerConfig{
-				FilePath:  "server_test.go",
+				FilePath:  "server_test.log",
 				ErrOutput: "stderr",
 			},
 			JWTConfig: config.JWTConfig{
