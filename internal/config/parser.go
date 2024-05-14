@@ -16,6 +16,7 @@ package config
 
 import (
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -51,27 +52,35 @@ type Service struct {
 	Subpath   string     `yaml:"Subpath"`
 }
 
+type LoggerConfig struct {
+	FilePath  string `yaml:"FilePath"`
+	ErrOutput string `yaml:"ErrOutput"`
+}
+
+type JWTConfig struct {
+	SecretKey     string `yaml:"SecretKey"`
+	SigningMethod string `yaml:"SigningMethod"`
+	Issuer        string `yaml:"Issuer"`
+	Audience      string `yaml:"Audience"`
+	Scope         string `yaml:"Scope"`
+}
+
+type RateLimitConfig struct {
+	Limit  int64         `yaml:"Limit"`
+	Window time.Duration `yaml:"Window"`
+}
+
+type CORSConfig struct {
+	Origins string `yaml:"Origins"`
+	Methods string `yaml:"Methods"`
+	Headers string `yaml:"Headers"`
+}
+
 type PluginConfig struct {
-	LoggerConfig struct {
-		FilePath  string `yaml:"FilePath"`
-		ErrOutput string `yaml:"ErrOutput"`
-	} `yaml:"LoggerConfig"`
-	JWTConfig struct {
-		SecretKey     string `yaml:"SecretKey"`
-		SigningMethod string `yaml:"SigningMethod"`
-		Issuer        string `yaml:"Issuer"`
-		Audience      string `yaml:"Audience"`
-		Scope         string `yaml:"Scope"`
-	} `yaml:"JWTConfig"`
-	RateLimitConfig struct {
-		Limit  int    `yaml:"Limit"`
-		Window string `yaml:"Window"`
-	} `yaml:"RateLimitConfig"`
-	CORSConfig struct {
-		Origins string `yaml:"Origins"`
-		Methods string `yaml:"Methods"`
-		Headers string `yaml:"Headers"`
-	} `yaml:"CORSConfig"`
+	LoggerConfig    `yaml:"LoggerConfig"`
+	JWTConfig       `yaml:"JWTConfig"`
+	RateLimitConfig `yaml:"RateLimitConfig"`
+	CORSConfig      `yaml:"CORSConfig"`
 }
 
 type Config struct {
