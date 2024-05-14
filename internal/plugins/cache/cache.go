@@ -73,7 +73,9 @@ func (r *RedisCache) Increment(key string, window time.Duration) (int64, error) 
 
 	if count == 1 {
 		_, err := r.client.Expire(ctx, key, window).Result()
-		return count, err
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	return count, nil
