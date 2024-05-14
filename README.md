@@ -1,11 +1,19 @@
 # OpenGateway
 
 [![codecov](https://codecov.io/gh/lucdoe/open-gateway/branch/main/graph/badge.svg?token=SDFO3CX9ZN)](https://codecov.io/gh/lucdoe/open-gateway)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+![Build](https://github.com/lucdoe/open-gateway/actions/workflows/ci.yml/badge.svg)
+
+## Description
+
+Your project description here.
 
 Welcome to our API Gateway, an efficient solution written in Go for small to mid-sized projects. It offers a streamlined approach to managing and securing your APIs.
 Leveraging Go's performance and simplicity, this gateway ensures quick response times and reliable performance without the complexity of larger systems. It is open-source, avoiding vendor lock-in and allowing complete control over deployment and customization.
 
 You can easily extend its functionality with configurable plugins and the setup is straightforward, with minimal configuration needed.
+
+For an overview and better understanding of the architecture, please also see the [architecture diagrams](https://github.com/lucdoe/open-gateway/tree/main/docs).
 
 ## Local setup
 

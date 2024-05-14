@@ -1,4 +1,4 @@
-## C4 diagrams
+## Architecture diagrams
 
 The following diagrams show an overview about the architecture of the Open Gateway project.<br>
 The diagrams are created according to the [C4 modelling technique](https://c4model.com/).
