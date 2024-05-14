@@ -63,6 +63,8 @@ func TestValidateMethod(t *testing.T) {
 		{"GET", true},
 		{"POST", true},
 		{"DELETE", false},
+		{"PUT", false},
+		{"OPTIONS", false},
 	}
 
 	for _, tt := range tests {
@@ -89,6 +91,9 @@ func TestValidateHeaders(t *testing.T) {
 		{"Content-Type", true},
 		{"Authorization", true},
 		{"X-Custom-Header", false},
+		{"Content-Type, Authorization", true},
+		{"Content-Type, X-Custom-Header", false},
+		{"", true}, // No headers requested, should pass
 	}
 
 	for _, tt := range tests {
@@ -97,5 +102,29 @@ func TestValidateHeaders(t *testing.T) {
 				t.Errorf("ValidateHeaders(%q) = %v, want %v", tt.headers, pass, tt.expectedPass)
 			}
 		})
+	}
+}
+
+func TestGetAllowedMethods(t *testing.T) {
+	corsConfig := cors.CORSConfig{
+		Methods: "GET, POST, PUT",
+	}
+	c := cors.NewCors(corsConfig)
+
+	expected := "GET, POST, PUT"
+	if methods := c.GetAllowedMethods(); methods != expected {
+		t.Errorf("GetAllowedMethods() = %v, want %v", methods, expected)
+	}
+}
+
+func TestGetAllowedHeaders(t *testing.T) {
+	corsConfig := cors.CORSConfig{
+		Headers: "Content-Type, Authorization, X-Requested-With",
+	}
+	c := cors.NewCors(corsConfig)
+
+	expected := "Content-Type, Authorization, X-Requested-With"
+	if headers := c.GetAllowedHeaders(); headers != expected {
+		t.Errorf("GetAllowedHeaders() = %v, want %v", headers, expected)
 	}
 }
