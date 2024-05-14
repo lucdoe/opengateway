@@ -15,7 +15,6 @@
 package server
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -59,8 +58,9 @@ func (s *Server) SetupRoutes(cfg *config.Config) {
 		applyServiceMiddlewares(s, service.Plugins)
 
 		for _, endpoint := range service.Endpoints {
-			handler := MakeHandler(s.Proxy, service.URL)
-			s.Router.HandleFunc(endpoint.Path, handler).Methods(endpoint.HTTPMethod)
+			fullPath := service.URL + service.Subpath + endpoint.Path
+			handler := MakeHandler(s.Proxy, fullPath)
+			s.Router.HandleFunc(service.Subpath+endpoint.Path, handler).Methods(endpoint.HTTPMethod)
 		}
 	}
 }
@@ -93,6 +93,5 @@ func Contains(slice []string, item string) bool {
 }
 
 func (s *Server) Run() error {
-	log.Println("Starting server on http://localhost:4000")
 	return s.Runner.ListenAndServe(":4000", s.Router)
 }
