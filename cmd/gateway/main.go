@@ -103,12 +103,18 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 }
 
 func main() {
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPort := os.Getenv("REDIS_PORT")
+	if redisHost == "" || redisPort == "" {
+		redisHost = "localhost"
+		redisPort = "6379"
+	}
 	deps := ServerDependencies{
 		ConfigLoader: &DefaultConfigLoader{},
 		Router:       mux.NewRouter(),
 		ProxyService: proxy.NewProxyService(),
 		CacheService: cache.NewRedisCache(cache.CacheConfig{
-			Addr:     "redis:6379",
+			Addr:     redisHost + ":" + redisPort,
 			Password: "",
 		}),
 	}
