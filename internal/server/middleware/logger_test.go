@@ -18,20 +18,25 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	mw "github.com/lucdoe/open-gateway/gateway/internal/server/middleware"
 )
 
 type mockLogger struct {
 	Messages []string
+	Done     chan bool
 }
 
 func (m *mockLogger) Info(msg string, details string) {
 	m.Messages = append(m.Messages, msg+" "+details)
+	m.Done <- true
 }
 
 func TestLoggingMiddleware(t *testing.T) {
-	mockLog := &mockLogger{}
+	mockLog := &mockLogger{
+		Done: make(chan bool, 1),
+	}
 	middleware := mw.NewLoggingMiddleware(mockLog)
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -62,8 +67,13 @@ func TestLoggingMiddleware(t *testing.T) {
 			handler := middleware.Middleware(testHandler)
 			handler.ServeHTTP(rec, req)
 
-			if len(mockLog.Messages) == 0 || mockLog.Messages[0] != tt.expectedLog {
-				t.Errorf("Expected log '%s', got '%v'", tt.expectedLog, mockLog.Messages)
+			select {
+			case <-mockLog.Done:
+				if len(mockLog.Messages) == 0 || mockLog.Messages[0] != tt.expectedLog {
+					t.Errorf("Expected log '%s', got '%v'", tt.expectedLog, mockLog.Messages)
+				}
+			case <-time.After(1 * time.Second):
+				t.Error("Expected log message but got none")
 			}
 		})
 	}
