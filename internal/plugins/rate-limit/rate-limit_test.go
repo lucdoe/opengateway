@@ -53,6 +53,7 @@ func TestRateLimitService(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, int64(1), count)
 		assert.Equal(t, limit-1, remaining)
+		mockCache.AssertExpectations(t)
 	})
 
 	t.Run("Rate limit exceeded", func(t *testing.T) {
@@ -62,6 +63,7 @@ func TestRateLimitService(t *testing.T) {
 		assert.Equal(t, "rate limit exceeded", err.Error())
 		assert.Equal(t, int64(11), count)
 		assert.Equal(t, int64(0), remaining)
+		mockCache.AssertExpectations(t)
 	})
 
 	t.Run("Increment error", func(t *testing.T) {
@@ -69,5 +71,25 @@ func TestRateLimitService(t *testing.T) {
 		_, _, _, err := service.RateLimit("123.123.123.123")
 		assert.Error(t, err)
 		assert.Equal(t, "redis error", err.Error())
+		mockCache.AssertExpectations(t)
 	})
+
+	t.Run("Check rate limit", func(t *testing.T) {
+		assert.Equal(t, int64(10), service.GetLimit())
+	})
+}
+
+func TestRateLimitConfigInitialization(t *testing.T) {
+	mockCache := new(MockCache)
+	cfg := ratelimit.RateLimitConfig{
+		Store:  mockCache,
+		Limit:  20,
+		Window: 2 * time.Minute,
+	}
+
+	service := ratelimit.NewRateLimitService(cfg)
+	assert.NotNil(t, service)
+	assert.Equal(t, int64(20), service.GetLimit())
+	assert.Equal(t, 2*time.Minute, service.Window)
+	assert.Equal(t, mockCache, service.Store)
 }
