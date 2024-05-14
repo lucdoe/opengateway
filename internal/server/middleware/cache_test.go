@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware_test
+package middleware
 
 import (
 	"io"
@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/lucdoe/open-gateway/gateway/internal"
-	"github.com/lucdoe/open-gateway/gateway/internal/server/middleware"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -65,15 +64,13 @@ func (m *MockResponseUtil) WriteResponse(w http.ResponseWriter, statusCode int, 
 func TestCacheMiddleware(t *testing.T) {
 	mockCache := new(MockCache)
 	mockResponseUtil := new(MockResponseUtil)
-	middlewareInstance := middleware.NewCacheMiddleware(mockCache, mockResponseUtil)
+	middlewareInstance := NewCacheMiddleware(mockCache, mockResponseUtil)
 
 	cacheKey := "cacheKey"
 	responseBody := `{"status":"ok"}`
 	mockCache.On("GenerateCacheKey", mock.Anything).Return(cacheKey)
 	mockCache.On("Get", cacheKey).Return("", nil)
 	mockCache.On("Set", cacheKey, responseBody, 10*time.Minute).Return(nil)
-
-	mockResponseUtil.On("WriteResponse", mock.Anything, http.StatusOK, "application/json", []byte(responseBody)).Once()
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest("GET", "/", nil)
@@ -85,7 +82,12 @@ func TestCacheMiddleware(t *testing.T) {
 
 	middlewareInstance.Middleware(testHandler).ServeHTTP(recorder, request)
 
-	mockResponseUtil.AssertCalled(t, "WriteResponse", mock.Anything, http.StatusOK, "application/json", []byte(responseBody))
+	if recorder.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if recorder.Body.String() != responseBody {
+		t.Errorf("Expected response body %s, got %s", responseBody, recorder.Body.String())
+	}
 	mockCache.AssertExpectations(t)
 }
 
@@ -95,7 +97,7 @@ func TestWriteResponse(t *testing.T) {
 	statusCode := http.StatusOK
 	contentType := "text/plain"
 
-	responseUtil := middleware.StandardResponseUtil{}
+	responseUtil := StandardResponseUtil{}
 	responseUtil.WriteResponse(w, statusCode, contentType, content)
 
 	res := w.Result()
@@ -112,16 +114,6 @@ func TestWriteResponse(t *testing.T) {
 	}
 }
 
-type ResponseRecorderStub struct {
-	httptest.ResponseRecorder
-	StatusCode int
-}
-
-func (rs *ResponseRecorderStub) WriteHeader(statusCode int) {
-	rs.StatusCode = statusCode
-	rs.ResponseRecorder.WriteHeader(statusCode)
-}
-
 func TestCopyStatusAndHeader(t *testing.T) {
 	src := internal.NewResponseRecorder(httptest.NewRecorder())
 	dst := httptest.NewRecorder()
@@ -129,7 +121,7 @@ func TestCopyStatusAndHeader(t *testing.T) {
 	src.Header().Set("Content-Type", "application/json")
 	src.WriteHeader(http.StatusNotFound)
 
-	responseUtil := middleware.StandardResponseUtil{}
+	responseUtil := StandardResponseUtil{}
 	responseUtil.CopyStatusAndHeader(src, dst)
 
 	if dst.Header().Get("Content-Type") != "application/json" {
@@ -139,4 +131,42 @@ func TestCopyStatusAndHeader(t *testing.T) {
 	if dst.Code != http.StatusNotFound {
 		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, dst.Code)
 	}
+}
+
+func TestHandleCacheHit(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	cachedResponse := `{"status":"ok"}`
+
+	if !handleCacheHit(recorder, cachedResponse, nil) {
+		t.Errorf("Expected cache hit to be handled")
+	}
+
+	res := recorder.Result()
+	resBody, _ := io.ReadAll(res.Body)
+
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, res.StatusCode)
+	}
+	if res.Header.Get("Content-Type") != "application/json" {
+		t.Errorf("Expected Content-Type 'application/json', got '%s'", res.Header.Get("Content-Type"))
+	}
+	if string(resBody) != cachedResponse {
+		t.Errorf("Expected response body %s, got %s", cachedResponse, string(resBody))
+	}
+}
+
+func TestHandleCacheMiss(t *testing.T) {
+	mockCache := new(MockCache)
+	recorder := internal.NewResponseRecorder(httptest.NewRecorder())
+	responseBody := `{"status":"ok"}`
+	recorder.WriteHeader(http.StatusOK)
+	recorder.Write([]byte(responseBody))
+
+	cacheKey := "cacheKey"
+	mockCache.On("Set", cacheKey, responseBody, 10*time.Minute).Return(nil)
+
+	cm := &CacheMiddleware{Cache: mockCache}
+	handleCacheMiss(cm, cacheKey, recorder)
+
+	mockCache.AssertCalled(t, "Set", cacheKey, responseBody, 10*time.Minute)
 }

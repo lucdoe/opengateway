@@ -60,8 +60,8 @@ func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cacheKey := cm.Cache.GenerateCacheKey(r)
 		cachedResponse, err := cm.Cache.Get(cacheKey)
-		if err == nil && cachedResponse != "" {
-			cm.ResponseUtil.WriteResponse(w, http.StatusOK, "application/json", []byte(cachedResponse))
+
+		if handleCacheHit(w, cachedResponse, err) {
 			return
 		}
 
@@ -69,11 +69,32 @@ func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(recorder, r)
 
 		if recorder.StatusCode == http.StatusOK {
-			responseBody := recorder.Body.String()
-			cm.Cache.Set(cacheKey, responseBody, 10*time.Minute)
-			cm.ResponseUtil.WriteResponse(w, http.StatusOK, "application/json", []byte(responseBody))
-		} else {
-			cm.ResponseUtil.CopyStatusAndHeader(recorder, w)
+			handleCacheMiss(cm, cacheKey, recorder)
 		}
+
+		copyResponseHeaders(w, recorder)
 	})
+}
+
+func handleCacheHit(w http.ResponseWriter, cachedResponse string, err error) bool {
+	if err == nil && cachedResponse != "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(cachedResponse))
+		return true
+	}
+	return false
+}
+
+func handleCacheMiss(cm *CacheMiddleware, cacheKey string, recorder *internal.ResponseRecorder) {
+	responseBody := recorder.Body.String()
+	cm.Cache.Set(cacheKey, responseBody, 10*time.Minute)
+}
+
+func copyResponseHeaders(w http.ResponseWriter, recorder *internal.ResponseRecorder) {
+	for k, vv := range recorder.Header() {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
 }
