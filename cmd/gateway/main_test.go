@@ -106,6 +106,28 @@ func TestInitializeServerSuccess(t *testing.T) {
 				},
 			},
 		},
+		Plugins: config.PluginConfig{
+			LoggerConfig: config.LoggerConfig{
+				FilePath:  "server_test.go",
+				ErrOutput: "stderr",
+			},
+			JWTConfig: config.JWTConfig{
+				SecretKey:     "your-256-bit-secret",
+				SigningMethod: "HS256",
+				Issuer:        "ExampleIssuer",
+				Audience:      "ExampleAudience",
+				Scope:         "ExampleScope",
+			},
+			RateLimitConfig: config.RateLimitConfig{
+				Limit:  100,
+				Window: 60 * time.Second,
+			},
+			CORSConfig: config.CORSConfig{
+				Origins: "*",
+				Methods: "GET, POST, PUT, DELETE, OPTIONS",
+				Headers: "Content-Type, Authorization",
+			},
+		},
 	}
 
 	mockConfigLoader.On("LoadConfig", "./cmd/gateway/config.yaml").Return(cfg, nil)

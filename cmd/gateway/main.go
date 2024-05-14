@@ -17,7 +17,6 @@ package main
 import (
 	"log"
 	"os"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
@@ -61,36 +60,41 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 
 	cacheService := deps.CacheService
 
+	loggerConfig := cfg.Plugins.LoggerConfig
+	jwtConfig := cfg.Plugins.JWTConfig
+	rateLimitConfig := cfg.Plugins.RateLimitConfig
+	corsConfig := cfg.Plugins.CORSConfig
+
 	rateLimiter := ratelimit.NewRateLimitService(ratelimit.RateLimitConfig{
 		Store:  cacheService,
-		Limit:  100,
-		Window: 1 * time.Minute,
+		Limit:  rateLimitConfig.Limit,
+		Window: rateLimitConfig.Window,
 	})
 
 	middlewareCfg := server.MiddlewareConfig{
 		LoggerConfig: logger.LoggerConfig{
-			FilePath:     "server.log",
+			FilePath:     loggerConfig.FilePath,
 			FileWriter:   nil,
 			ErrOutput:    os.Stderr,
 			TimeProvider: logger.RealTime{},
 			FileOpener:   logger.DefaultFileOpener{},
 		},
 		JWTConfig: auth.JWTConfig{
-			SecretKey:     []byte("your-256-bit-secret"),
+			SecretKey:     []byte(jwtConfig.SecretKey),
 			SigningMethod: jwt.SigningMethodHS256,
-			Issuer:        "ExampleIssuer",
-			Audience:      "ExampleAudience",
-			Scope:         "ExampleScope",
+			Issuer:        jwtConfig.Issuer,
+			Audience:      jwtConfig.Audience,
+			Scope:         jwtConfig.Scope,
 		},
 		RateLimitConfig: ratelimit.RateLimitConfig{
 			Store:  cacheService,
-			Limit:  100,
-			Window: 1 * time.Minute,
+			Limit:  rateLimitConfig.Limit,
+			Window: rateLimitConfig.Window,
 		},
 		CORSConfig: cors.CORSConfig{
-			Origins: "*",
-			Methods: "GET, POST, PUT, DELETE, OPTIONS",
-			Headers: "Content-Type, Authorization",
+			Origins: corsConfig.Origins,
+			Methods: corsConfig.Methods,
+			Headers: corsConfig.Headers,
 		},
 	}
 

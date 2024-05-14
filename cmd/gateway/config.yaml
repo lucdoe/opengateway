@@ -1,6 +1,6 @@
 Plugins:
   LoggerConfig:
-    FilePath: "./server.log"
+    FilePath: "server.log"
     ErrOutput: "stderr"
   JWTConfig:
     SecretKey: "your-256-bit-secret"
