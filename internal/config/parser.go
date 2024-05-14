@@ -48,6 +48,7 @@ type Service struct {
 	Protocol  string     `yaml:"Protocol"`
 	Endpoints []Endpoint `yaml:"Endpoints"`
 	Plugins   []string   `yaml:"Plugins"`
+	Subpath   string     `yaml:"Subpath"`
 }
 
 type Config struct {
