@@ -1,12 +1,31 @@
+Plugins:
+  LoggerConfig:
+    FilePath: "./server.log"
+    ErrOutput: "stderr"
+  JWTConfig:
+    SecretKey: "your-256-bit-secret"
+    SigningMethod: "HS256"
+    Issuer: "ExampleIssuer"
+    Audience: "ExampleAudience"
+    Scope: "ExampleScope"
+  RateLimitConfig:
+    Limit: 100
+    Window: 1m
+  CORSConfig:
+    Origins: "*"
+    Methods: "GET, POST, PUT, DELETE, OPTIONS"
+    Headers: "Content-Type, Authorization"
+
 Services:
   starwars:
-    URL: "https://swapi.dev/api"
-    Protocol: "HTTPS"
+    URL: "https://swapi.dev"
+    Subpath: "/api"
+    Protocol: "HTTP"
     Plugins:
-      - "rate-limit"
       - "logger"
-      - "cache"
       - "cors"
+      - "rate-limit"
+      - "cache"
     Endpoints:
       - Name: "List People"
         HTTPMethod: "GET"
@@ -35,5 +54,36 @@ Services:
       - Name: "Get Starship"
         HTTPMethod: "GET"
         Path: "/starships/{id}"
+        Auth:
+          ApplyAuth: false
+
+  someotherserver:
+    URL: "http://localhost:3001"
+    Subpath: "/api"
+    Protocol: "HTTP"
+    Plugins:
+      - "logger"
+    Endpoints:
+      - Name: "List People"
+        HTTPMethod: "GET"
+        Path: "/worlds"
+        QueryParams:
+          - Key: "page"
+            Value: "1"
+        Auth:
+          ApplyAuth: false
+
+      - Name: "List People"
+        HTTPMethod: "POST"
+        Path: "/worlds"
+        QueryParams:
+          - Key: "page"
+            Value: "1"
+        Auth:
+          ApplyAuth: false
+
+      - Name: "Get Person"
+        HTTPMethod: "GET"
+        Path: "/worlds/{id}"
         Auth:
           ApplyAuth: false
