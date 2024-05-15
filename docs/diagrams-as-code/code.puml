@@ -1,0 +1,395 @@
+@startuml
+package plugins {
+namespace auth {
+    class Auth << (S,Aquamarine) >> {
+        - config JWTConfig
+
+        + Validate(tokenStr string) (jwt.Claims, error)
+        + ParseToken(tokenStr string) (*jwt.RegisteredClaims, error)
+
+    }
+    interface AuthInterface  {
+        + Validate(token string) (jwt.Claims, error)
+        + ParseToken(tokenStr string) (*jwt.RegisteredClaims, error)
+
+    }
+    class JWTConfig << (S,Aquamarine) >> {
+        + SecretKey []byte
+        + SigningMethod jwt.SigningMethod
+        + Issuer string
+        + Audience string
+        + Scope string
+
+    }
+}
+
+"auth.AuthInterface" <|-- "auth.Auth"
+
+namespace cache {
+    interface Cache  {
+        + Get(key string) (string, error)
+        + Set(key string, value string, expiration time.Duration) error
+        + GenerateCacheKey(r *http.Request) string
+        + Increment(key string, window time.Duration) (int64, error)
+
+    }
+    class CacheConfig << (S,Aquamarine) >> {
+        + Addr string
+        + Password string
+
+    }
+    class RedisCache << (S,Aquamarine) >> {
+        - client *redis.Client
+
+        - sortQueryParams(params url.Values) string
+
+        + Get(key string) (string, error)
+        + Set(key string, value string, expiration time.Duration) error
+        + Increment(key string, window time.Duration) (int64, error)
+        + GenerateCacheKey(rq *http.Request) string
+
+    }
+}
+
+"cache.Cache" <|-- "cache.RedisCache"
+"ratelimit.Cache" <|-- "cache.RedisCache"
+
+namespace ratelimit {
+    interface Cache  {
+        + Increment(key string, window time.Duration) (int64, error)
+
+    }
+    class RateLimitConfig << (S,Aquamarine) >> {
+        + Store Cache
+        + Limit int64
+        + Window time.Duration
+
+        + GetLimit() int64
+        + RateLimit(key string) (int64, int64, time.Duration, error)
+
+    }
+    interface RateLimiter  {
+        + RateLimit(key string) (int64, int64, time.Duration, error)
+        + GetLimit() int64
+
+    }
+}
+
+"ratelimit.RateLimiter" <|-- "ratelimit.RateLimitConfig"
+
+  namespace logger {
+    class DefaultFileOpener << (S,Aquamarine) >> {
+        + OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error)
+
+    }
+    interface FileOpener  {
+        + OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error)
+
+    }
+    interface FileWriter  {
+        + Write(p []byte) (int, error)
+
+    }
+    interface Logger  {
+        + Info(msg string, details string) 
+
+    }
+    class LoggerConfig << (S,Aquamarine) >> {
+        + FilePath string
+        + FileWriter FileWriter
+        + ErrOutput io.Writer
+        + TimeProvider TimeProvider
+        + FileOpener FileOpener
+
+        - setDefaults() 
+
+    }
+    class OSLogger << (S,Aquamarine) >> {
+        - filePath string
+        - file FileWriter
+        - errOutput io.Writer
+        - timeProvider TimeProvider
+
+        + Info(msg string, details string) 
+
+    }
+    class RealTime << (S,Aquamarine) >> {
+        + Now() time.Time
+
+    }
+    interface TimeProvider  {
+        + Now() time.Time
+
+    }
+}
+
+"logger.FileOpener" <|-- "logger.DefaultFileOpener"
+"logger.Logger" <|-- "logger.OSLogger"
+"logger.TimeProvider" <|-- "logger.RealTime"
+
+namespace cors {
+    interface CORS  {
+        + ValidateOrigin(origin string) bool
+        + ValidateMethod(method string) bool
+        + ValidateHeaders(headers string) bool
+        + GetAllowedMethods() string
+        + GetAllowedHeaders() string
+
+    }
+    class CORSConfig << (S,Aquamarine) >> {
+        + Origins string
+        + Methods string
+        + Headers string
+
+    }
+    class Cors << (S,Aquamarine) >> {
+        + ValidateOrigin(origin string) bool
+        + ValidateMethod(method string) bool
+        + ValidateHeaders(requestedHeaders string) bool
+        + GetAllowedMethods() string
+        + GetAllowedHeaders() string
+
+    }
+}
+"cors.CORSConfig" *-- "cors.Cors"
+
+"cors.CORS" <|-- "cors.Cors"
+
+}
+
+namespace config {
+    class AuthConfig << (S,Aquamarine) >> {
+        + ApplyAuth bool
+        + Method string
+        + Algorithm string
+        + Scope string
+        + SecretKey string
+
+    }
+    class CORSConfig << (S,Aquamarine) >> {
+        + Origins string
+        + Methods string
+        + Headers string
+
+    }
+    class Config << (S,Aquamarine) >> {
+        + Plugins PluginConfig
+        + Services <font color=blue>map</font>[string]Service
+
+    }
+    class Endpoint << (S,Aquamarine) >> {
+        + Name string
+        + HTTPMethod string
+        + Path string
+        + QueryParams []QueryParam
+        + Auth AuthConfig
+        + Body <font color=blue>map</font>[string]<font color=blue>interface</font>{}
+        + Plugins []string
+
+    }
+    class JWTConfig << (S,Aquamarine) >> {
+        + SecretKey string
+        + SigningMethod string
+        + Issuer string
+        + Audience string
+        + Scope string
+
+    }
+    class LoggerConfig << (S,Aquamarine) >> {
+        + FilePath string
+        + ErrOutput string
+
+    }
+    interface Parser  {
+        + ReadFile() ([]byte, error)
+        + Unmarshal(in []byte, out <font color=blue>interface</font>{}) error
+        + Parse() (*Config, error)
+
+    }
+    class PluginConfig << (S,Aquamarine) >> {
+    }
+    class QueryParam << (S,Aquamarine) >> {
+        + Key string
+        + Value string
+
+    }
+    class RateLimitConfig << (S,Aquamarine) >> {
+        + Limit int64
+        + Window time.Duration
+
+    }
+    class Service << (S,Aquamarine) >> {
+        + URL string
+        + Protocol string
+        + Endpoints []Endpoint
+        + Plugins []string
+        + Subpath string
+
+    }
+    class YAMLParser << (S,Aquamarine) >> {
+        - path string
+
+        + ReadFile() ([]byte, error)
+        + Unmarshal(in []byte, out <font color=blue>interface</font>{}) error
+        + Parse() (*Config, error)
+
+    }
+
+}
+"config.CORSConfig" *-- "config.PluginConfig"
+"config.JWTConfig" *-- "config.PluginConfig"
+"config.LoggerConfig" *-- "config.PluginConfig"
+"config.RateLimitConfig" *-- "config.PluginConfig"
+
+"config.Parser" <|-- "config.YAMLParser"
+
+
+
+namespace internal {
+    class ResponseRecorder << (S,Aquamarine) >> {
+        + Body bytes.Buffer
+        + StatusCode int
+
+        + WriteHeader(code int) 
+        + Write(b []byte) (int, error)
+        + CopyBody(w http.ResponseWriter) 
+
+    }
+}
+"http.ResponseWriter" *-- "internal.ResponseRecorder"
+
+"logger.FileWriter" <|-- "internal.ResponseRecorder"
+
+
+namespace main {
+    interface ConfigLoader  {
+        + LoadConfig(path string) (*config.Config, error)
+
+    }
+    class DefaultConfigLoader << (S,Aquamarine) >> {
+        + LoadConfig(path string) (*config.Config, error)
+
+    }
+    class ServerDependencies << (S,Aquamarine) >> {
+        + ConfigLoader ConfigLoader
+        + MiddlewareInitializer server.MiddlewareConfig
+        + Router *mux.Router
+        + ProxyService proxy.ProxyService
+        + CacheService cache.Cache
+
+    }
+}
+
+"main.ConfigLoader" <|-- "main.DefaultConfigLoader"
+
+namespace middleware {
+    class AuthMiddleware << (S,Aquamarine) >> {
+        + AuthService auth.AuthInterface
+
+        + Middleware(next http.Handler) http.Handler
+
+    }
+    class CORSMiddleware << (S,Aquamarine) >> {
+        + CORS cors.CORS
+
+        - setCORSHeaders(w http.ResponseWriter, origin string) 
+
+        + Middleware(next http.Handler) http.Handler
+
+    }
+    class CacheMiddleware << (S,Aquamarine) >> {
+        + Cache cache.Cache
+        + ResponseUtil ResponseUtil
+
+        + Middleware(next http.Handler) http.Handler
+
+    }
+    class LoggingMiddleware << (S,Aquamarine) >> {
+        + Logger logger.Logger
+
+        + Middleware(next http.Handler) http.Handler
+
+    }
+    class RateLimitMiddleware << (S,Aquamarine) >> {
+        + RateLimiter rate-limit.RateLimiter
+
+        - setRateLimitHeaders(w http.ResponseWriter, remaining int64, window time.Duration) 
+
+        + Middleware(next http.Handler) http.Handler
+
+    }
+    interface ResponseUtil  {
+        + CopyStatusAndHeader(src http.ResponseWriter, dst http.ResponseWriter) 
+        + WriteResponse(w http.ResponseWriter, statusCode int, contentType string, content []byte) 
+
+    }
+    class StandardResponseUtil << (S,Aquamarine) >> {
+        + CopyStatusAndHeader(src http.ResponseWriter, dst http.ResponseWriter) 
+        + WriteResponse(w http.ResponseWriter, statusCode int, contentType string, content []byte) 
+
+    }
+}
+
+"server.Middleware" <|-- "middleware.AuthMiddleware"
+"server.Middleware" <|-- "middleware.CORSMiddleware"
+"server.Middleware" <|-- "middleware.CacheMiddleware"
+"server.Middleware" <|-- "middleware.LoggingMiddleware"
+"server.Middleware" <|-- "middleware.RateLimitMiddleware"
+"middleware.ResponseUtil" <|-- "middleware.StandardResponseUtil"
+
+namespace proxy {
+    class Proxy << (S,Aquamarine) >> {
+        + ReverseProxy(target string, w http.ResponseWriter, r *http.Request) error
+
+    }
+    interface ProxyService  {
+        + ReverseProxy(target string, w http.ResponseWriter, r *http.Request) error
+
+    }
+}
+
+"proxy.ProxyService" <|-- "proxy.Proxy"
+"server.ProxyService" <|-- "proxy.Proxy"
+
+
+
+namespace server {
+    class DefaultServerRunner << (S,Aquamarine) >> {
+        + ListenAndServe(addr string, handler http.Handler) error
+
+    }
+    interface Middleware  {
+        + Middleware(next http.Handler) http.Handler
+
+    }
+    class MiddlewareConfig << (S,Aquamarine) >> {
+        + LoggerConfig logger.LoggerConfig
+        + JWTConfig auth.JWTConfig
+        + CacheConfig cache.CacheConfig
+        + RateLimitConfig rate-limit.RateLimitConfig
+        + CORSConfig cors.CORSConfig
+
+    }
+    interface ProxyService  {
+        + ReverseProxy(targetURL string, w http.ResponseWriter, r *http.Request) error
+
+    }
+    class Server << (S,Aquamarine) >> {
+        + Router *mux.Router
+        + Middlewares <font color=blue>map</font>[string]Middleware
+        + Proxy ProxyService
+        + Runner ServerRunner
+
+        + SetupRoutes(cfg *config.Config) 
+        + Run() error
+
+    }
+    interface ServerRunner  {
+        + ListenAndServe(addr string, handler http.Handler) error
+
+    }
+}
+
+"server.ServerRunner" <|-- "server.DefaultServerRunner"
+
+@enduml

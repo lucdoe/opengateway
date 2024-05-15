@@ -15,4 +15,7 @@ C4 components diagram (overview of the system's components) is shown below: <br>
 UML Sequence diagram (overview of the system's sequence) is shown below: <br>
 ![UML Sequence diagram](https://github.com/lucdoe/open-gateway/blob/main/docs/diagrams-as-image/sequence.png?raw=true)
 
+Code diagram (overview of the system's code) is shown below: <br>
+![Code diagram](https://github.com/lucdoe/open-gateway/blob/main/docs/diagrams-as-image/code.svg?raw=true)
+
 All diagrams are available as code in the [diagrams-as-code](https://github.com/lucdoe/open-gateway/tree/main/docs/diagrams-as-code) folder.
