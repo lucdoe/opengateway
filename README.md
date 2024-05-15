@@ -4,16 +4,13 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![Build](https://github.com/lucdoe/open-gateway/actions/workflows/ci.yml/badge.svg)
 
-## Description
 
-Your project description here.
-
-Welcome to our API Gateway, an efficient solution written in Go for small to mid-sized projects. It offers a streamlined approach to managing and securing your APIs.
+Welcome to the OpenGateway API Gateway, an efficient solution written in Go for small to mid-sized projects. It offers a streamlined approach to managing and securing your APIs.
 Leveraging Go's performance and simplicity, this gateway ensures quick response times and reliable performance without the complexity of larger systems. It is open-source, avoiding vendor lock-in and allowing complete control over deployment and customization.
 
-You can easily extend its functionality with configurable plugins and the setup is straightforward, with minimal configuration needed.
+You can easily extend its functionality with configurable plugins, and the setup is straightforward, with minimal configuration needed.
 
-For an overview and better understanding of the architecture, please also see the [architecture diagrams](https://github.com/lucdoe/open-gateway/tree/main/docs).
+Please also see the [architecture diagrams](https://github.com/lucdoe/open-gateway/tree/main/docs) for an overview and better understanding of the architecture.
 
 ## Local setup
 
@@ -71,15 +68,15 @@ We conducted a performance benchmark using `hey` with the following parameters:
 
 ### Load testing (Locust)
 
-We have conducted load testing on our API Gateway using Locust (200 peak, 50 ramp, 5m).
+We have conducted load testing on our API Gateway using Locust (200 peaks, 50 ramps, 5m).
 
 | Type | Name           | Requests | Fails | Median (ms) | Average (ms) | Min (ms) | Max (ms) | Average size (bytes) | Current RPS | Current Failures/s |
 | ---- | -------------- | -------- | ----- | ----------- | ------------ | -------- | -------- | -------------------- | ----------- | ------------------ |
 | GET  | /some-endpoint | 15,532   | 0     | 4           | 4.93         | 1        | 76       | 1,280                | 66.8        | 0                  |
 
-The gateway is performing well under the tested load, with no failures and consistent response times.
+The gateway performs well under the tested load, with no failures and consistent response times.
 
-These results provide a clear picture of the API Gateway's performance under load, highlighting its ability to handle a high number of requests efficiently.
+These results clearly show the API Gateway's performance under load, highlighting its ability to handle many requests efficiently.
 
 ## License
 
