@@ -5,8 +5,7 @@
 ![Build](https://github.com/lucdoe/open-gateway/actions/workflows/ci.yml/badge.svg)
 
 
-Welcome to the OpenGateway API Gateway, an efficient solution written in Go for small to mid-sized projects. It offers a streamlined approach to managing and securing your APIs.
-Leveraging Go's performance and simplicity, this gateway ensures quick response times and reliable performance without the complexity of larger systems. It is open-source, avoiding vendor lock-in and allowing complete control over deployment and customization.
+Welcome to the OpenGateway repo, an lightweight API Gateway written in Go for small to mid-sized projects. Leveraging Go's performance and simplicity, this gateway ensures quick response times and reliable performance without the complexity of larger systems. It is open-source, avoiding vendor lock-in and allowing complete control over deployment and customization through simple YAMl config.
 
 You can easily extend its functionality with configurable plugins, and the setup is straightforward, with minimal configuration needed.
 
