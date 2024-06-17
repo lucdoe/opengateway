@@ -130,7 +130,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 		},
 	}
 
-	mockConfigLoader.On("LoadConfig", "./cmd/gateway/config.yaml").Return(cfg, nil)
+	mockConfigLoader.On("LoadConfig", "./cmd/opengateway/config.yaml").Return(cfg, nil)
 
 	deps := ServerDependencies{
 		ConfigLoader: mockConfigLoader,
