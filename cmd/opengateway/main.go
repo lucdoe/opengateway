@@ -51,7 +51,7 @@ type ServerDependencies struct {
 func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
-		configPath = "./cmd/gateway/config.yaml"
+		configPath = "./cmd/opengateway/config.yaml"
 	}
 	cfg, err := deps.ConfigLoader.LoadConfig(configPath)
 	if err != nil {
