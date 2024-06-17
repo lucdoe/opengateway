@@ -17,7 +17,7 @@ package cors_test
 import (
 	"testing"
 
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
+	"github.com/lucdoe/opengateway/internal/plugins/cors"
 )
 
 func TestValidateOrigin(t *testing.T) {

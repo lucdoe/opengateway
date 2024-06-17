@@ -18,7 +18,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/lucdoe/open-gateway/gateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/config"
 )
 
 type ProxyService interface {

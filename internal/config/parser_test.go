@@ -18,7 +18,7 @@ import (
 	"os"
 	"testing"
 
-	parser "github.com/lucdoe/open-gateway/gateway/internal/config"
+	parser "github.com/lucdoe/opengateway/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

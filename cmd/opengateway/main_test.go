@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/lucdoe/open-gateway/gateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

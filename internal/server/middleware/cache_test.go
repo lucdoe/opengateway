@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lucdoe/open-gateway/gateway/internal"
+	"github.com/lucdoe/opengateway/internal"
 	"github.com/stretchr/testify/mock"
 )
 

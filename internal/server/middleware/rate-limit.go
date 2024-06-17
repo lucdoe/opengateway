@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"time"
 
-	ratelimit "github.com/lucdoe/open-gateway/gateway/internal/plugins/rate-limit"
+	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
 )
 
 type RateLimitMiddleware struct {

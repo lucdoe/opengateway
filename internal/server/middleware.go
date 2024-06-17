@@ -17,12 +17,12 @@ package server
 import (
 	"net/http"
 
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/auth"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cache"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
-	ratelimit "github.com/lucdoe/open-gateway/gateway/internal/plugins/rate-limit"
-	mw "github.com/lucdoe/open-gateway/gateway/internal/server/middleware"
+	"github.com/lucdoe/opengateway/internal/plugins/auth"
+	"github.com/lucdoe/opengateway/internal/plugins/cache"
+	"github.com/lucdoe/opengateway/internal/plugins/cors"
+	"github.com/lucdoe/opengateway/internal/plugins/logger"
+	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
+	mw "github.com/lucdoe/opengateway/internal/server/middleware"
 )
 
 type Middleware interface {

@@ -1,4 +1,4 @@
-module github.com/lucdoe/open-gateway/gateway
+module github.com/lucdoe/opengateway
 
 go 1.22.2
 

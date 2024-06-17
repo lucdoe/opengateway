@@ -20,8 +20,8 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	"github.com/lucdoe/open-gateway/gateway/internal/config"
-	"github.com/lucdoe/open-gateway/gateway/internal/server"
+	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

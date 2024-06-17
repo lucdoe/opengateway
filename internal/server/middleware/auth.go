@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"strings"
 
-	auth "github.com/lucdoe/open-gateway/gateway/internal/plugins/auth"
+	auth "github.com/lucdoe/opengateway/internal/plugins/auth"
 )
 
 type AuthMiddleware struct {
