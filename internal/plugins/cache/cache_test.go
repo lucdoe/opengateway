@@ -15,7 +15,6 @@
 package cache_test
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -76,12 +75,9 @@ func TestRedisCacheOperations(t *testing.T) {
 		assert.NoError(t, getErr, "Get should not error")
 		assert.Equal(t, value, retrievedValue, "Get should retrieve what was set")
 
-		fmt.Printf("Value before expiration: %s\n", retrievedValue)
-
 		mr.FastForward(1 * time.Second)
 
 		retrievedValue, getErr = redisCache.Get(expireKey)
-		fmt.Printf("Value after expiration: %s, error: %v\n", retrievedValue, getErr)
 		assert.Error(t, getErr, "Get should error after expiration")
 		assert.Equal(t, "", retrievedValue, "Get should return an empty string after expiration")
 	})
@@ -92,12 +88,9 @@ func TestRedisCacheOperations(t *testing.T) {
 		assert.NoError(t, incErr, "Increment should not error")
 		assert.Equal(t, int64(1), count, "Increment should return incremented value")
 
-		fmt.Printf("Count before expiration: %d\n", count)
-
 		mr.FastForward(1 * time.Second)
 
 		count, incErr = redisCache.Increment(incrementExpireKey, 1*time.Second)
-		fmt.Printf("Count after expiration: %d, error: %v\n", count, incErr)
 		assert.NoError(t, incErr, "Increment should not error after expiration")
 		assert.Equal(t, int64(1), count, "Increment should reset after expiration")
 	})
