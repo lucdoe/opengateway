@@ -18,8 +18,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lucdoe/open-gateway/gateway/internal"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cache"
+	"github.com/lucdoe/opengateway/internal"
+	"github.com/lucdoe/opengateway/internal/plugins/cache"
 )
 
 type CacheMiddleware struct {

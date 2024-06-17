@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	ratelimit "github.com/lucdoe/open-gateway/gateway/internal/plugins/rate-limit"
-	"github.com/lucdoe/open-gateway/gateway/internal/server/middleware"
+	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
+	"github.com/lucdoe/opengateway/internal/server/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

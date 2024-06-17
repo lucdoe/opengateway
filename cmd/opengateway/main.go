@@ -20,14 +20,14 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
-	"github.com/lucdoe/open-gateway/gateway/internal/config"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/auth"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cache"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
-	ratelimit "github.com/lucdoe/open-gateway/gateway/internal/plugins/rate-limit"
-	"github.com/lucdoe/open-gateway/gateway/internal/proxy"
-	"github.com/lucdoe/open-gateway/gateway/internal/server"
+	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/plugins/auth"
+	"github.com/lucdoe/opengateway/internal/plugins/cache"
+	"github.com/lucdoe/opengateway/internal/plugins/cors"
+	"github.com/lucdoe/opengateway/internal/plugins/logger"
+	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
+	"github.com/lucdoe/opengateway/internal/proxy"
+	"github.com/lucdoe/opengateway/internal/server"
 )
 
 type ConfigLoader interface {

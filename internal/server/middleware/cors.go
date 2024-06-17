@@ -17,7 +17,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cors"
+	"github.com/lucdoe/opengateway/internal/plugins/cors"
 )
 
 type CORSMiddleware struct {

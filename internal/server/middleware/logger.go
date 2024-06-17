@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/logger"
+	"github.com/lucdoe/opengateway/internal/plugins/logger"
 )
 
 type LoggingMiddleware struct {

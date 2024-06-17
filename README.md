@@ -1,21 +1,20 @@
-# OpenGateway - lightweight API Gateway 
+# OpenGateway - lightweight API Gateway
 
-[![codecov](https://codecov.io/gh/lucdoe/open-gateway/branch/main/graph/badge.svg?token=SDFO3CX9ZN)](https://codecov.io/gh/lucdoe/open-gateway)
+[![codecov](https://codecov.io/gh/lucdoe/opengateway/branch/main/graph/badge.svg?token=SDFO3CX9ZN)](https://codecov.io/gh/lucdoe/opengateway)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-![Build](https://github.com/lucdoe/open-gateway/actions/workflows/ci.yml/badge.svg)
-
+![Build](https://github.com/lucdoe/opengateway/actions/workflows/ci.yml/badge.svg)
 
 Welcome to the OpenGateway repo, an lightweight API Gateway written in Go for small to mid-sized projects. Leveraging Go's performance and simplicity, this gateway ensures quick response times and reliable performance without the complexity of larger systems. It is open-source, avoiding vendor lock-in and allowing complete control over deployment and customization through simple YAMl config.
 
 You can easily extend its functionality with configurable plugins, and the setup is straightforward, with minimal configuration needed.
 
-Please also see the [architecture diagrams](https://github.com/lucdoe/open-gateway/tree/main/docs) for an overview and better understanding of the architecture.
+Please also see the [architecture diagrams](https://github.com/lucdoe/opengateway/tree/main/docs) for an overview and better understanding of the architecture.
 
 ## Local setup
 
 1. **Clone the repository:**
-   <br> SSH: `git clone git@github.com:lucdoe/open-gateway.git`
-   <br>HTTPS: `git clone https://github.com/lucdoe/open-gateway.git`
+   <br> SSH: `git clone git@github.com:lucdoe/opengateway.git`
+   <br>HTTPS: `git clone https://github.com/lucdoe/opengateway.git`
 
 ### Docker
 

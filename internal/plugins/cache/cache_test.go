@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/lucdoe/open-gateway/gateway/internal/plugins/cache"
+	"github.com/lucdoe/opengateway/internal/plugins/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

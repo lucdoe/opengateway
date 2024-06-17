@@ -21,7 +21,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lucdoe/open-gateway/gateway/internal/proxy"
+	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/stretchr/testify/assert"
 )
 

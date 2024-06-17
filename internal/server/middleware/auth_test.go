@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
-	mw "github.com/lucdoe/open-gateway/gateway/internal/server/middleware"
+	mw "github.com/lucdoe/opengateway/internal/server/middleware"
 )
 
 type mockAuth struct{}

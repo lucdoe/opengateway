@@ -20,7 +20,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lucdoe/open-gateway/gateway/internal"
+	"github.com/lucdoe/opengateway/internal"
 	"github.com/stretchr/testify/assert"
 )
 

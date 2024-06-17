@@ -9,7 +9,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/gateway/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/opengateway/main.go
 
 FROM alpine:latest  
 
@@ -19,7 +19,7 @@ ENV CONFIG_PATH=/app/config.yaml
 WORKDIR /app
 
 COPY --from=builder /app/main /app/main
-COPY --from=builder /app/cmd/gateway/config.yaml /app/config.yaml
+COPY --from=builder /app/cmd/opengateway/config.yaml /app/config.yaml
 
 RUN chmod +x /app/main
 
