@@ -22,12 +22,12 @@ import (
 )
 
 type AuthMiddleware struct {
-	AuthService auth.AuthInterface
+	authService auth.AuthInterface
 }
 
 func NewAuthMiddleware(as auth.AuthInterface) *AuthMiddleware {
 	return &AuthMiddleware{
-		AuthService: as,
+		authService: as,
 	}
 }
 
@@ -46,7 +46,7 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		tokenStr := parts[1]
-		_, err := am.AuthService.Validate(tokenStr)
+		_, err := am.authService.Validate(tokenStr)
 		if err != nil {
 			http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
 			return
