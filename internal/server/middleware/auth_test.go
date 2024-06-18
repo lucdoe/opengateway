@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware_test
+package middleware
 
 import (
 	"errors"
@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
-	mw "github.com/lucdoe/opengateway/internal/server/middleware"
 )
 
 type mockAuth struct{}
@@ -64,7 +63,7 @@ func TestAuthMiddleware(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			mockAuthService := &mockAuth{}
-			middleware := mw.NewAuthMiddleware(mockAuthService).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			middleware := NewAuthMiddleware(mockAuthService).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
