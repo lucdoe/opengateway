@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server_test
+package server
 
 import (
 	"net/http"
@@ -21,7 +21,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
-	"github.com/lucdoe/opengateway/internal/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -58,7 +57,7 @@ func TestMakeHandler(t *testing.T) {
 			req := httptest.NewRequest("GET", "http://example.com/foo", nil)
 			w := httptest.NewRecorder()
 			proxy := &mockProxyService{err: tt.proxyError}
-			handler := server.MakeHandler(proxy, "http://target.url")
+			handler := MakeHandler(proxy, "http://target.url")
 
 			handler.ServeHTTP(w, req)
 
@@ -111,9 +110,9 @@ func TestSetupRoutes(t *testing.T) {
 
 	router := mux.NewRouter()
 	proxyService := &mockProxyService{}
-	middlewares := map[string]server.Middleware{}
+	middlewares := map[string]Middleware{}
 
-	s := server.NewServer(cfg, router, proxyService, middlewares)
+	s := NewServer(cfg, router, proxyService, middlewares)
 	s.SetupRoutes(cfg)
 
 	ts := httptest.NewServer(router)
@@ -151,7 +150,7 @@ func TestServerRun(t *testing.T) {
 	mockRunner := new(MockServerRunner)
 	mockRunner.On("ListenAndServe", ":4000", mock.Anything).Return(nil)
 
-	s := server.Server{
+	s := Server{
 		Router: mux.NewRouter(),
 		Runner: mockRunner,
 	}
@@ -176,7 +175,7 @@ func TestContains(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := server.Contains(test.slice, test.item)
+			result := contains(test.slice, test.item)
 			assert.Equal(t, test.expected, result)
 		})
 	}
