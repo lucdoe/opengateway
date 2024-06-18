@@ -77,13 +77,13 @@ func applyServiceMiddlewares(s *Server, plugins []string) {
 	orderedMiddlewareKeys := []string{"logger", "cors", "rate-limit", "cache"}
 
 	for _, key := range orderedMiddlewareKeys {
-		if _, ok := s.Middlewares[key]; ok && Contains(plugins, key) {
+		if _, ok := s.Middlewares[key]; ok && contains(plugins, key) {
 			s.Router.Use(s.Middlewares[key].Middleware)
 		}
 	}
 }
 
-func Contains(slice []string, item string) bool {
+func contains(slice []string, item string) bool {
 	for _, sliceItem := range slice {
 		if sliceItem == item {
 			return true
