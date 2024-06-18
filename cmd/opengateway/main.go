@@ -30,7 +30,7 @@ import (
 	"github.com/lucdoe/opengateway/internal/server"
 )
 
-type ConfigLoader interface {
+type configLoader interface {
 	LoadConfig(path string) (*config.Config, error)
 }
 
@@ -41,11 +41,10 @@ func (d *DefaultConfigLoader) LoadConfig(path string) (*config.Config, error) {
 }
 
 type ServerDependencies struct {
-	ConfigLoader          ConfigLoader
-	MiddlewareInitializer server.MiddlewareConfig
-	Router                *mux.Router
-	ProxyService          proxy.ProxyService
-	CacheService          cache.Cache
+	configLoader configLoader
+	router       *mux.Router
+	proxyService proxy.ProxyService
+	cacheService cache.Cache
 }
 
 func InitializeServer(deps ServerDependencies) (*server.Server, error) {
@@ -53,12 +52,12 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 	if configPath == "" {
 		configPath = "./cmd/opengateway/config.yaml"
 	}
-	cfg, err := deps.ConfigLoader.LoadConfig(configPath)
+	cfg, err := deps.configLoader.LoadConfig(configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	cacheService := deps.CacheService
+	cacheService := deps.cacheService
 
 	loggerConfig := cfg.Plugins.LoggerConfig
 	jwtConfig := cfg.Plugins.JWTConfig
@@ -103,7 +102,7 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 		return nil, err
 	}
 
-	return server.NewServer(cfg, deps.Router, deps.ProxyService, middlewares), nil
+	return server.NewServer(cfg, deps.router, deps.proxyService, middlewares), nil
 }
 
 func main() {
@@ -114,10 +113,10 @@ func main() {
 		redisPort = "6379"
 	}
 	deps := ServerDependencies{
-		ConfigLoader: &DefaultConfigLoader{},
-		Router:       mux.NewRouter(),
-		ProxyService: proxy.NewProxyService(),
-		CacheService: cache.NewRedisCache(cache.CacheConfig{
+		configLoader: &DefaultConfigLoader{},
+		router:       mux.NewRouter(),
+		proxyService: proxy.NewProxyService(),
+		cacheService: cache.NewRedisCache(cache.CacheConfig{
 			Addr:     redisHost + ":" + redisPort,
 			Password: "",
 		}),
