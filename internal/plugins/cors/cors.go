@@ -32,15 +32,11 @@ type CORSConfig struct {
 	Headers string
 }
 
-type Cors struct {
-	CORSConfig
+func NewCors(config CORSConfig) *CORSConfig {
+	return &CORSConfig{Origins: config.Origins, Methods: config.Methods, Headers: config.Headers}
 }
 
-func NewCors(config CORSConfig) *Cors {
-	return &Cors{CORSConfig: config}
-}
-
-func (c *Cors) ValidateOrigin(origin string) bool {
+func (c *CORSConfig) ValidateOrigin(origin string) bool {
 	if c.Origins == "*" {
 		return true
 	}
@@ -52,7 +48,7 @@ func (c *Cors) ValidateOrigin(origin string) bool {
 	return false
 }
 
-func (c *Cors) ValidateMethod(method string) bool {
+func (c *CORSConfig) ValidateMethod(method string) bool {
 	for _, m := range strings.Split(c.Methods, ", ") {
 		if strings.TrimSpace(m) == method {
 			return true
@@ -61,7 +57,7 @@ func (c *Cors) ValidateMethod(method string) bool {
 	return false
 }
 
-func (c *Cors) ValidateHeaders(requestedHeaders string) bool {
+func (c *CORSConfig) ValidateHeaders(requestedHeaders string) bool {
 	if requestedHeaders == "" {
 		return true
 	}
@@ -81,10 +77,10 @@ func (c *Cors) ValidateHeaders(requestedHeaders string) bool {
 	return true
 }
 
-func (c *Cors) GetAllowedMethods() string {
+func (c *CORSConfig) GetAllowedMethods() string {
 	return c.Methods
 }
 
-func (c *Cors) GetAllowedHeaders() string {
+func (c *CORSConfig) GetAllowedHeaders() string {
 	return c.Headers
 }
