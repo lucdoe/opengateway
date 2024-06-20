@@ -29,20 +29,6 @@ Make sure you have Docker with Docker Compose installed on your machine. Docker 
 2. **Edit the `cmd/gateway/config.yaml` file to your needs**
 3. **Run the gateway with `go run cmd/gateway/main.go`**
 
-## Go - Grade
-
-| Metric      | Value        |
-| ----------- | ------------ |
-| **Grade**   | **A+ 98.1%** |
-| Files       | 962          |
-| Issues      | 158          |
-| go_vet      | 100%         |
-| gofmt       | 100%         |
-| ineffassign | 100%         |
-| gocyclo     | 83%          |
-| license     | 100%         |
-| misspell    | 100%         |
-
 ## Metrics
 
 ### Benchmark Results
