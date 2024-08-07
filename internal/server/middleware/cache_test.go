@@ -25,6 +25,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	contentTypeHeader = "Content-Type"
+	JSONContentType   = "application/json"
+)
+
 type MockCache struct {
 	mock.Mock
 }
@@ -106,8 +111,8 @@ func TestWriteResponse(t *testing.T) {
 	if res.StatusCode != statusCode {
 		t.Errorf("Expected status code %d, got %d", statusCode, res.StatusCode)
 	}
-	if res.Header.Get("Content-Type") != contentType {
-		t.Errorf("Expected content type %s, got %s", contentType, res.Header.Get("Content-Type"))
+	if res.Header.Get(contentTypeHeader) != contentType {
+		t.Errorf("Expected content type %s, got %s", contentType, res.Header.Get(contentTypeHeader))
 	}
 	if string(resBody) != string(content) {
 		t.Errorf("Expected response body %s, got %s", string(content), string(resBody))
@@ -118,14 +123,14 @@ func TestCopyStatusAndHeader(t *testing.T) {
 	src := internal.NewResponseRecorder(httptest.NewRecorder())
 	dst := httptest.NewRecorder()
 
-	src.Header().Set("Content-Type", "application/json")
+	src.Header().Set(contentTypeHeader, JSONContentType)
 	src.WriteHeader(http.StatusNotFound)
 
 	responseUtil := StandardResponseUtil{}
 	responseUtil.CopyStatusAndHeader(src, dst)
 
-	if dst.Header().Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", dst.Header().Get("Content-Type"))
+	if dst.Header().Get(contentTypeHeader) != JSONContentType {
+		t.Errorf("Expected Content-Type 'application/json', got '%s'", dst.Header().Get(contentTypeHeader))
 	}
 
 	if dst.Code != http.StatusNotFound {
@@ -147,8 +152,8 @@ func TestHandleCacheHit(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Errorf("Expected status code %d, got %d", http.StatusOK, res.StatusCode)
 	}
-	if res.Header.Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", res.Header.Get("Content-Type"))
+	if res.Header.Get(contentTypeHeader) != JSONContentType {
+		t.Errorf("Expected Content-Type 'application/json', got '%s'", res.Header.Get(contentTypeHeader))
 	}
 	if string(resBody) != cachedResponse {
 		t.Errorf("Expected response body %s, got %s", cachedResponse, string(resBody))

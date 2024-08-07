@@ -25,6 +25,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	exampleURL = "http://example.com"
+)
+
 func TestProxyReverseProxy(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -34,7 +38,7 @@ func TestProxyReverseProxy(t *testing.T) {
 
 	proxyService := proxy.NewProxyService()
 
-	req := httptest.NewRequest("GET", "http://example.com", nil)
+	req := httptest.NewRequest("GET", exampleURL, nil)
 	w := httptest.NewRecorder()
 
 	err := proxyService.ReverseProxy(testServer.URL, w, req)
@@ -58,7 +62,7 @@ func TestProxyReverseProxyWithPost(t *testing.T) {
 
 	proxyService := proxy.NewProxyService()
 
-	req := httptest.NewRequest("POST", "http://example.com", io.NopCloser(io.MultiReader(bytes.NewReader([]byte("post body")))))
+	req := httptest.NewRequest("POST", exampleURL, io.NopCloser(io.MultiReader(bytes.NewReader([]byte("post body")))))
 	w := httptest.NewRecorder()
 
 	err := proxyService.ReverseProxy(testServer.URL, w, req)
@@ -95,7 +99,7 @@ func TestProxyReverseProxyWithQueryParams(t *testing.T) {
 func TestProxyReverseProxyHandlesInvalidURL(t *testing.T) {
 	proxyService := proxy.NewProxyService()
 
-	req := httptest.NewRequest("GET", "http://example.com", nil)
+	req := httptest.NewRequest("GET", exampleURL, nil)
 	w := httptest.NewRecorder()
 
 	err := proxyService.ReverseProxy(":", w, req)
@@ -114,7 +118,7 @@ func TestProxyReverseProxyHandlesServerError(t *testing.T) {
 
 	proxyService := proxy.NewProxyService()
 
-	req := httptest.NewRequest("GET", "http://example.com", nil)
+	req := httptest.NewRequest("GET", exampleURL, nil)
 	w := httptest.NewRecorder()
 
 	err := proxyService.ReverseProxy(testServer.URL, w, req)

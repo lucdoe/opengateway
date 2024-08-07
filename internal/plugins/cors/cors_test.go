@@ -20,11 +20,18 @@ import (
 	"github.com/lucdoe/opengateway/internal/plugins/cors"
 )
 
+const (
+	GETAndPOST                  = "GET, POST"
+	GETandPOSTandPUT            = "GET, POST, PUT"
+	contentTypeAuthzXReqHeaders = "Content-Type, Authorization, X-Requested-With"
+	contentTypeAuthzHeaders     = "Content-Type, Authorization"
+)
+
 func TestValidateOrigin(t *testing.T) {
 	corsConfig := cors.CORSConfig{
 		Origins: "http://example.com, http://example.org, *",
-		Methods: "GET, POST",
-		Headers: "Content-Type, Authorization",
+		Methods: GETAndPOST,
+		Headers: contentTypeAuthzHeaders,
 	}
 	c := cors.NewCors(corsConfig)
 
@@ -51,7 +58,7 @@ func TestValidateOrigin(t *testing.T) {
 func TestValidateMethod(t *testing.T) {
 	corsConfig := cors.CORSConfig{
 		Origins: "*",
-		Methods: "GET, POST",
+		Methods: GETAndPOST,
 		Headers: "Content-Type",
 	}
 	c := cors.NewCors(corsConfig)
@@ -79,8 +86,8 @@ func TestValidateMethod(t *testing.T) {
 func TestValidateHeaders(t *testing.T) {
 	corsConfig := cors.CORSConfig{
 		Origins: "*",
-		Methods: "GET, POST",
-		Headers: "Content-Type, Authorization",
+		Methods: GETAndPOST,
+		Headers: contentTypeAuthzHeaders,
 	}
 	c := cors.NewCors(corsConfig)
 
@@ -91,7 +98,7 @@ func TestValidateHeaders(t *testing.T) {
 		{"Content-Type", true},
 		{"Authorization", true},
 		{"X-Custom-Header", false},
-		{"Content-Type, Authorization", true},
+		{contentTypeAuthzHeaders, true},
 		{"Content-Type, X-Custom-Header", false},
 		{"", true}, // No headers requested, should pass
 	}
@@ -107,11 +114,11 @@ func TestValidateHeaders(t *testing.T) {
 
 func TestGetAllowedMethods(t *testing.T) {
 	corsConfig := cors.CORSConfig{
-		Methods: "GET, POST, PUT",
+		Methods: GETandPOSTandPUT,
 	}
 	c := cors.NewCors(corsConfig)
 
-	expected := "GET, POST, PUT"
+	expected := GETandPOSTandPUT
 	if methods := c.GetAllowedMethods(); methods != expected {
 		t.Errorf("GetAllowedMethods() = %v, want %v", methods, expected)
 	}
@@ -119,11 +126,11 @@ func TestGetAllowedMethods(t *testing.T) {
 
 func TestGetAllowedHeaders(t *testing.T) {
 	corsConfig := cors.CORSConfig{
-		Headers: "Content-Type, Authorization, X-Requested-With",
+		Headers: contentTypeAuthzXReqHeaders,
 	}
 	c := cors.NewCors(corsConfig)
 
-	expected := "Content-Type, Authorization, X-Requested-With"
+	expected := contentTypeAuthzXReqHeaders
 	if headers := c.GetAllowedHeaders(); headers != expected {
 		t.Errorf("GetAllowedHeaders() = %v, want %v", headers, expected)
 	}

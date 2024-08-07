@@ -24,6 +24,10 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	testIP = "123.123.123.123"
+)
+
 type MockCache struct {
 	mock.Mock
 }
@@ -48,8 +52,8 @@ func TestRateLimitService(t *testing.T) {
 	limit := int64(10)
 
 	t.Run("Under limit", func(t *testing.T) {
-		mockCache.On("Increment", "123.123.123.123", window).Return(int64(1), nil).Once()
-		count, remaining, _, err := service.RateLimit("123.123.123.123")
+		mockCache.On("Increment", testIP, window).Return(int64(1), nil).Once()
+		count, remaining, _, err := service.RateLimit(testIP)
 		assert.NoError(t, err)
 		assert.Equal(t, int64(1), count)
 		assert.Equal(t, limit-1, remaining)
@@ -57,8 +61,8 @@ func TestRateLimitService(t *testing.T) {
 	})
 
 	t.Run("Rate limit exceeded", func(t *testing.T) {
-		mockCache.On("Increment", "123.123.123.123", window).Return(int64(11), nil).Once()
-		count, remaining, _, err := service.RateLimit("123.123.123.123")
+		mockCache.On("Increment", testIP, window).Return(int64(11), nil).Once()
+		count, remaining, _, err := service.RateLimit(testIP)
 		assert.Error(t, err)
 		assert.Equal(t, "rate limit exceeded", err.Error())
 		assert.Equal(t, int64(11), count)
@@ -67,8 +71,8 @@ func TestRateLimitService(t *testing.T) {
 	})
 
 	t.Run("Increment error", func(t *testing.T) {
-		mockCache.On("Increment", "123.123.123.123", window).Return(int64(0), errors.New("redis error")).Once()
-		_, _, _, err := service.RateLimit("123.123.123.123")
+		mockCache.On("Increment", testIP, window).Return(int64(0), errors.New("redis error")).Once()
+		_, _, _, err := service.RateLimit(testIP)
 		assert.Error(t, err)
 		assert.Equal(t, "redis error", err.Error())
 		mockCache.AssertExpectations(t)
