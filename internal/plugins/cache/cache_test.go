@@ -25,6 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	incrementShouldNotErrorMsg = "Increment should not error"
+	incrementShouldReturnIncValue = "Increment should return incremented value"
+)
+
 func TestRedisCacheOperations(t *testing.T) {
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
@@ -49,12 +54,12 @@ func TestRedisCacheOperations(t *testing.T) {
 	t.Run("Increment operation", func(t *testing.T) {
 		incrementKey := "incrementkey"
 		count, incErr := redisCache.Increment(incrementKey, 1*time.Minute)
-		assert.NoError(t, incErr, "Increment should not error")
-		assert.Equal(t, int64(1), count, "Increment should return incremented value")
+		assert.NoError(t, incErr, incrementShouldNotErrorMsg)
+		assert.Equal(t, int64(1), count, incrementShouldReturnIncValue)
 
 		count, incErr = redisCache.Increment(incrementKey, 1*time.Minute)
-		assert.NoError(t, incErr, "Increment should not error")
-		assert.Equal(t, int64(2), count, "Increment should return incremented value")
+		assert.NoError(t, incErr, incrementShouldNotErrorMsg)
+		assert.Equal(t, int64(2), count, incrementShouldReturnIncValue)
 	})
 
 	t.Run("GenerateCacheKey operation", func(t *testing.T) {
@@ -85,8 +90,8 @@ func TestRedisCacheOperations(t *testing.T) {
 	t.Run("Increment and Expiration handling", func(t *testing.T) {
 		incrementExpireKey := "incrementexpirekey"
 		count, incErr := redisCache.Increment(incrementExpireKey, 1*time.Second)
-		assert.NoError(t, incErr, "Increment should not error")
-		assert.Equal(t, int64(1), count, "Increment should return incremented value")
+		assert.NoError(t, incErr, incrementShouldNotErrorMsg)
+		assert.Equal(t, int64(1), count, incrementShouldReturnIncValue)
 
 		mr.FastForward(1 * time.Second)
 

@@ -20,10 +20,15 @@ import (
 	"testing"
 )
 
+const (
+	allowedOrigin = "http://allowed.com"
+	OPTIONS       = "OPTIONS"
+)
+
 type mockCors struct{}
 
 func (m *mockCors) ValidateOrigin(origin string) bool {
-	return origin == "http://allowed.com"
+	return origin == allowedOrigin
 }
 
 func (m *mockCors) ValidateMethod(method string) bool {
@@ -58,16 +63,16 @@ func TestCORSMiddleware(t *testing.T) {
 		expectedStatusCode int
 	}{
 		{"Invalid Origin", "GET", "http://forbidden.com", "", "", http.StatusForbidden},
-		{"Valid OPTIONS but Invalid Method", "OPTIONS", "http://allowed.com", "POST", "", http.StatusForbidden},
-		{"Valid OPTIONS but Invalid Headers", "OPTIONS", "http://allowed.com", "GET", "Wrong-Header", http.StatusForbidden},
-		{"Valid GET Request", "GET", "http://allowed.com", "", "", http.StatusOK},
+		{"Valid OPTIONS but Invalid Method", OPTIONS, allowedOrigin, "POST", "", http.StatusForbidden},
+		{"Valid OPTIONS but Invalid Headers", OPTIONS, allowedOrigin, "GET", "Wrong-Header", http.StatusForbidden},
+		{"Valid GET Request", "GET", allowedOrigin, "", "", http.StatusOK},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := httptest.NewRequest(tt.method, "http://example.com", nil)
 			request.Header.Set("Origin", tt.origin)
-			if tt.method == "OPTIONS" {
+			if tt.method == OPTIONS {
 				request.Header.Set("Access-Control-Request-Method", tt.requestMethod)
 				request.Header.Set("Access-Control-Request-Headers", tt.requestHeaders)
 			}

@@ -23,10 +23,14 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+const (
+	validTokenStr = "valid-token"
+)
+
 type mockAuth struct{}
 
 func (m *mockAuth) Validate(token string) (jwt.Claims, error) {
-	if token == "valid-token" {
+	if token == validTokenStr {
 		claims := jwt.MapClaims{"user": "123", "role": "admin"}
 		return claims, nil
 	}
@@ -34,7 +38,7 @@ func (m *mockAuth) Validate(token string) (jwt.Claims, error) {
 }
 
 func (m *mockAuth) ParseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
-	if tokenStr == "valid-token" {
+	if tokenStr == validTokenStr {
 		return &jwt.RegisteredClaims{
 			Subject:  "123",
 			Issuer:   "test_issuer",
@@ -52,7 +56,7 @@ func TestAuthMiddleware(t *testing.T) {
 	}{
 		{"No Token", "", http.StatusUnauthorized},
 		{"Invalid Token", "invalid-token", http.StatusUnauthorized},
-		{"Valid Token", "valid-token", http.StatusOK},
+		{"Valid Token", validTokenStr, http.StatusOK},
 	}
 
 	for _, tt := range tests {

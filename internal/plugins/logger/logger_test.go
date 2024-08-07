@@ -23,6 +23,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	logPath     = "/tmp/test.log"
+	testMsg     = "Test message"
+	testDetails = "Test details"
+)
+
 type MockFileWriter struct {
 	written []byte
 }
@@ -50,7 +56,7 @@ func (m *MockTimeProvider) Now() time.Time {
 
 func TestNewLogger(t *testing.T) {
 	cfg := LoggerConfig{
-		FilePath:     "/tmp/test.log",
+		FilePath:     logPath,
 		FileWriter:   nil,
 		ErrOutput:    os.Stderr,
 		TimeProvider: RealTime{},
@@ -84,7 +90,7 @@ func TestOSLoggerInfo(t *testing.T) {
 	mockFileOpener := &MockFileOpener{fileWriter: mockFileWriter}
 
 	cfg := LoggerConfig{
-		FilePath:     "/tmp/test.log",
+		FilePath:     logPath,
 		FileWriter:   mockFileWriter,
 		ErrOutput:    os.Stderr,
 		TimeProvider: mockTimeProvider,
@@ -93,9 +99,9 @@ func TestOSLoggerInfo(t *testing.T) {
 
 	logger := NewLogger(cfg).(*OSLogger)
 
-	logger.Info("Test message", "Test details")
+	logger.Info(testMsg, testDetails)
 
-	expectedLogMessage := fmt.Sprintf("%s [%s]: %s %s\n", now.Format("2006-01-02 15:04:05"), "INFO", "Test message", "Test details")
+	expectedLogMessage := fmt.Sprintf("%s [%s]: %s %s\n", now.Format("2006-01-02 15:04:05"), "INFO", testMsg, testDetails)
 	assert.Equal(t, expectedLogMessage, string(mockFileWriter.written))
 }
 
@@ -106,7 +112,7 @@ func TestOSLoggerInfoErrorWritingToFile(t *testing.T) {
 	mockFileOpener := &MockFileOpener{fileWriter: mockFileWriter}
 
 	cfg := LoggerConfig{
-		FilePath:     "/tmp/test.log",
+		FilePath:     logPath,
 		FileWriter:   mockFileWriter,
 		ErrOutput:    os.Stderr,
 		TimeProvider: mockTimeProvider,
@@ -118,16 +124,16 @@ func TestOSLoggerInfoErrorWritingToFile(t *testing.T) {
 	mockFileWriter.written = []byte{}
 	mockFileWriter.Write([]byte(""))
 
-	logger.Info("Test message", "Test details")
+	logger.Info(testMsg, testDetails)
 
-	expectedLogMessage := fmt.Sprintf("%s [%s]: %s %s\n", now.Format("2006-01-02 15:04:05"), "INFO", "Test message", "Test details")
+	expectedLogMessage := fmt.Sprintf("%s [%s]: %s %s\n", now.Format("2006-01-02 15:04:05"), "INFO", testMsg, testDetails)
 	assert.Equal(t, expectedLogMessage, string(mockFileWriter.written))
 }
 
 func TestDefaultFileOpenerOpenFile(t *testing.T) {
 	fileOpener := DefaultFileOpener{}
 
-	file, err := fileOpener.OpenFile("/tmp/test.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	file, err := fileOpener.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	assert.NoError(t, err)
 	assert.NotNil(t, file)
 }
