@@ -11,7 +11,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/opengateway/main.go
 
-FROM alpine:latest  
+FROM alpine:3  
 
 ENV GO_ENV=production
 ENV CONFIG_PATH=/app/config.yaml
