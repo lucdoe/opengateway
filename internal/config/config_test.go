@@ -29,7 +29,6 @@ const fullConfig = `
 Plugins:
   LoggerConfig:
     FilePath: "server.log"
-    ErrOutput: "stderr"
   JWTConfig:
     SecretKey: "secret"
     SigningMethod: "HS256"
@@ -85,7 +84,7 @@ func TestLoadReadsEveryField(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, config.PluginConfig{
-		LoggerConfig:    config.LoggerConfig{FilePath: "server.log", ErrOutput: "stderr"},
+		LoggerConfig:    config.LoggerConfig{FilePath: "server.log"},
 		JWTConfig:       config.JWTConfig{SecretKey: "secret", SigningMethod: "HS256", Issuer: "issuer", Audience: "audience", Scope: "scope"},
 		RateLimitConfig: config.RateLimitConfig{Limit: 100, Window: time.Minute},
 		CORSConfig:      config.CORSConfig{Origins: "*", Methods: "GET, POST", Headers: "Content-Type"},
