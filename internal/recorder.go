@@ -44,7 +44,3 @@ func (rr *ResponseRecorder) Write(b []byte) (int, error) {
 	}
 	return rr.ResponseWriter.Write(b)
 }
-
-func (rr *ResponseRecorder) CopyBody(w http.ResponseWriter) {
-	w.Write(rr.Body.Bytes())
-}

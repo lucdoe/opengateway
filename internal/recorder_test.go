@@ -40,10 +40,6 @@ func TestResponseRecorder(t *testing.T) {
 	assert.Equal(t, len(testData), written, "Number of bytes written should match")
 	assert.Equal(t, testData, recorder.Body.Bytes(), "Data in buffer should match written data")
 	assert.Equal(t, testData, mockResponse.Body.Bytes(), "Data in underlying ResponseWriter should match")
-
-	newResponse := httptest.NewRecorder()
-	recorder.CopyBody(newResponse)
-	assert.Equal(t, testData, newResponse.Body.Bytes(), "Copied data should match the original data")
 }
 
 func TestResponseRecorderDefaultStatusCode(t *testing.T) {

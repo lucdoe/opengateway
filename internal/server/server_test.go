@@ -76,9 +76,8 @@ func TestSetupRoutes(t *testing.T) {
 	cfg := &config.Config{
 		Services: map[string]config.Service{
 			"starwars": {
-				URL:      "https://swapi.dev/api",
-				Protocol: "HTTPS",
-				Plugins:  []string{"rate-limit", "logger", "cache", "cors"},
+				URL:     "https://swapi.dev/api",
+				Plugins: []string{"rate-limit", "logger", "cache", "cors"},
 				Endpoints: []config.Endpoint{
 					{Name: "List People", HTTPMethod: "GET", Path: "/people"},
 					{Name: "Get Person", HTTPMethod: "GET", Path: "/people/{id}"},

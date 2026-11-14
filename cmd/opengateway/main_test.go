@@ -92,21 +92,13 @@ func TestInitializeServerSuccess(t *testing.T) {
 	cfg := &config.Config{
 		Services: map[string]config.Service{
 			"starwars": {
-				URL:      "https://swapi.dev/api",
-				Protocol: "HTTPS",
-				Plugins:  []string{"rate-limit", "logger", "cache", "cors"},
+				URL:     "https://swapi.dev/api",
+				Plugins: []string{"rate-limit", "logger", "cache", "cors"},
 				Endpoints: []config.Endpoint{
 					{
 						Name:       "List People",
 						HTTPMethod: "GET",
 						Path:       "/people",
-						QueryParams: []config.QueryParam{
-							{
-								Key:   "page",
-								Value: "1",
-							},
-						},
-						Auth: config.AuthConfig{ApplyAuth: false},
 					},
 				},
 			},

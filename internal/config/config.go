@@ -36,32 +36,21 @@ const (
 	PluginCache     = "cache"
 )
 
-type QueryParam struct {
-	Key   string `yaml:"Key"`
-	Value string `yaml:"Value"`
-}
-
 type AuthConfig struct {
 	ApplyAuth bool   `yaml:"ApplyAuth"`
-	Method    string `yaml:"Method"`
-	Algorithm string `yaml:"Algorithm"`
 	Scope     string `yaml:"Scope"`
-	SecretKey string `yaml:"SecretKey"`
 }
 
 type Endpoint struct {
-	Name        string                 `yaml:"Name"`
-	HTTPMethod  string                 `yaml:"HTTPMethod"`
-	Path        string                 `yaml:"Path"`
-	QueryParams []QueryParam           `yaml:"QueryParams"`
-	Auth        AuthConfig             `yaml:"Auth"`
-	Body        map[string]interface{} `yaml:"Body"`
-	Plugins     []string               `yaml:"Plugins"`
+	Name       string     `yaml:"Name"`
+	HTTPMethod string     `yaml:"HTTPMethod"`
+	Path       string     `yaml:"Path"`
+	Auth       AuthConfig `yaml:"Auth"`
+	Plugins    []string   `yaml:"Plugins"`
 }
 
 type Service struct {
 	URL       string     `yaml:"URL"`
-	Protocol  string     `yaml:"Protocol"`
 	Endpoints []Endpoint `yaml:"Endpoints"`
 	Plugins   []string   `yaml:"Plugins"`
 	Subpath   string     `yaml:"Subpath"`
@@ -191,7 +180,7 @@ func Load(path string) (*Config, error) {
 func Parse(data []byte) (*Config, error) {
 	cfg := &Config{}
 
-	if err := rejectMovedKeys(data); err != nil {
+	if err := rejectRetiredKeys(data); err != nil {
 		return nil, err
 	}
 
@@ -211,23 +200,4 @@ func Parse(data []byte) (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
-}
-
-// rejectMovedKeys names the new place of a key that has moved, which the
-// strict decoder would only report as unknown.
-func rejectMovedKeys(data []byte) error {
-	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil || len(doc.Content) == 0 {
-		return nil // the strict decode reports it
-	}
-	top := doc.Content[0]
-	if top.Kind != yaml.MappingNode {
-		return nil
-	}
-	for i := 0; i+1 < len(top.Content); i += 2 {
-		if key := top.Content[i]; key.Value == "Redis" {
-			return fmt.Errorf("line %d: the top-level Redis section has moved: set Store.Type: redis and put its settings under Store.Redis", key.Line)
-		}
-	}
-	return nil
 }
