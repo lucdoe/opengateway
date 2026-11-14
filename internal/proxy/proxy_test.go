@@ -15,11 +15,16 @@
 package proxy_test
 
 import (
+	"bytes"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -182,4 +187,72 @@ func TestNewHandlerRejectsInvalidTargets(t *testing.T) {
 			assert.ErrorContains(t, err, "invalid upstream URL")
 		})
 	}
+}
+
+// With the default of 2 idle connections per host, every wave of concurrent
+// requests would dial most of its connections again.
+func TestHandlerReusesUpstreamConnections(t *testing.T) {
+	var dials atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(20 * time.Millisecond) // keep the wave's requests in flight together
+		w.Write([]byte("ok"))
+	}))
+	server.Config.ConnState = func(c net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			dials.Add(1)
+		}
+	}
+	server.Start()
+	t.Cleanup(server.Close)
+
+	handler, err := proxy.NewHandler(server.URL, time.Second)
+	require.NoError(t, err)
+
+	const concurrency, waves = 20, 3
+	for wave := 0; wave < waves; wave++ {
+		var wg sync.WaitGroup
+		for i := 0; i < concurrency; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, httptest.NewRequest("GET", "http://gateway.test/api/people", nil))
+				assert.Equal(t, http.StatusOK, w.Code)
+			}()
+		}
+		wg.Wait()
+	}
+
+	assert.LessOrEqual(t, int(dials.Load()), concurrency+2, "later waves reuse the first wave's connections")
+}
+
+// Bodies larger than one copy buffer arrive intact while many responses share
+// the pooled buffers at once.
+func TestHandlerCopiesLargeBodiesThroughPooledBuffers(t *testing.T) {
+	bodies := make([][]byte, 8)
+	for i := range bodies {
+		bodies[i] = bytes.Repeat([]byte{byte('a' + i)}, 200*1024+i)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		i, _ := strconv.Atoi(r.URL.Query().Get("i"))
+		w.Write(bodies[i])
+	}))
+	t.Cleanup(server.Close)
+
+	handler, err := proxy.NewHandler(server.URL, time.Second)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	for round := 0; round < 5; round++ {
+		for i := range bodies {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, httptest.NewRequest("GET", "http://gateway.test/big?i="+strconv.Itoa(i), nil))
+				assert.True(t, bytes.Equal(bodies[i], w.Body.Bytes()), "body %d arrived intact", i)
+			}(i)
+		}
+	}
+	wg.Wait()
 }
