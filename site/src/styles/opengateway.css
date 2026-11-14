@@ -1,0 +1,164 @@
+/*
+  The OpenGateway design system on Starlight: paper, ink and one barrier
+  yellow. Starlight is dark under :root and light under [data-theme='light'],
+  and in light its gray scale inverts (white is the darkest ink).
+*/
+
+:root {
+  --og-paper: #111215;
+  --og-paper-raised: #1a1c20;
+  --og-paper-sunken: #0b0c0e;
+  --og-line: #2e3138;
+  --og-line-strong: #6b707a;
+  --og-ink: #f2efe7;
+  --og-ink-muted: #a6a9b0;
+  --og-barrier: #ffc21a;
+  --og-on-barrier: #15171b;
+  --og-barrier-ink: #ffd257;
+  --og-barrier-soft: #3a2f10;
+  --og-danger: #ff8e80;
+  --og-danger-soft: #3b1a16;
+  --og-focus: #ffc21a;
+  --og-shadow-sign: 3px 3px 0 #000000;
+
+  --og-font-display: 'Bricolage Grotesque', 'Instrument Sans', system-ui, sans-serif;
+  --sl-font: 'Instrument Sans';
+  --sl-font-mono: 'JetBrains Mono';
+
+  --sl-color-white: var(--og-ink);
+  --sl-color-gray-1: #e4e1d9;
+  --sl-color-gray-2: #d4d1c9;
+  --sl-color-gray-3: var(--og-ink-muted);
+  --sl-color-gray-4: var(--og-line-strong);
+  --sl-color-gray-5: var(--og-line);
+  --sl-color-gray-6: var(--og-paper-raised);
+  --sl-color-black: var(--og-paper);
+
+  --sl-color-accent-low: var(--og-barrier-soft);
+  --sl-color-accent: var(--og-barrier);
+  --sl-color-accent-high: var(--og-barrier-ink);
+  --sl-color-text-accent: var(--og-barrier-ink);
+  --sl-color-text-invert: var(--og-on-barrier);
+  --sl-color-bg-accent: var(--og-barrier);
+  --sl-color-bg-nav: var(--og-paper-raised);
+  --sl-color-bg-sidebar: var(--og-paper);
+  --sl-color-bg-inline-code: var(--og-paper-sunken);
+  --sl-color-hairline: var(--og-line);
+  --sl-color-hairline-light: var(--og-line);
+  --sl-color-hairline-shade: var(--og-line);
+}
+
+:root[data-theme='light'] {
+  --og-paper: #f7f5ef;
+  --og-paper-raised: #ffffff;
+  --og-paper-sunken: #efece3;
+  --og-line: #dcd7ca;
+  --og-line-strong: #8c8676;
+  --og-ink: #15171b;
+  --og-ink-muted: #565a62;
+  --og-barrier-ink: #7a5200;
+  --og-barrier-soft: #fff1c7;
+  --og-danger: #b42318;
+  --og-danger-soft: #fde8e4;
+  --og-focus: #15171b;
+  --og-shadow-sign: 3px 3px 0 #15171b;
+
+  --sl-color-gray-1: #23262b;
+  --sl-color-gray-2: #33363c;
+  --sl-color-gray-6: var(--og-paper-sunken);
+  --sl-color-gray-7: var(--og-paper-raised);
+}
+
+/* Ground: sparse dots on every page, fixed to the window. Panels that hold text stay solid. */
+body {
+  background-color: var(--og-paper);
+  background-image: radial-gradient(circle, var(--og-line-strong) 1px, transparent 1.5px);
+  background-size: 48px 48px;
+  background-position: center top;
+  background-attachment: fixed;
+}
+.sidebar-pane { background-color: var(--og-paper); }
+.main-frame .content-panel { background-color: var(--og-paper); }
+[data-has-hero] .main-frame .content-panel { background-color: transparent; }
+:focus-visible { outline: 2px solid var(--og-focus); outline-offset: 2px; }
+
+/* Header: raised, a barrier rule underneath, the name in the display face. */
+header.header { border-bottom: 0; box-shadow: inset 0 -3px 0 var(--og-barrier); }
+.site-title { font-family: var(--og-font-display); font-weight: 700; letter-spacing: -0.01em; color: var(--og-ink); }
+.site-title img { height: 1.75rem; }
+site-search button[data-open-modal] { height: 2.25rem; align-self: center; border-radius: 999px; border: 1px solid var(--og-line-strong); background: var(--og-paper); color: var(--og-ink-muted); }
+site-search button[data-open-modal]:hover { border-color: var(--og-ink); color: var(--og-ink); }
+
+/* Headings in the display face. */
+h1, h2, h3, h4,
+.sl-markdown-content :is(h1, h2, h3, h4) { font-family: var(--og-font-display); letter-spacing: -0.01em; text-wrap: balance; }
+h1#_top { font-weight: 700; letter-spacing: -0.015em; }
+.sl-markdown-content h2 { font-weight: 650; }
+
+/* Links: barrier ink, underline on hover only. */
+.sl-markdown-content a:not(:where(.not-content *)) { color: var(--og-barrier-ink); text-decoration: none; }
+.sl-markdown-content a:not(:where(.not-content *)):hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Inline code and tables. */
+.sl-markdown-content :not(pre) > code { background: var(--og-paper-sunken); border: 1px solid var(--og-line); border-radius: 4px; padding: 0.05em 0.3em; font-size: 0.88em; }
+.sl-markdown-content table { border: 1px solid var(--og-line); border-radius: 8px; border-collapse: separate; border-spacing: 0; overflow: hidden; background: var(--og-paper-raised); }
+.sl-markdown-content th { background: var(--og-paper-sunken); color: var(--og-ink-muted); font-size: var(--sl-text-sm); font-weight: 600; }
+.sl-markdown-content :is(th, td) { border-bottom: 1px solid var(--og-line); padding: 0.625rem 1rem; }
+.sl-markdown-content tr:last-child td { border-bottom: 0; }
+/* A table whose header cells are all empty (| | |) is a list of label and value rows: no header bar. */
+.sl-markdown-content thead:not(:has(th:not(:empty))) { display: none; }
+
+/* Sidebar: group labels muted, the current page on a barrier tint. */
+.sidebar-content .group-label .large { font-size: var(--sl-text-sm); font-weight: 600; color: var(--og-ink-muted); }
+.sidebar-content a { border-radius: 8px; }
+.sidebar-content a:hover { background: var(--og-paper-sunken); }
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover { background: var(--og-barrier-soft); color: var(--og-ink); font-weight: 600; }
+
+/* On this page: a rail with the current entry marked in barrier. */
+starlight-toc a[aria-current='true'] { color: var(--og-ink); box-shadow: inset 2px 0 0 var(--og-barrier); }
+
+/* Asides: full border or tinted ground, never a coloured left edge. */
+.starlight-aside { border: 1px solid var(--og-line); border-radius: 8px; background: var(--og-paper-raised); color: var(--og-ink); }
+.starlight-aside__title { color: var(--og-ink); font-weight: 600; }
+.starlight-aside__icon { color: var(--og-ink-muted); }
+.starlight-aside--tip { background: var(--og-barrier-soft); border-color: transparent; }
+.starlight-aside--tip .starlight-aside__icon { color: var(--og-barrier-ink); }
+:is(.starlight-aside--caution, .starlight-aside--danger) { background: var(--og-danger-soft); border-color: transparent; }
+:is(.starlight-aside--caution, .starlight-aside--danger) :is(.starlight-aside__title, .starlight-aside__icon) { color: var(--og-danger); }
+
+/* Buttons: one primary per view, barrier fill with the hard sign shadow. */
+.sl-link-button { border-radius: 8px; font-weight: 600; transition: transform 80ms ease-out, box-shadow 80ms ease-out; }
+.sl-link-button.primary { background: var(--og-barrier); color: var(--og-on-barrier); border: 1.5px solid var(--og-on-barrier); box-shadow: var(--og-shadow-sign); }
+.sl-link-button.primary:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--og-on-barrier); color: var(--og-on-barrier); }
+.sl-link-button.secondary { background: var(--og-paper-raised); color: var(--og-ink); border: 1.5px solid var(--og-line-strong); }
+.sl-link-button.secondary:hover { border-color: var(--og-ink); }
+
+/* Pagination and cards: solid panels, ink border on hover. */
+.pagination-links a { border: 1.5px solid var(--og-line); border-radius: 8px; background: var(--og-paper-raised); box-shadow: none; padding: 0.5rem 0.875rem; gap: 0.5rem; font-size: var(--sl-text-xs); line-height: 1.4; }
+.pagination-links a .link-title { font-family: var(--og-font-display); font-size: var(--sl-text-base); font-weight: 600; }
+.pagination-links a svg { --sl-icon-size: 1rem !important; }
+.pagination-links a:hover { border-color: var(--og-ink); }
+.card { border: 1.5px solid var(--og-line); border-radius: 14px; background: var(--og-paper-raised); }
+.card .icon { color: var(--og-barrier-ink); background: transparent; border: 0; }
+.card .title { font-family: var(--og-font-display); }
+
+/* Home page hero. */
+.hero h1 { font-family: var(--og-font-display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; }
+.hero h1 mark { background: linear-gradient(transparent 14%, var(--og-barrier) 14%, var(--og-barrier) 94%, transparent 94%); color: var(--og-on-barrier); padding: 0 0.08em; border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.hero .tagline { color: var(--og-ink-muted); }
+@media (max-width: 50em) { .hero > .hero-html { order: 1; } }
+
+/* The request example beside the hero headline. */
+.og-route { display: grid; gap: 0.75rem; width: 100%; max-width: 32rem; text-align: left; }
+.og-route pre { margin: 0; padding: 0.75rem 1rem; border: 1px solid var(--og-line); border-radius: 8px; background: var(--og-paper-sunken); font: 400 0.875rem/1.6 var(--__sl-font-mono); color: var(--og-ink); overflow-x: auto; }
+.og-route .k { color: var(--og-barrier-ink); }
+.og-route .c { color: var(--og-ink-muted); font-style: italic; }
+.og-route-flow { border: 1.5px solid var(--og-ink); border-radius: 8px; background: var(--og-paper-raised); overflow: hidden; }
+.og-route-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; border-top: 1px solid var(--og-line); font-size: var(--sl-text-sm); }
+.og-route-row:first-child { border-top: 0; }
+.og-route-row.plugins { background: var(--og-barrier-soft); }
+.og-route-row code { font-family: var(--__sl-font-mono); overflow-wrap: anywhere; min-width: 0; }
+.og-route-label { width: 7rem; flex: none; font-weight: 600; color: var(--og-ink-muted); }
+.og-badge { display: inline-flex; align-items: center; height: 1.375rem; padding: 0 0.5rem; border-radius: 4px; font: 600 0.75rem/1 var(--__sl-font-mono); background: var(--og-paper-sunken); border: 1px solid var(--og-line); color: var(--og-ink); }
+.og-badge.ink { background: var(--og-ink); color: var(--og-paper); border-color: var(--og-ink); }

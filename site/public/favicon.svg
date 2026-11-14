@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#111827"/>
-  <path d="M8 24V14a8 8 0 0 1 16 0v10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-  <path d="M12 19h8m-3-3 3 3-3 3" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>OpenGateway</title>
+  <rect x=".5" y=".5" width="31" height="31" rx="6.5" fill="#15171b" stroke="#3a3d44"/>
+  <path d="M22.96 11.12A8.5 8.5 0 1 0 22.96 20.88" fill="none" stroke="#f7f5ef" stroke-width="4" stroke-linecap="round"/>
+  <path d="M16 16h10" fill="none" stroke="#ffc21a" stroke-width="4" stroke-linecap="round"/>
 </svg>

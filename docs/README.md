@@ -7,3 +7,4 @@
 | [Auth](auth.md) | JWT with a shared secret or an identity provider's JWKS, scopes, warnings for risky settings |
 | [Operations](operations.md) | health check, request IDs, error responses, circuit breaker, Prometheus metrics, shutdown |
 | [Architecture](architecture.md) | how it's built, and how a request flows through it |
+| [Benchmark](benchmark.md) | throughput, added latency, cache hits and memory, and how they were measured |

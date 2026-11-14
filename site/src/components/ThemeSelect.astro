@@ -1,0 +1,60 @@
+---
+// An icon button in place of Starlight's Dark/Light/Auto menu. It follows the
+// system until clicked, then switches to the other theme and remembers it under
+// Starlight's own storage key, so the theme still applies before first paint.
+---
+
+<starlight-theme-select>
+  <button type="button" class="og-theme" aria-label="Switch to light theme">
+    <svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4"></circle>
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+    </svg>
+    <svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"></path>
+    </svg>
+  </button>
+</starlight-theme-select>
+
+<style>
+  .og-theme {
+    display: inline-grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--sl-color-gray-3);
+    cursor: pointer;
+  }
+  .og-theme:hover { color: var(--sl-color-white); background: var(--sl-color-gray-6); }
+  .og-theme svg { grid-area: 1 / 1; }
+  /* Show the theme a click switches to. */
+  :global([data-theme='dark']) .moon,
+  :global([data-theme='light']) .sun { display: none; }
+</style>
+
+<script>
+  const storageKey = 'starlight-theme';
+
+  class ThemeToggle extends HTMLElement {
+    constructor() {
+      super();
+      const button = this.querySelector('button')!;
+      const label = () => {
+        const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        button.setAttribute('aria-label', `Switch to ${next} theme`);
+      };
+      label();
+      button.addEventListener('click', () => {
+        const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem(storageKey, next); } catch {}
+        label();
+      });
+    }
+  }
+  customElements.define('starlight-theme-select', ThemeToggle);
+</script>
