@@ -28,8 +28,27 @@ const (
 
 // PluginOrder lists every plugin in the order they run for a request,
 // outermost first. Auth runs before cache so a cached response is never
-// served to a caller that has not been authenticated.
+// served to a caller that has not been authenticated. See
+// Config.PluginsInOrder for the one exception.
 var PluginOrder = []string{PluginLogger, PluginCORS, PluginRateLimit, PluginAuth, PluginCache}
+
+// PluginsInOrder is PluginOrder, except that rate-limit runs right after
+// auth when it counts per token subject, so it only ever reads claims auth
+// has verified.
+func (c *Config) PluginsInOrder() []string {
+	if c.Plugins.RateLimitConfig.Key != RateLimitBySubject {
+		return PluginOrder
+	}
+	return []string{PluginLogger, PluginCORS, PluginAuth, PluginRateLimit, PluginCache}
+}
+
+// RateLimitConfig.Key values. A header is named after RateLimitByHeader,
+// as in header:CF-Connecting-IP.
+const (
+	RateLimitByIP      = "ip"
+	RateLimitByHeader  = "header:"
+	RateLimitBySubject = "jwt:sub"
+)
 
 type AuthConfig struct {
 	ApplyAuth bool   `yaml:"ApplyAuth"`
@@ -92,6 +111,9 @@ func (j JWTConfig) Algorithms() []string {
 type RateLimitConfig struct {
 	Limit  int64         `yaml:"Limit"`
 	Window time.Duration `yaml:"Window"`
+	// Key is what requests are counted by: RateLimitByIP (the default),
+	// a request header, or RateLimitBySubject.
+	Key string `yaml:"Key"`
 }
 
 type CORSConfig struct {

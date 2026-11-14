@@ -47,7 +47,7 @@ func serve(handler http.Handler, remoteAddr string) *httptest.ResponseRecorder {
 var ok = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
 func TestMiddlewareCountsDownThenRejects(t *testing.T) {
-	handler := NewMiddleware(NewLimiter(&fakeCounter{resetIn: 1500 * time.Millisecond}, 2, time.Minute))(ok)
+	handler := NewMiddleware(NewLimiter(&fakeCounter{resetIn: 1500 * time.Millisecond}, 2, time.Minute), ByClientIP)(ok)
 
 	for _, remaining := range []string{"1", "0"} {
 		rec := serve(handler, "")
@@ -67,7 +67,7 @@ func TestMiddlewareCountsDownThenRejects(t *testing.T) {
 
 func TestMiddlewareCountsPerClientIP(t *testing.T) {
 	counter := &fakeCounter{resetIn: time.Minute}
-	handler := NewMiddleware(NewLimiter(counter, 10, time.Minute))(ok)
+	handler := NewMiddleware(NewLimiter(counter, 10, time.Minute), ByClientIP)(ok)
 
 	for _, addr := range []string{"203.0.113.5:51000", "203.0.113.5:51001", "[2001:db8::1]:51000", "[2001:db8::2]:51000", "[2001:db8:0:1::1]:51000"} {
 		req := httptest.NewRequest("GET", "/", nil)
@@ -92,7 +92,7 @@ func TestMiddlewareLetsRequestsThroughWhenTheStoreFails(t *testing.T) {
 	reached := 0
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached++ })
 	// Same text as the limit error, but not that error.
-	handler := NewMiddleware(NewLimiter(&fakeCounter{err: errors.New("rate limit exceeded")}, 10, time.Minute))(next)
+	handler := NewMiddleware(NewLimiter(&fakeCounter{err: errors.New("rate limit exceeded")}, 10, time.Minute), ByClientIP)(next)
 
 	var last *httptest.ResponseRecorder
 	for i := 0; i < 3; i++ {
@@ -116,4 +116,39 @@ func TestClientKey(t *testing.T) {
 	} {
 		assert.Equal(t, want, clientKey(ip), ip)
 	}
+}
+
+func TestByHeaderCountsPerValueAndFallsBackToTheIP(t *testing.T) {
+	key := ByHeader("CF-Connecting-IP")
+	request := func(remoteAddr, header string) *http.Request {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = remoteAddr
+		if header != "" {
+			req.Header.Set("CF-Connecting-IP", header)
+		}
+		return req
+	}
+
+	alice := key(request("10.0.0.1:1", "198.51.100.7"))
+	assert.Regexp(t, `^header:[0-9a-f]{32}$`, alice, "the value is stored hashed")
+	assert.NotContains(t, alice, "198.51.100.7")
+	assert.Equal(t, alice, key(request("10.0.0.2:1", "198.51.100.7")), "the same value from another proxy address is the same client")
+	assert.NotEqual(t, alice, key(request("10.0.0.1:1", "198.51.100.8")))
+	assert.Equal(t, "10.0.0.1", key(request("10.0.0.1:1", "")), "without the header, the client IP counts")
+}
+
+func TestByValueKeepsKindsApart(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	value := func(*http.Request) string { return "same" }
+
+	assert.NotEqual(t, ByValue("sub", value)(req), ByValue("header", value)(req))
+}
+
+func TestMiddlewareCountsByTheGivenKey(t *testing.T) {
+	counter := &fakeCounter{}
+	handler := NewMiddleware(NewLimiter(counter, 10, time.Minute), func(*http.Request) string { return "tenant-7" })(ok)
+
+	serve(handler, "203.0.113.5:1")
+
+	assert.Equal(t, []string{"ratelimit:tenant-7"}, counter.keys)
 }

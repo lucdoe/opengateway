@@ -31,6 +31,7 @@ Plugins:
   RateLimitConfig:
     Limit: 100
     Window: 1m
+    Key: "ip" # or header:CF-Connecting-IP behind a CDN, or jwt:sub per token subject
   CORSConfig:
     Origins: "*" # any origin, without credentials; list origins (comma-separated) to allow cookies
     Methods: "GET, POST, PUT, DELETE, OPTIONS"

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -109,6 +110,16 @@ func (s Service) UsesPlugin(name string) bool {
 		}
 	}
 	return false
+}
+
+// headerName matches the token a header name is made of (RFC 9110).
+var headerName = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+
+func validRateLimitKey(key string) bool {
+	if name, isHeader := strings.CutPrefix(key, RateLimitByHeader); isHeader {
+		return headerName.MatchString(name)
+	}
+	return key == "" || key == RateLimitByIP || key == RateLimitBySubject
 }
 
 func validPort(port int) bool {
@@ -214,6 +225,9 @@ func (v *validation) pluginSettings(c *Config) {
 		}
 		if c.Plugins.RateLimitConfig.Window <= 0 {
 			v.addf("Plugins.RateLimitConfig.Window must be greater than 0 because the rate-limit plugin is used")
+		}
+		if key := c.Plugins.RateLimitConfig.Key; !validRateLimitKey(key) {
+			v.addf("Plugins.RateLimitConfig.Key %q is not one of %s, %sName-Of-Header or %s", key, RateLimitByIP, RateLimitByHeader, RateLimitBySubject)
 		}
 	}
 

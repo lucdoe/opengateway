@@ -230,6 +230,12 @@ func TestValidatePluginSettings(t *testing.T) {
 			"Plugins.RateLimitConfig.Limit must be greater than 0"},
 		{"negative rate limit window", func(p *config.PluginConfig) { p.RateLimitConfig.Window = -time.Second },
 			"Plugins.RateLimitConfig.Window must be greater than 0"},
+		{"unknown rate-limit key", func(p *config.PluginConfig) { p.RateLimitConfig.Key = "user" },
+			`Plugins.RateLimitConfig.Key "user" is not one of ip, header:Name-Of-Header or jwt:sub`},
+		{"rate-limit key with an empty header name", func(p *config.PluginConfig) { p.RateLimitConfig.Key = "header:" },
+			`Plugins.RateLimitConfig.Key "header:" is not one of`},
+		{"rate-limit key with an invalid header name", func(p *config.PluginConfig) { p.RateLimitConfig.Key = "header:X Api Key" },
+			`Plugins.RateLimitConfig.Key "header:X Api Key" is not one of`},
 		{"auth without secret or JWKS", func(p *config.PluginConfig) { p.JWTConfig.SecretKey = "" },
 			"Plugins.JWTConfig needs SecretKey (for HS256 tokens) or JWKSURL"},
 		{"both secret and JWKS", func(p *config.PluginConfig) { p.JWTConfig.JWKSURL = "https://auth.example.com/jwks.json" },
@@ -267,6 +273,25 @@ func TestValidateAcceptsJWKSSettings(t *testing.T) {
 		cfg.Plugins.JWTConfig = jwt
 		assert.NoError(t, cfg.Validate(), "%+v", jwt)
 	}
+}
+
+func TestValidateAcceptsRateLimitKeys(t *testing.T) {
+	for _, key := range []string{"", "ip", "header:CF-Connecting-IP", "header:X-API-Key", "jwt:sub"} {
+		cfg := validConfig()
+		cfg.Plugins.RateLimitConfig.Key = key
+		assert.NoError(t, cfg.Validate(), key)
+	}
+}
+
+func TestPluginsInOrderRunsRateLimitAfterAuthOnlyForTokenSubjects(t *testing.T) {
+	cfg := validConfig()
+	assert.Equal(t, config.PluginOrder, cfg.PluginsInOrder())
+
+	cfg.Plugins.RateLimitConfig.Key = "header:X-API-Key"
+	assert.Equal(t, config.PluginOrder, cfg.PluginsInOrder())
+
+	cfg.Plugins.RateLimitConfig.Key = "jwt:sub"
+	assert.Equal(t, []string{"logger", "cors", "auth", "rate-limit", "cache"}, cfg.PluginsInOrder())
 }
 
 func TestJWTAlgorithms(t *testing.T) {

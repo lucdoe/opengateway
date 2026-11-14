@@ -241,6 +241,25 @@ func recordingScope(calls *[]string) ScopeCheck {
 	}
 }
 
+func TestRateLimitRunsAfterAuthAndScopeWhenItCountsPerSubject(t *testing.T) {
+	cfg := &config.Config{
+		Plugins: config.PluginConfig{RateLimitConfig: config.RateLimitConfig{Key: config.RateLimitBySubject}},
+		Services: map[string]config.Service{
+			"api": {
+				Plugins:   []string{"logger", "rate-limit", "cache"},
+				Endpoints: []config.Endpoint{{HTTPMethod: "GET", Path: "/admin", Auth: config.AuthConfig{ApplyAuth: true, Scope: "admin"}}},
+			},
+		},
+	}
+	var calls []string
+	s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls), recordingScope(&calls))
+	require.NoError(t, err)
+
+	serve(s, "GET", "/admin")
+
+	assert.Equal(t, []string{"logger", "auth", "scope:admin", "rate-limit", "cache"}, calls)
+}
+
 func TestEndpointScopeRunsRightAfterAuth(t *testing.T) {
 	cfg := &config.Config{
 		Services: map[string]config.Service{
