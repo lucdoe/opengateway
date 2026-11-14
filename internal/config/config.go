@@ -19,7 +19,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -96,9 +98,35 @@ type PluginConfig struct {
 	CORSConfig      `yaml:"CORSConfig"`
 }
 
+// ServerConfig holds the settings of the gateway's own HTTP server.
+type ServerConfig struct {
+	// Port the gateway listens on. Defaults to DefaultPort.
+	Port int `yaml:"Port"`
+}
+
+// RedisConfig says where the store used by the cache and rate-limit plugins
+// is. It is only connected to when one of those plugins is in use.
+type RedisConfig struct {
+	Host     string `yaml:"Host"`
+	Port     int    `yaml:"Port"`
+	Password string `yaml:"Password"`
+}
+
+// Addr returns the host:port address of the Redis server.
+func (r RedisConfig) Addr() string {
+	return net.JoinHostPort(r.Host, strconv.Itoa(r.Port))
+}
+
 type Config struct {
+	Server   ServerConfig       `yaml:"Server"`
+	Redis    RedisConfig        `yaml:"Redis"`
 	Plugins  PluginConfig       `yaml:"Plugins"`
 	Services map[string]Service `yaml:"Services"`
+}
+
+// ListenAddr returns the address the gateway's HTTP server listens on.
+func (c *Config) ListenAddr() string {
+	return ":" + strconv.Itoa(c.Server.Port)
 }
 
 // Load reads the YAML file at path and returns its configuration. It fails
@@ -117,7 +145,9 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// Parse decodes YAML into a validated configuration. See Load.
+// Parse decodes YAML into a validated configuration. Settings that have an
+// environment variable (see env.go) are taken from the environment when it is
+// set, and settings left out get their default. See Load.
 func Parse(data []byte) (*Config, error) {
 	cfg := &Config{}
 
@@ -127,6 +157,11 @@ func Parse(data []byte) (*Config, error) {
 	if err := decoder.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
+
+	if err := cfg.applyEnvironment(); err != nil {
+		return nil, err
+	}
+	cfg.applyDefaults()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err

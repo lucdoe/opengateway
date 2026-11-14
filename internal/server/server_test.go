@@ -266,9 +266,10 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 
 func TestServerRun(t *testing.T) {
 	mockRunner := new(MockServerRunner)
-	mockRunner.On("ListenAndServe", ":4000", mock.Anything).Return(nil)
+	mockRunner.On("ListenAndServe", ":8080", mock.Anything).Return(nil)
 
 	s := Server{
+		Addr:   ":8080",
 		Router: mux.NewRouter(),
 		Runner: mockRunner,
 	}
@@ -276,6 +277,15 @@ func TestServerRun(t *testing.T) {
 	err := s.Run()
 	assert.NoError(t, err)
 	mockRunner.AssertExpectations(t)
+}
+
+func TestNewServerListensOnTheConfiguredPort(t *testing.T) {
+	cfg := &config.Config{Server: config.ServerConfig{Port: 8443}}
+
+	s, err := NewServer(cfg, mux.NewRouter(), okProxy, map[string]Middleware{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, ":8443", s.Addr)
 }
 
 func TestSetupRoutesBuildsOneProxyPerService(t *testing.T) {

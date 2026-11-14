@@ -78,7 +78,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 
 	mockCacheService := new(MockCacheService)
 	storeConnections := 0
-	newStore := func() (cache.Cache, error) {
+	newStore := func(config.RedisConfig) (cache.Cache, error) {
 		storeConnections++
 		return mockCacheService, nil
 	}
@@ -163,7 +163,7 @@ func TestInitializeServerReturnsThePluginError(t *testing.T) {
 		configLoader: mockConfigLoader,
 		router:       mux.NewRouter(),
 		newProxy:     func(string) (http.Handler, error) { return http.NotFoundHandler(), nil },
-		newStore:     func() (cache.Cache, error) { return nil, errors.New("connection refused") },
+		newStore:     func(config.RedisConfig) (cache.Cache, error) { return nil, errors.New("connection refused") },
 	})
 
 	assert.Nil(t, server)

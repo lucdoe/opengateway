@@ -29,6 +29,22 @@ Make sure you have Docker with Docker Compose installed on your machine. Docker 
 2. **Edit the `cmd/gateway/config.yaml` file to your needs**
 3. **Run the gateway with `go run cmd/gateway/main.go`**
 
+## Configuration
+
+The gateway is configured through `config.yaml`. The location of the file is taken from the `CONFIG_PATH` environment variable.
+
+The following settings can also be set through the environment. A variable that is set takes precedence over the file, so secrets do not have to be written into it.
+
+| Environment variable | Config key                    | Default     | Used for                                                        |
+| -------------------- | ----------------------------- | ----------- | --------------------------------------------------------------- |
+| `PORT`               | `Server.Port`                 | `4000`      | Port the gateway listens on                                     |
+| `REDIS_HOST`         | `Redis.Host`                  | `localhost` | Redis server, only needed for the `cache` and `rate-limit` plugins |
+| `REDIS_PORT`         | `Redis.Port`                  | `6379`      |                                                                 |
+| `REDIS_PASSWORD`     | `Redis.Password`              | empty       |                                                                 |
+| `JWT_SECRET`         | `Plugins.JWTConfig.SecretKey` | none        | Secret for validating tokens, only needed when auth is used     |
+
+The file is validated when the gateway starts. If it contains an unknown key or an invalid value, the gateway exits and lists every problem.
+
 ## Metrics
 
 ### Benchmark Results
