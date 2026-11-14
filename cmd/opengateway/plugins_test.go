@@ -141,7 +141,7 @@ func TestBuildPluginsReturnsErrorsInsteadOfPanicking(t *testing.T) {
 		{
 			name:     "auth without a secret",
 			cfg:      func(t *testing.T) *config.Config { return configUsing("auth") },
-			expected: "auth plugin: secret key must not be empty",
+			expected: "auth plugin: needs a secret key or a JWKS URL",
 		},
 		{
 			name: "log file cannot be opened",

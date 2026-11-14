@@ -4,7 +4,13 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
+	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -267,6 +273,56 @@ Services:
 	assert.Equal(t, http.StatusUnauthorized, send("not-a-token").Code)
 	assert.Equal(t, http.StatusForbidden, send(token("eve", "write")).Code)
 	assert.Equal(t, 1, calls)
+}
+
+// Tokens from an identity provider are verified with the keys it publishes,
+// wired the way main wires them.
+func TestInitializeServerVerifiesTokensWithTheJWKS(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	b64 := func(n *big.Int) string { return base64.RawURLEncoding.EncodeToString(n.FillBytes(make([]byte, 32))) }
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"keys": [{"kty": "EC", "kid": "k1", "crv": "P-256", "x": %q, "y": %q}]}`, b64(key.X), b64(key.Y))
+	}))
+	t.Cleanup(provider.Close)
+
+	cfg, err := config.Parse([]byte(`
+Plugins: {JWTConfig: {JWKSURL: "` + provider.URL + `/jwks.json", Audience: gateway}}
+Services:
+  api:
+    URL: http://upstream.test
+    Endpoints: [{HTTPMethod: GET, Path: /me, Auth: {ApplyAuth: true}}]
+`))
+	require.NoError(t, err)
+	s, err := InitializeServer(ServerDependencies{
+		loadConfig: loads(cfg, nil),
+		router:     mux.NewRouter(),
+		newProxy: func(string, time.Duration) (http.Handler, error) {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), nil
+		},
+	}, "config.yaml")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		for _, closer := range s.Closers {
+			closer.Close()
+		}
+	})
+
+	claims := auth.Claims{RegisteredClaims: jwt.RegisteredClaims{Audience: []string{"gateway"}, ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute))}}
+	signed := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	signed.Header["kid"] = "k1"
+	fromProvider, err := signed.SignedString(key)
+	require.NoError(t, err)
+	withSecret, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("any-secret"))
+	require.NoError(t, err)
+
+	for token, status := range map[string]int{fromProvider: http.StatusOK, withSecret: http.StatusUnauthorized} {
+		req := httptest.NewRequest("GET", "/me", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		s.Router.ServeHTTP(rec, req)
+		assert.Equal(t, status, rec.Code)
+	}
 }
 
 // main's own wiring must start the gateway from the shipped config.

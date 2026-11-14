@@ -79,12 +79,23 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (_ map[string]serve
 	}
 
 	if cfg.UsesPlugin(config.PluginAuth) {
+		var keys jwt.Keyfunc
+		switch {
+		case settings.JWTConfig.JWKSURL != "":
+			jwks := auth.NewJWKS(settings.JWTConfig.JWKSURL)
+			closers = append(closers, jwks)
+			keys = jwks.Keyfunc
+		case settings.JWTConfig.SecretKey != "":
+			keys = auth.Secret([]byte(settings.JWTConfig.SecretKey))
+		default:
+			return nil, closers, fmt.Errorf("%s plugin: needs a secret key or a JWKS URL", config.PluginAuth)
+		}
 		service, err := auth.NewAuthService(auth.JWTConfig{
-			SecretKey:     []byte(settings.JWTConfig.SecretKey),
-			SigningMethod: jwt.SigningMethodHS256,
-			Issuer:        settings.JWTConfig.Issuer,
-			Audience:      settings.JWTConfig.Audience,
-			Scope:         settings.JWTConfig.Scope,
+			Keys:       keys,
+			Algorithms: settings.JWTConfig.Algorithms(),
+			Issuer:     settings.JWTConfig.Issuer,
+			Audience:   settings.JWTConfig.Audience,
+			Scope:      settings.JWTConfig.Scope,
 		})
 		if err != nil {
 			return nil, closers, fmt.Errorf("%s plugin: %w", config.PluginAuth, err)

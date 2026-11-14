@@ -16,8 +16,8 @@ var secret = []byte("secret")
 
 func newAuth(t *testing.T, config JWTConfig) *Auth {
 	t.Helper()
-	config.SecretKey = secret
-	config.SigningMethod = jwt.SigningMethodHS256
+	config.Keys = Secret(secret)
+	config.Algorithms = []string{"HS256"}
 	auth, err := NewAuthService(config)
 	require.NoError(t, err)
 	return auth
@@ -34,11 +34,11 @@ func sign(t *testing.T, method jwt.SigningMethod, claims Claims) string {
 }
 
 func TestNewAuthServiceRejectsMissingSettings(t *testing.T) {
-	_, err := NewAuthService(JWTConfig{SigningMethod: jwt.SigningMethodHS256})
-	assert.Error(t, err, "empty secret")
+	_, err := NewAuthService(JWTConfig{Algorithms: []string{"HS256"}})
+	assert.Error(t, err, "no keys")
 
-	_, err = NewAuthService(JWTConfig{SecretKey: secret})
-	assert.Error(t, err, "no signing method")
+	_, err = NewAuthService(JWTConfig{Keys: Secret(secret)})
+	assert.Error(t, err, "no algorithm")
 }
 
 func TestValidate(t *testing.T) {

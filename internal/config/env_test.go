@@ -147,7 +147,7 @@ Services:
 	clearEnvironment(t)
 
 	_, err := config.Parse([]byte(withAuth))
-	assert.ErrorContains(t, err, "Plugins.JWTConfig.SecretKey is required")
+	assert.ErrorContains(t, err, "Plugins.JWTConfig needs SecretKey (for HS256 tokens) or JWKSURL")
 
 	t.Setenv("JWT_SECRET", "from-env")
 	cfg, err := config.Parse([]byte(withAuth))

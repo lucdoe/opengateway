@@ -83,8 +83,27 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 | `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes, client IP and request ID (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `LoggerConfig`    |
 | `cors`       | Answers preflights and sets the CORS headers; rejects origins that are not listed with `403`. Requests without an `Origin` header (curl, other servers) pass untouched. `Origins: "*"` allows every origin but without credentials (cookies); list origins to allow them. | `CORSConfig`      |
 | `rate-limit` | Allows each client IP (IPv6: each /64) `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
-| `auth`       | Requires a `Bearer` JWT signed with HS256 and carrying `exp` (`401` otherwise). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Auth.Scope`, in their space-separated `scope` claim (`403` otherwise). Enabled per endpoint with `Auth.ApplyAuth: true`. | `JWTConfig`       |
+| `auth`       | Requires a `Bearer` JWT carrying `exp` (`401` otherwise), signed with `SecretKey` (HS256) or with a key from `JWKSURL` (see [Tokens from an identity provider](#tokens-from-an-identity-provider)). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Auth.Scope`, in their space-separated `scope` claim (`403` otherwise). Enabled per endpoint with `Auth.ApplyAuth: true`. | `JWTConfig`       |
 | `cache`      | Stores `200` responses to `GET` requests in the store and shares them between clients, for the upstream's `s-maxage` or `max-age`, at most 10 minutes. Requests with an `Authorization` header are only cached when the upstream marks the response `public` or `s-maxage`; it then goes to every caller that auth lets through. Requests with a `Cookie` header, streamed responses and bodies over 1 MB are never cached. | none              |
+
+### Tokens from an identity provider
+
+To accept tokens from Auth0, Keycloak, Cognito, Entra ID or any other OpenID Connect provider, set `JWKSURL` to the provider's key set (its `jwks_uri`) instead of `SecretKey`:
+
+```yaml
+Plugins:
+  JWTConfig:
+    JWKSURL: "https://auth.example.com/.well-known/jwks.json"
+    Issuer: "https://auth.example.com/"
+    Audience: "my-api"
+```
+
+- **Algorithms:** RS256/384/512, PS256/384/512, ES256/384/512 and EdDSA are accepted, each only with a key of its type. `SigningMethod` limits them to one. HS algorithms never are, so a public key can't be used as an HMAC secret.
+- **Key refresh:** the keys are fetched at startup, then every hour. A token naming an unknown `kid` fetches them again right away, at most once a minute, so rotated keys work without a restart.
+- **When the provider is down:** if it can't be reached at startup, the gateway still starts, retries every 30 seconds, and rejects tokens until it has keys. A failed refresh keeps the known keys.
+- **https:** `JWKSURL` must use https, except to hosts inside your network, such as a Compose service.
+
+With `SecretKey`, `SigningMethod` can be `HS256` (the default), `HS384` or `HS512`.
 
 ### Store
 

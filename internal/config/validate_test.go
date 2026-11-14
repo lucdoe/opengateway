@@ -230,10 +230,20 @@ func TestValidatePluginSettings(t *testing.T) {
 			"Plugins.RateLimitConfig.Limit must be greater than 0"},
 		{"negative rate limit window", func(p *config.PluginConfig) { p.RateLimitConfig.Window = -time.Second },
 			"Plugins.RateLimitConfig.Window must be greater than 0"},
-		{"auth without secret", func(p *config.PluginConfig) { p.JWTConfig.SecretKey = "" },
-			"Plugins.JWTConfig.SecretKey is required"},
-		{"unsupported signing method", func(p *config.PluginConfig) { p.JWTConfig.SigningMethod = "RS256" },
-			`Plugins.JWTConfig.SigningMethod "RS256" is not supported; only HS256 is`},
+		{"auth without secret or JWKS", func(p *config.PluginConfig) { p.JWTConfig.SecretKey = "" },
+			"Plugins.JWTConfig needs SecretKey (for HS256 tokens) or JWKSURL"},
+		{"both secret and JWKS", func(p *config.PluginConfig) { p.JWTConfig.JWKSURL = "https://auth.example.com/jwks.json" },
+			"Plugins.JWTConfig sets both SecretKey and JWKSURL; set one (JWT_SECRET also sets SecretKey)"},
+		{"key algorithm with a secret", func(p *config.PluginConfig) { p.JWTConfig.SigningMethod = "RS256" },
+			`Plugins.JWTConfig.SigningMethod "RS256" is not one of HS256, HS384, HS512`},
+		{"HMAC algorithm with JWKS", func(p *config.PluginConfig) {
+			p.JWTConfig.SecretKey, p.JWTConfig.JWKSURL, p.JWTConfig.SigningMethod = "", "https://auth.example.com/jwks.json", "HS256"
+		}, `Plugins.JWTConfig.SigningMethod "HS256" is not one of RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512, EdDSA`},
+		{"JWKS that is not a URL", func(p *config.PluginConfig) { p.JWTConfig.SecretKey, p.JWTConfig.JWKSURL = "", "auth.example.com/jwks" },
+			`Plugins.JWTConfig.JWKSURL "auth.example.com/jwks" must be an absolute https URL`},
+		{"JWKS over plain http to an outside host", func(p *config.PluginConfig) {
+			p.JWTConfig.SecretKey, p.JWTConfig.JWKSURL = "", "http://auth.example.com/jwks.json"
+		}, `Plugins.JWTConfig.JWKSURL "http://auth.example.com/jwks.json" must use https: keys fetched over plain http can be swapped to forge tokens`},
 	}
 
 	for _, tc := range tests {
@@ -244,6 +254,26 @@ func TestValidatePluginSettings(t *testing.T) {
 			assert.ErrorContains(t, cfg.Validate(), tc.expected)
 		})
 	}
+}
+
+func TestValidateAcceptsJWKSSettings(t *testing.T) {
+	for _, jwt := range []config.JWTConfig{
+		{JWKSURL: "https://auth.example.com/.well-known/jwks.json"},
+		{JWKSURL: "https://auth.example.com/jwks.json", SigningMethod: "ES256"},
+		{JWKSURL: "http://keycloak:8080/realms/app/protocol/openid-connect/certs"}, // plain http inside, a Compose service
+		{SecretKey: "secret", SigningMethod: "HS512"},
+	} {
+		cfg := validConfig()
+		cfg.Plugins.JWTConfig = jwt
+		assert.NoError(t, cfg.Validate(), "%+v", jwt)
+	}
+}
+
+func TestJWTAlgorithms(t *testing.T) {
+	assert.Equal(t, []string{"HS256"}, config.JWTConfig{SecretKey: "s"}.Algorithms())
+	assert.Equal(t, []string{"HS512"}, config.JWTConfig{SecretKey: "s", SigningMethod: "HS512"}.Algorithms())
+	assert.Equal(t, config.KeyAlgorithms, config.JWTConfig{JWKSURL: "https://a.test/jwks"}.Algorithms())
+	assert.Equal(t, []string{"ES256"}, config.JWTConfig{JWKSURL: "https://a.test/jwks", SigningMethod: "ES256"}.Algorithms())
 }
 
 func TestValidateIgnoresSettingsOfUnusedPlugins(t *testing.T) {
