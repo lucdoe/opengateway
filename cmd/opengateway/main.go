@@ -18,14 +18,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
-	"github.com/lucdoe/opengateway/internal/plugins/auth"
 	"github.com/lucdoe/opengateway/internal/plugins/cache"
-	"github.com/lucdoe/opengateway/internal/plugins/cors"
-	"github.com/lucdoe/opengateway/internal/plugins/logger"
-	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
 	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/lucdoe/opengateway/internal/server"
 )
@@ -40,11 +35,15 @@ func (d *DefaultConfigLoader) LoadConfig(path string) (*config.Config, error) {
 	return config.Load(path)
 }
 
+// ServerDependencies are the parts of the gateway that talk to the outside
+// world, so tests can replace them.
 type ServerDependencies struct {
 	configLoader configLoader
 	router       *mux.Router
 	newProxy     server.ProxyFactory
-	cacheService cache.Cache
+	// newStore connects to the store shared by the cache and rate-limit
+	// plugins. It is only called when one of them is in use.
+	newStore storeFactory
 }
 
 func InitializeServer(deps ServerDependencies) (*server.Server, error) {
@@ -57,52 +56,12 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 		return nil, err
 	}
 
-	cacheService := deps.cacheService
-
-	loggerConfig := cfg.Plugins.LoggerConfig
-	jwtConfig := cfg.Plugins.JWTConfig
-	rateLimitConfig := cfg.Plugins.RateLimitConfig
-	corsConfig := cfg.Plugins.CORSConfig
-
-	rateLimiter := ratelimit.NewRateLimitService(ratelimit.RateLimitConfig{
-		Store:  cacheService,
-		Limit:  rateLimitConfig.Limit,
-		Window: rateLimitConfig.Window,
-	})
-
-	middlewareCfg := server.MiddlewareConfig{
-		LoggerConfig: logger.LoggerConfig{
-			FilePath:     loggerConfig.FilePath,
-			FileWriter:   nil,
-			ErrOutput:    os.Stderr,
-			TimeProvider: logger.RealTime{},
-			FileOpener:   logger.DefaultFileOpener{},
-		},
-		JWTConfig: auth.JWTConfig{
-			SecretKey:     []byte(jwtConfig.SecretKey),
-			SigningMethod: jwt.SigningMethodHS256,
-			Issuer:        jwtConfig.Issuer,
-			Audience:      jwtConfig.Audience,
-			Scope:         jwtConfig.Scope,
-		},
-		RateLimitConfig: ratelimit.RateLimitConfig{
-			Store:  cacheService,
-			Limit:  rateLimitConfig.Limit,
-			Window: rateLimitConfig.Window,
-		},
-		CORSConfig: cors.CORSConfig{
-			Origins: corsConfig.Origins,
-			Methods: corsConfig.Methods,
-			Headers: corsConfig.Headers,
-		},
-	}
-
-	middlewares, err := server.InitMiddleware(middlewareCfg, logger.NewLogger(middlewareCfg.LoggerConfig), auth.NewAuthService(middlewareCfg.JWTConfig), cacheService, rateLimiter, cors.NewCors(middlewareCfg.CORSConfig))
+	plugins, err := buildPlugins(cfg, deps.newStore)
 	if err != nil {
 		return nil, err
 	}
 
-	return server.NewServer(cfg, deps.router, deps.newProxy, middlewares)
+	return server.NewServer(cfg, deps.router, deps.newProxy, plugins)
 }
 
 func main() {
@@ -116,10 +75,16 @@ func main() {
 		configLoader: &DefaultConfigLoader{},
 		router:       mux.NewRouter(),
 		newProxy:     proxy.NewHandler,
-		cacheService: cache.NewRedisCache(cache.CacheConfig{
-			Addr:     redisHost + ":" + redisPort,
-			Password: "",
-		}),
+		newStore: func() (cache.Cache, error) {
+			store, err := cache.NewRedisCache(cache.CacheConfig{
+				Addr:     redisHost + ":" + redisPort,
+				Password: "",
+			})
+			if err != nil {
+				return nil, err
+			}
+			return store, nil
+		},
 	}
 
 	server, err := InitializeServer(deps)
