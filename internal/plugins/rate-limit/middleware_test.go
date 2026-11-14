@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ratelimit_test
+package ratelimit
 
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -26,148 +25,85 @@ import (
 	"testing"
 	"time"
 
-	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-type MockRateLimiter struct {
-	mock.Mock
-	ratelimit.RateLimiter
+// fakeCounter counts every key together and records the keys it was given.
+type fakeCounter struct {
+	count   int64
+	resetIn time.Duration
+	err     error
+	keys    []string
 }
 
-func (m *MockRateLimiter) RateLimit(key string) (int64, int64, time.Duration, error) {
-	args := m.Called(key)
-	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(time.Duration), args.Error(3)
+func (f *fakeCounter) Increment(key string, _ time.Duration) (int64, time.Duration, error) {
+	f.keys = append(f.keys, key)
+	if f.err != nil {
+		return 0, 0, f.err
+	}
+	f.count++
+	return f.count, f.resetIn, nil
 }
 
-func (m *MockRateLimiter) GetLimit() int64 {
-	args := m.Called()
-	return args.Get(0).(int64)
+func serve(handler http.Handler, remoteAddr string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest("GET", "/", nil)
+	if remoteAddr != "" {
+		req.RemoteAddr = remoteAddr
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
 }
 
-func TestRateLimitMiddlewareAllowed(t *testing.T) {
-	mockRateLimiter := new(MockRateLimiter)
-	middleware := ratelimit.NewMiddleware(mockRateLimiter)
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+var ok = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
-	t.Run("request allowed", func(t *testing.T) {
-		mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(1), int64(9), time.Minute, nil)
-		mockRateLimiter.On("GetLimit").Return(int64(10))
+func TestMiddlewareCountsDownThenRejects(t *testing.T) {
+	handler := NewMiddleware(NewLimiter(&fakeCounter{resetIn: 1500 * time.Millisecond}, 2, time.Minute))(ok)
 
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest("GET", "/", nil)
-
-		middleware(testHandler).ServeHTTP(recorder, request)
-
-		assert.Equal(t, http.StatusOK, recorder.Code)
-		assert.Equal(t, "10", recorder.Header().Get("X-RateLimit-Limit"))
-		assert.Equal(t, "9", recorder.Header().Get("X-RateLimit-Remaining"))
-		assert.Equal(t, "60", recorder.Header().Get("X-RateLimit-Reset"), "seconds until the reset")
-		assert.Empty(t, recorder.Header().Get("Retry-After"))
-	})
-
-}
-
-func TestRateLimitMiddlewareRateLimitExceeded(t *testing.T) {
-	mockRateLimiter := new(MockRateLimiter)
-	middleware := ratelimit.NewMiddleware(mockRateLimiter)
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	t.Run("rate limit exceeded", func(t *testing.T) {
-		mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(11), int64(0), 1500*time.Millisecond, ratelimit.ErrRateLimitExceeded)
-		mockRateLimiter.On("GetLimit").Return(int64(10))
-
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest("GET", "/", nil)
-
-		middleware(testHandler).ServeHTTP(recorder, request)
-
-		assert.Equal(t, http.StatusTooManyRequests, recorder.Code)
-		assert.Equal(t, "10", recorder.Header().Get("X-RateLimit-Limit"))
-		assert.Equal(t, "0", recorder.Header().Get("X-RateLimit-Remaining"))
-		assert.Equal(t, "2", recorder.Header().Get("X-RateLimit-Reset"), "rounded up to whole seconds")
-		assert.Equal(t, "2", recorder.Header().Get("Retry-After"))
-		assert.Equal(t, "Rate limit exceeded\n", recorder.Body.String())
-	})
-
-}
-
-func TestRateLimitMiddlewareCountsPerClientIP(t *testing.T) {
-	tests := []struct {
-		name        string
-		remoteAddrs []string
-		expected    []string
-	}{
-		{
-			name:        "connections from one client share a key",
-			remoteAddrs: []string{"203.0.113.5:51000", "203.0.113.5:51001"},
-			expected:    []string{"ratelimit:203.0.113.5", "ratelimit:203.0.113.5"},
-		},
-		{
-			name:        "different clients get different keys",
-			remoteAddrs: []string{"203.0.113.5:51000", "[2001:db8::1]:51000"},
-			expected:    []string{"ratelimit:203.0.113.5", "ratelimit:2001:db8::1"},
-		},
+	for _, remaining := range []string{"1", "0"} {
+		rec := serve(handler, "")
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "2", rec.Header().Get("X-RateLimit-Limit"))
+		assert.Equal(t, remaining, rec.Header().Get("X-RateLimit-Remaining"))
+		assert.Equal(t, "2", rec.Header().Get("X-RateLimit-Reset"), "rounded up to whole seconds")
+		assert.Empty(t, rec.Header().Get("Retry-After"))
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var keys []string
-			mockRateLimiter := new(MockRateLimiter)
-			mockRateLimiter.On("RateLimit", mock.Anything).
-				Run(func(args mock.Arguments) { keys = append(keys, args.String(0)) }).
-				Return(int64(1), int64(9), time.Minute, nil)
-			mockRateLimiter.On("GetLimit").Return(int64(10))
-			handler := ratelimit.NewMiddleware(mockRateLimiter)(http.NotFoundHandler())
-
-			for _, addr := range tc.remoteAddrs {
-				request := httptest.NewRequest("GET", "/", nil)
-				request.RemoteAddr = addr
-				request.Header.Set("X-Forwarded-For", "10.0.0.1")
-				handler.ServeHTTP(httptest.NewRecorder(), request)
-			}
-
-			assert.Equal(t, tc.expected, keys)
-		})
-	}
+	rec := serve(handler, "")
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.Equal(t, "0", rec.Header().Get("X-RateLimit-Remaining"))
+	assert.Equal(t, "2", rec.Header().Get("Retry-After"))
+	assert.Equal(t, "Rate limit exceeded\n", rec.Body.String())
 }
 
-func TestRateLimitMiddlewareRejectsWrappedLimitErrors(t *testing.T) {
-	reached := false
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached = true })
-	mockRateLimiter := new(MockRateLimiter)
-	mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(11), int64(0), time.Second, fmt.Errorf("checking limit: %w", ratelimit.ErrRateLimitExceeded))
-	mockRateLimiter.On("GetLimit").Return(int64(10))
+func TestMiddlewareCountsPerClientIP(t *testing.T) {
+	counter := &fakeCounter{resetIn: time.Minute}
+	handler := NewMiddleware(NewLimiter(counter, 10, time.Minute))(ok)
 
-	recorder := httptest.NewRecorder()
-	ratelimit.NewMiddleware(mockRateLimiter)(next).ServeHTTP(recorder, httptest.NewRequest("GET", "/", nil))
+	for _, addr := range []string{"203.0.113.5:51000", "203.0.113.5:51001", "[2001:db8::1]:51000"} {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = addr
+		req.Header.Set("X-Forwarded-For", "10.0.0.1") // ignored: clients can set it
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}
 
-	assert.Equal(t, http.StatusTooManyRequests, recorder.Code)
-	assert.False(t, reached, "the request must not be forwarded")
+	assert.Equal(t, []string{"ratelimit:203.0.113.5", "ratelimit:203.0.113.5", "ratelimit:2001:db8::1"}, counter.keys)
 }
 
 // A store outage must not take down the services behind the plugin.
-func TestRateLimitMiddlewareLetsRequestsThroughWhenTheStoreFails(t *testing.T) {
+func TestMiddlewareLetsRequestsThroughWhenTheStoreFails(t *testing.T) {
 	var logs bytes.Buffer
 	log.SetOutput(&logs)
 	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 
 	reached := 0
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached++ })
-	mockRateLimiter := new(MockRateLimiter)
 	// Same text as the limit error, but not that error.
-	mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(0), int64(0), time.Duration(0), errors.New("rate limit exceeded"))
-	handler := ratelimit.NewMiddleware(mockRateLimiter)(next)
+	handler := NewMiddleware(NewLimiter(&fakeCounter{err: errors.New("rate limit exceeded")}, 10, time.Minute))(next)
 
 	var last *httptest.ResponseRecorder
 	for i := 0; i < 3; i++ {
-		last = httptest.NewRecorder()
-		handler.ServeHTTP(last, httptest.NewRequest("GET", "/", nil))
+		last = serve(handler, "")
 	}
 
 	assert.Equal(t, 3, reached, "every request is forwarded")

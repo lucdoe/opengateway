@@ -33,63 +33,24 @@ import (
 	"github.com/lucdoe/opengateway/internal/store/memory"
 	"github.com/lucdoe/opengateway/internal/store/redisstore"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-type MockConfigLoader struct {
-	mock.Mock
-}
-
-func (m *MockConfigLoader) LoadConfig(path string) (*config.Config, error) {
-	args := m.Called(path)
-	return args.Get(0).(*config.Config), args.Error(1)
-}
-
-type MockRouter struct {
-	*mux.Router
-}
-
-func NewMockRouter() *MockRouter {
-	return &MockRouter{mux.NewRouter()}
-}
-
-type MockCacheService struct {
-	mock.Mock
-}
-
-func (m *MockCacheService) Increment(key string, window time.Duration) (int64, time.Duration, error) {
-	args := m.Called(key, window)
-	return args.Get(0).(int64), args.Get(1).(time.Duration), args.Error(2)
-}
-
-func (m *MockCacheService) Get(key string) (string, error) {
-	args := m.Called(key)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockCacheService) Set(key string, value string, expiration time.Duration) error {
-	args := m.Called(key, value, expiration)
-	return args.Error(0)
-}
-
-func (m *MockCacheService) GenerateCacheKey(r *http.Request) string {
-	args := m.Called(r)
-	return args.String(0)
+// loads returns a config loader that always returns cfg and err.
+func loads(cfg *config.Config, err error) func(string) (*config.Config, error) {
+	return func(string) (*config.Config, error) { return cfg, err }
 }
 
 func TestInitializeServerSuccess(t *testing.T) {
-	mockConfigLoader := new(MockConfigLoader)
-	mockRouter := NewMockRouter()
+	t.Setenv("CONFIG_PATH", "")
 	newProxy := func(target string, timeout time.Duration) (http.Handler, error) {
 		return http.NotFoundHandler(), nil
 	}
 
-	mockCacheService := new(MockCacheService)
 	storeConnections := 0
 	newStore := func(config.StoreConfig) (store.Store, error) {
 		storeConnections++
-		return mockCacheService, nil
+		return memory.New(), nil
 	}
 
 	cfg := &config.Config{
@@ -129,26 +90,26 @@ func TestInitializeServerSuccess(t *testing.T) {
 		},
 	}
 
-	mockConfigLoader.On("LoadConfig", "./cmd/opengateway/config.yaml").Return(cfg, nil)
-
+	var loadedPath string
 	deps := ServerDependencies{
-		configLoader: mockConfigLoader,
-		router:       mockRouter.Router,
-		newProxy:     newProxy,
-		newStore:     newStore,
+		loadConfig: func(path string) (*config.Config, error) {
+			loadedPath = path
+			return cfg, nil
+		},
+		router:   mux.NewRouter(),
+		newProxy: newProxy,
+		newStore: newStore,
 	}
 
 	server, err := InitializeServer(deps)
 	assert.NoError(t, err)
 	assert.NotNil(t, server)
 	assert.Equal(t, 1, storeConnections, "cache and rate-limit must share one store connection")
+	assert.Equal(t, "./cmd/opengateway/config.yaml", loadedPath, "the default path without CONFIG_PATH")
 }
 
 func TestInitializeServerReturnsTheConfigError(t *testing.T) {
-	mockConfigLoader := new(MockConfigLoader)
-	mockConfigLoader.On("LoadConfig", mock.Anything).Return((*config.Config)(nil), errors.New("invalid configuration"))
-
-	server, err := InitializeServer(ServerDependencies{configLoader: mockConfigLoader, router: mux.NewRouter()})
+	server, err := InitializeServer(ServerDependencies{loadConfig: loads(nil, errors.New("invalid configuration")), router: mux.NewRouter()})
 
 	assert.Nil(t, server)
 	assert.ErrorContains(t, err, "invalid configuration")
@@ -156,14 +117,11 @@ func TestInitializeServerReturnsTheConfigError(t *testing.T) {
 
 func TestInitializeServerReturnsThePluginError(t *testing.T) {
 	cfg := configUsing("cache")
-	mockConfigLoader := new(MockConfigLoader)
-	mockConfigLoader.On("LoadConfig", mock.Anything).Return(cfg, nil)
-
 	server, err := InitializeServer(ServerDependencies{
-		configLoader: mockConfigLoader,
-		router:       mux.NewRouter(),
-		newProxy:     func(string, time.Duration) (http.Handler, error) { return http.NotFoundHandler(), nil },
-		newStore:     func(config.StoreConfig) (store.Store, error) { return nil, errors.New("connection refused") },
+		loadConfig: loads(cfg, nil),
+		router:     mux.NewRouter(),
+		newProxy:   func(string, time.Duration) (http.Handler, error) { return http.NotFoundHandler(), nil },
+		newStore:   func(config.StoreConfig) (store.Store, error) { return nil, errors.New("connection refused") },
 	})
 
 	assert.Nil(t, server)
@@ -223,11 +181,9 @@ Services:
         Auth: {ApplyAuth: true, Scope: admin}
 `))
 	require.NoError(t, err)
-	loader := new(MockConfigLoader)
-	loader.On("LoadConfig", mock.Anything).Return(cfg, nil)
 	s, err := InitializeServer(ServerDependencies{
-		configLoader: loader,
-		router:       mux.NewRouter(),
+		loadConfig: loads(cfg, nil),
+		router:     mux.NewRouter(),
 		newProxy: func(string, time.Duration) (http.Handler, error) {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), nil
 		},

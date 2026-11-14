@@ -19,52 +19,38 @@ import (
 	"time"
 )
 
-var ErrRateLimitExceeded = errors.New("rate limit exceeded")
+var errLimitExceeded = errors.New("rate limit exceeded")
 
-// Cache is the part of a store.Store the counters live in.
-type Cache interface {
+// Counter is the part of a store.Store the counters live in.
+type Counter interface {
 	// Increment adds one to the counter at key and returns the new count and
 	// the time left until it resets. A counter lives for window from its
 	// first increment.
 	Increment(key string, window time.Duration) (count int64, resetIn time.Duration, err error)
 }
 
-type RateLimiter interface {
-	// RateLimit counts one request for key. remaining is how many more are
-	// allowed and resetIn how long until the count starts over. It returns
-	// ErrRateLimitExceeded once the limit is used up, and the store's error
-	// if counting failed.
-	RateLimit(key string) (count int64, remaining int64, resetIn time.Duration, err error)
-	GetLimit() int64
+// Limiter allows limit requests per key per window.
+type Limiter struct {
+	counters Counter
+	limit    int64
+	window   time.Duration
 }
 
-type RateLimitConfig struct {
-	Store  Cache
-	Limit  int64
-	Window time.Duration
+func NewLimiter(counters Counter, limit int64, window time.Duration) *Limiter {
+	return &Limiter{counters: counters, limit: limit, window: window}
 }
 
-func NewRateLimitService(cfg RateLimitConfig) *RateLimitConfig {
-	return &RateLimitConfig{
-		Store:  cfg.Store,
-		Limit:  cfg.Limit,
-		Window: cfg.Window,
-	}
-}
-
-func (r *RateLimitConfig) GetLimit() int64 {
-	return r.Limit
-}
-
-func (r *RateLimitConfig) RateLimit(key string) (count int64, remaining int64, resetIn time.Duration, err error) {
-	count, resetIn, err = r.Store.Increment(key, r.Window)
+// Take counts one request for key. remaining is how many more are allowed
+// and resetIn how long until the count starts over. It returns
+// errLimitExceeded once the limit is used up, and the store's error if
+// counting failed.
+func (l *Limiter) Take(key string) (remaining int64, resetIn time.Duration, err error) {
+	count, resetIn, err := l.counters.Increment(key, l.window)
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, err
 	}
-
-	remaining = r.Limit - count
-	if remaining < 0 {
-		return count, 0, resetIn, ErrRateLimitExceeded
+	if count > l.limit {
+		return 0, resetIn, errLimitExceeded
 	}
-	return count, remaining, resetIn, nil
+	return l.limit - count, resetIn, nil
 }

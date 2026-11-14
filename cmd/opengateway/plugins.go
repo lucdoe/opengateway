@@ -72,7 +72,7 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (_ map[string]serve
 	}
 
 	if cfg.UsesPlugin(config.PluginCORS) {
-		policy := cors.NewCors(cors.CORSConfig{
+		policy := cors.New(cors.Config{
 			Origins: settings.CORSConfig.Origins,
 			Methods: settings.CORSConfig.Methods,
 			Headers: settings.CORSConfig.Headers,
@@ -85,11 +85,7 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (_ map[string]serve
 		if err != nil {
 			return nil, closers, fmt.Errorf("%s plugin: %w", config.PluginRateLimit, err)
 		}
-		limiter := ratelimit.NewRateLimitService(ratelimit.RateLimitConfig{
-			Store:  counters,
-			Limit:  settings.RateLimitConfig.Limit,
-			Window: settings.RateLimitConfig.Window,
-		})
+		limiter := ratelimit.NewLimiter(counters, settings.RateLimitConfig.Limit, settings.RateLimitConfig.Window)
 		plugins[config.PluginRateLimit] = ratelimit.NewMiddleware(limiter)
 	}
 

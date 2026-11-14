@@ -24,6 +24,7 @@ import (
 
 	"github.com/lucdoe/opengateway/internal/config"
 	"github.com/lucdoe/opengateway/internal/store"
+	"github.com/lucdoe/opengateway/internal/store/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +54,7 @@ func noStore(t *testing.T) storeFactory {
 func workingStore(connections *int) storeFactory {
 	return func(config.StoreConfig) (store.Store, error) {
 		*connections++
-		return new(MockCacheService), nil
+		return memory.New(), nil
 	}
 }
 
@@ -121,7 +122,7 @@ func TestBuildPluginsOpensTheConfiguredStore(t *testing.T) {
 	var received config.StoreConfig
 	newStore := func(s config.StoreConfig) (store.Store, error) {
 		received = s
-		return new(MockCacheService), nil
+		return memory.New(), nil
 	}
 
 	builtPlugins(t, cfg, newStore)

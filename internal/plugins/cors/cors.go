@@ -15,72 +15,98 @@
 package cors
 
 import (
+	"net/http"
+	"slices"
 	"strings"
 )
 
-type CORS interface {
-	ValidateOrigin(origin string) bool
-	ValidateMethod(method string) bool
-	ValidateHeaders(headers string) bool
-	GetAllowedMethods() string
-	GetAllowedHeaders() string
-}
-
-type CORSConfig struct {
+// Config lists what the policy allows, comma-separated. An Origins entry of
+// "*" allows every origin.
+type Config struct {
 	Origins string
 	Methods string
 	Headers string
 }
 
-func NewCors(config CORSConfig) *CORSConfig {
-	return &CORSConfig{Origins: config.Origins, Methods: config.Methods, Headers: config.Headers}
+// Policy is a parsed Config.
+type Policy struct {
+	anyOrigin    bool
+	origins      []string
+	methods      []string
+	headers      []string // lower case: header names are case-insensitive
+	allowMethods string
+	allowHeaders string
 }
 
-func (c *CORSConfig) ValidateOrigin(origin string) bool {
-	if c.Origins == "*" {
-		return true
+func New(cfg Config) *Policy {
+	origins := split(cfg.Origins)
+	return &Policy{
+		anyOrigin:    slices.Contains(origins, "*"),
+		origins:      origins,
+		methods:      split(cfg.Methods),
+		headers:      split(strings.ToLower(cfg.Headers)),
+		allowMethods: cfg.Methods,
+		allowHeaders: cfg.Headers,
 	}
-	for _, o := range strings.Split(c.Origins, ", ") {
-		if strings.TrimSpace(o) == origin {
-			return true
-		}
-	}
-	return false
 }
 
-func (c *CORSConfig) ValidateMethod(method string) bool {
-	for _, m := range strings.Split(c.Methods, ", ") {
-		if strings.TrimSpace(m) == method {
-			return true
-		}
-	}
-	return false
+func (p *Policy) AllowsOrigin(origin string) bool {
+	return p.anyOrigin || slices.Contains(p.origins, origin)
 }
 
-func (c *CORSConfig) ValidateHeaders(requestedHeaders string) bool {
-	if requestedHeaders == "" {
-		return true
-	}
-	allowedHeaders := strings.Split(c.Headers, ", ")
-	for _, header := range strings.Split(requestedHeaders, ",") {
-		headerFound := false
-		for _, allowedHeader := range allowedHeaders {
-			if strings.TrimSpace(allowedHeader) == strings.TrimSpace(header) {
-				headerFound = true
-				break
-			}
-		}
-		if !headerFound {
+func (p *Policy) AllowsMethod(method string) bool {
+	return slices.Contains(p.methods, method)
+}
+
+// AllowsHeaders reports whether every header in a comma-separated
+// Access-Control-Request-Headers value is allowed.
+func (p *Policy) AllowsHeaders(requested string) bool {
+	for _, header := range split(strings.ToLower(requested)) {
+		if !slices.Contains(p.headers, header) {
 			return false
 		}
 	}
 	return true
 }
 
-func (c *CORSConfig) GetAllowedMethods() string {
-	return c.Methods
+// NewMiddleware returns the cors plugin: it rejects requests from origins the
+// policy does not allow, answers preflight requests and sets the CORS
+// response headers.
+func NewMiddleware(p *Policy) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if !p.AllowsOrigin(origin) {
+				http.Error(w, "CORS policy violation: Invalid Origin", http.StatusForbidden)
+				return
+			}
+
+			preflight := r.Method == http.MethodOptions
+			if preflight && (!p.AllowsMethod(r.Header.Get("Access-Control-Request-Method")) ||
+				!p.AllowsHeaders(r.Header.Get("Access-Control-Request-Headers"))) {
+				http.Error(w, "CORS policy violation: Invalid Method or Header", http.StatusForbidden)
+				return
+			}
+
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", p.allowMethods)
+			w.Header().Set("Access-Control-Allow-Headers", p.allowHeaders)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			if preflight {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
-func (c *CORSConfig) GetAllowedHeaders() string {
-	return c.Headers
+func split(list string) []string {
+	var items []string
+	for _, item := range strings.Split(list, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
