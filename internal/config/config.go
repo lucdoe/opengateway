@@ -63,6 +63,10 @@ type Endpoint struct {
 	Auth       AuthConfig `yaml:"Auth"`
 	Plugins    []string   `yaml:"Plugins"`
 	Settings   Settings   `yaml:"Settings"`
+	// UpstreamPath, when set, is the path sent upstream instead of the
+	// gateway path, after the service URL's own path. Its {name}s take the
+	// values of Path's, and a final /* what came after Path's prefix.
+	UpstreamPath string `yaml:"UpstreamPath"`
 }
 
 type Service struct {

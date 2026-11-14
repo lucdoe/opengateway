@@ -74,6 +74,35 @@ Services:
 
 With this config, `GET /api/people/7` on the gateway is forwarded to `https://swapi.dev/api/people/7`.
 
+### Prefix routes and upstream paths
+
+You don't have to list every endpoint:
+
+- A `Path` ending in `/*` matches that path and every path below it: `/files/*` matches `/files`, `/files/a` and `/files/a/b`.
+- `HTTPMethod: "*"` matches every method.
+
+When routes overlap, the most specific one wins, whatever their order in the file: exact paths before prefixes, longer prefixes before shorter ones, a named method before `*`.
+
+`UpstreamPath` changes the path sent to the service, after the service URL's own path:
+
+```yaml
+Services:
+  accounts:
+    URL: "https://accounts.internal"
+    Subpath: "/api"
+    Endpoints:
+      - HTTPMethod: "GET"
+        Path: "/users/{id}"
+        UpstreamPath: "/v2/accounts/{id}" # GET /api/users/7 → /v2/accounts/7
+      - HTTPMethod: "*"
+        Path: "/files/*"
+        UpstreamPath: "/storage/*" # GET /api/files/a/b.txt → /storage/a/b.txt
+      - HTTPMethod: "*"
+        Path: "/*" # everything else under /api, forwarded as it is
+```
+
+`{name}` takes the value of the same variable in `Path`, and a final `/*` takes what came after the prefix. Without `UpstreamPath`, the full gateway path is forwarded.
+
 ### Settings per service and endpoint
 
 A service or an endpoint can change the rate limit, the CORS policy and, for a service, the upstream timeout, in a `Settings` block. Only the fields it sets change. An endpoint's settings go over its service's, which go over `Plugins` and `Server`:

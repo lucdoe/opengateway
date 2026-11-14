@@ -89,6 +89,21 @@ func TestValidateServicesAndEndpoints(t *testing.T) {
 			`service "api", endpoint "List": path /__health is reserved: paths starting with /__ belong to the gateway`},
 		{"reserved path through the Subpath", func(s *config.Service) { s.Subpath = "/__internal" },
 			`service "api", endpoint "List": path /__internal/items is reserved`},
+		{"* inside a path", func(s *config.Service) { s.Endpoints[0].Path = "/files/*/meta" },
+			`service "api", endpoint "List": Path "/files/*/meta" may only have * at the end, as "/*"`},
+		{"* glued to a segment", func(s *config.Service) { s.Endpoints[0].Path = "/files*" },
+			`Path "/files*" may only have * at the end`},
+		{"UpstreamPath without leading slash", func(s *config.Service) { s.Endpoints[0].UpstreamPath = "v2/items" },
+			`service "api", endpoint "List": UpstreamPath "v2/items" must start with "/"`},
+		{"UpstreamPath with * inside", func(s *config.Service) { s.Endpoints[0].Path = "/items/*"; s.Endpoints[0].UpstreamPath = "/a/*/b" },
+			`UpstreamPath "/a/*/b" may only have * at the end`},
+		{"UpstreamPath prefix for an exact Path", func(s *config.Service) { s.Endpoints[0].UpstreamPath = "/v2/*" },
+			`service "api", endpoint "List": UpstreamPath "/v2/*" ends in "/*", so Path must too`},
+		{"UpstreamPath with an unknown variable", func(s *config.Service) {
+			s.Endpoints[0].Path = "/items/{id}"
+			s.Endpoints[0].UpstreamPath = "/v2/{item}"
+		},
+			`service "api", endpoint "List": UpstreamPath "/v2/{item}" uses {item}, which Path "/items/{id}" does not have`},
 		{"unknown endpoint plugin", func(s *config.Service) { s.Endpoints[1].Plugins = []string{"cash"} },
 			`service "api", endpoint "Create": unknown plugin "cash"`},
 		{"unnamed endpoint is identified by position", func(s *config.Service) { s.Endpoints[1].Name = ""; s.Endpoints[1].Path = "" },
@@ -272,6 +287,23 @@ func TestValidateAcceptsJWKSSettings(t *testing.T) {
 		cfg := validConfig()
 		cfg.Plugins.JWTConfig = jwt
 		assert.NoError(t, cfg.Validate(), "%+v", jwt)
+	}
+}
+
+func TestValidateAcceptsPrefixRoutesAndUpstreamPaths(t *testing.T) {
+	for _, endpoint := range []config.Endpoint{
+		{HTTPMethod: "*", Path: "/*"},
+		{HTTPMethod: "GET", Path: "/files/*"},
+		{HTTPMethod: "GET", Path: "/files/*", UpstreamPath: "/storage/*"},
+		{HTTPMethod: "GET", Path: "/files/*", UpstreamPath: "/storage"},
+		{HTTPMethod: "GET", Path: "/users/{id:[0-9]+}", UpstreamPath: "/v2/accounts/{id}"},
+		{HTTPMethod: "GET", Path: "/users/{id}/files/*", UpstreamPath: "/{id}/*"},
+	} {
+		cfg := validConfig()
+		service := cfg.Services["api"]
+		service.Endpoints = []config.Endpoint{endpoint}
+		cfg.Services["api"] = service
+		assert.NoError(t, cfg.Validate(), "%+v", endpoint)
 	}
 }
 
