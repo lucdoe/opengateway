@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package cors
 
 import (
 	"net/http"
@@ -49,7 +49,7 @@ func (m *mockCors) GetAllowedHeaders() string {
 
 func TestCORSMiddleware(t *testing.T) {
 	corsObj := &mockCors{}
-	middleware := NewCORSMiddleware(corsObj)
+	middleware := NewMiddleware(corsObj)
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -78,7 +78,7 @@ func TestCORSMiddleware(t *testing.T) {
 			}
 
 			recorder := httptest.NewRecorder()
-			handler := middleware.Middleware(testHandler)
+			handler := middleware(testHandler)
 			handler.ServeHTTP(recorder, request)
 
 			if recorder.Code != tt.expectedStatusCode {

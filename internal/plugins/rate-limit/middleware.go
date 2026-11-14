@@ -12,43 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package ratelimit
 
 import (
 	"errors"
 	"net/http"
 	"strconv"
 	"time"
-
-	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
 )
 
 const rateLimitKeyPrefix = "ratelimit:"
 
-type RateLimitMiddleware struct {
-	RateLimiter ratelimit.RateLimiter
+type middleware struct {
+	RateLimiter RateLimiter
 }
 
-func NewRateLimitMiddleware(rl ratelimit.RateLimiter) *RateLimitMiddleware {
-	return &RateLimitMiddleware{
-		RateLimiter: rl,
-	}
+// NewMiddleware returns the rate-limit plugin: it counts requests per client
+// IP with the given limiter and answers 429 once the limit is exceeded.
+func NewMiddleware(rl RateLimiter) func(http.Handler) http.Handler {
+	return (&middleware{RateLimiter: rl}).wrap
 }
 
-func (rlm *RateLimitMiddleware) setRateLimitHeaders(w http.ResponseWriter, remaining int64, window time.Duration) {
+func (rlm *middleware) setRateLimitHeaders(w http.ResponseWriter, remaining int64, window time.Duration) {
 	limit := rlm.RateLimiter.GetLimit()
 	w.Header().Set("X-RateLimit-Limit", strconv.FormatInt(limit, 10))
 	w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(remaining, 10))
 	w.Header().Set("X-RateLimit-Reset", window.String())
 }
 
-func (rlm *RateLimitMiddleware) Middleware(next http.Handler) http.Handler {
+func (rlm *middleware) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		key := rateLimitKeyPrefix + clientIP(req)
 		_, remaining, window, err := rlm.RateLimiter.RateLimit(key)
 		if err != nil {
 			rlm.setRateLimitHeaders(w, remaining, window)
-			if errors.Is(err, ratelimit.ErrRateLimitExceeded) {
+			if errors.Is(err, ErrRateLimitExceeded) {
 				http.Error(w, err.Error(), http.StatusTooManyRequests)
 				return
 			}

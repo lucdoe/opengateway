@@ -124,7 +124,7 @@ func (s *Server) endpointPlugins(service config.Service, endpoint config.Endpoin
 // chain wraps handler in the named plugins so the first name runs first.
 func (s *Server) chain(plugins []string, handler http.Handler) http.Handler {
 	for i := len(plugins) - 1; i >= 0; i-- {
-		handler = s.Middlewares[plugins[i]].Middleware(handler)
+		handler = s.Middlewares[plugins[i]](handler)
 	}
 	return handler
 }

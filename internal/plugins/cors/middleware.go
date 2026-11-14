@@ -12,25 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package cors
 
 import (
 	"net/http"
-
-	"github.com/lucdoe/opengateway/internal/plugins/cors"
 )
 
-type CORSMiddleware struct {
-	CORS cors.CORS
+type middleware struct {
+	CORS CORS
 }
 
-func NewCORSMiddleware(cors cors.CORS) *CORSMiddleware {
-	return &CORSMiddleware{
-		CORS: cors,
-	}
+// NewMiddleware returns the cors plugin: it rejects requests from origins the
+// given policy does not allow, answers preflight requests and sets the CORS
+// response headers.
+func NewMiddleware(policy CORS) func(http.Handler) http.Handler {
+	return (&middleware{CORS: policy}).wrap
 }
 
-func (cm *CORSMiddleware) Middleware(next http.Handler) http.Handler {
+func (cm *middleware) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !cm.CORS.ValidateOrigin(r.Header.Get("Origin")) {
 			http.Error(w, "CORS policy violation: Invalid Origin", http.StatusForbidden)
@@ -53,7 +52,7 @@ func (cm *CORSMiddleware) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-func (cm *CORSMiddleware) setCORSHeaders(w http.ResponseWriter, origin string) {
+func (cm *middleware) setCORSHeaders(w http.ResponseWriter, origin string) {
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Methods", cm.CORS.GetAllowedMethods())
 	w.Header().Set("Access-Control-Allow-Headers", cm.CORS.GetAllowedHeaders())
