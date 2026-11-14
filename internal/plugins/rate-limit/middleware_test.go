@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware_test
+package ratelimit_test
 
 import (
 	"errors"
@@ -23,7 +23,6 @@ import (
 	"time"
 
 	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
-	"github.com/lucdoe/opengateway/internal/server/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -45,7 +44,7 @@ func (m *MockRateLimiter) GetLimit() int64 {
 
 func TestRateLimitMiddlewareAllowed(t *testing.T) {
 	mockRateLimiter := new(MockRateLimiter)
-	middleware := middleware.NewRateLimitMiddleware(mockRateLimiter)
+	middleware := ratelimit.NewMiddleware(mockRateLimiter)
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -57,7 +56,7 @@ func TestRateLimitMiddlewareAllowed(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest("GET", "/", nil)
 
-		middleware.Middleware(testHandler).ServeHTTP(recorder, request)
+		middleware(testHandler).ServeHTTP(recorder, request)
 
 		assert.Equal(t, http.StatusOK, recorder.Code)
 		assert.Equal(t, "10", recorder.Header().Get("X-RateLimit-Limit"))
@@ -68,7 +67,7 @@ func TestRateLimitMiddlewareAllowed(t *testing.T) {
 
 func TestRateLimitMiddlewareRateLimitExceeded(t *testing.T) {
 	mockRateLimiter := new(MockRateLimiter)
-	middleware := middleware.NewRateLimitMiddleware(mockRateLimiter)
+	middleware := ratelimit.NewMiddleware(mockRateLimiter)
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -80,7 +79,7 @@ func TestRateLimitMiddlewareRateLimitExceeded(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest("GET", "/", nil)
 
-		middleware.Middleware(testHandler).ServeHTTP(recorder, request)
+		middleware(testHandler).ServeHTTP(recorder, request)
 
 		assert.Equal(t, http.StatusTooManyRequests, recorder.Code)
 		assert.Equal(t, "10", recorder.Header().Get("X-RateLimit-Limit"))
@@ -115,7 +114,7 @@ func TestRateLimitMiddlewareCountsPerClientIP(t *testing.T) {
 				Run(func(args mock.Arguments) { keys = append(keys, args.String(0)) }).
 				Return(int64(1), int64(9), time.Minute, nil)
 			mockRateLimiter.On("GetLimit").Return(int64(10))
-			handler := middleware.NewRateLimitMiddleware(mockRateLimiter).Middleware(http.NotFoundHandler())
+			handler := ratelimit.NewMiddleware(mockRateLimiter)(http.NotFoundHandler())
 
 			for _, addr := range tc.remoteAddrs {
 				request := httptest.NewRequest("GET", "/", nil)
@@ -149,7 +148,7 @@ func TestRateLimitMiddlewareErrors(t *testing.T) {
 			mockRateLimiter.On("GetLimit").Return(int64(10))
 
 			recorder := httptest.NewRecorder()
-			middleware.NewRateLimitMiddleware(mockRateLimiter).Middleware(next).ServeHTTP(recorder, httptest.NewRequest("GET", "/", nil))
+			ratelimit.NewMiddleware(mockRateLimiter)(next).ServeHTTP(recorder, httptest.NewRequest("GET", "/", nil))
 
 			assert.Equal(t, tc.expected, recorder.Code)
 			assert.False(t, reached, "the request must not be forwarded")

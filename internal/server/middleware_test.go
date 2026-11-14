@@ -22,7 +22,6 @@ import (
 	"github.com/lucdoe/opengateway/internal/plugins/cors"
 	"github.com/lucdoe/opengateway/internal/plugins/logger"
 	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
-	mw "github.com/lucdoe/opengateway/internal/server/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -74,10 +73,8 @@ func TestInitMiddleware(t *testing.T) {
 	middlewares, err := InitMiddleware(config, mockLogger, mockAuthService, mockCacheService, mockRateLimiter, mockCORSMiddleware)
 
 	assert.NoError(t, err)
-	assert.NotNil(t, middlewares)
-	assert.IsType(t, &mw.LoggingMiddleware{}, middlewares["logger"])
-	assert.IsType(t, &mw.AuthMiddleware{}, middlewares["auth"])
-	assert.IsType(t, &mw.CacheMiddleware{}, middlewares["cache"])
-	assert.IsType(t, &mw.RateLimitMiddleware{}, middlewares["rate-limit"])
-	assert.IsType(t, &mw.CORSMiddleware{}, middlewares["cors"])
+	assert.Len(t, middlewares, 5)
+	for _, name := range []string{"logger", "auth", "cache", "rate-limit", "cors"} {
+		assert.NotNil(t, middlewares[name], name)
+	}
 }

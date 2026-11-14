@@ -12,26 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package auth
 
 import (
 	"net/http"
 	"strings"
-
-	auth "github.com/lucdoe/opengateway/internal/plugins/auth"
 )
 
-type AuthMiddleware struct {
-	authService auth.AuthInterface
+type middleware struct {
+	authService AuthInterface
 }
 
-func NewAuthMiddleware(as auth.AuthInterface) *AuthMiddleware {
-	return &AuthMiddleware{
-		authService: as,
-	}
+// NewMiddleware returns the auth plugin: it rejects requests that do not
+// carry a Bearer token the given service accepts.
+func NewMiddleware(as AuthInterface) func(http.Handler) http.Handler {
+	return (&middleware{authService: as}).wrap
 }
 
-func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
+func (am *middleware) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {

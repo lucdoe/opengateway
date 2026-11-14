@@ -12,26 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package logger
 
 import (
 	"fmt"
 	"net/http"
-
-	"github.com/lucdoe/opengateway/internal/plugins/logger"
 )
 
-type LoggingMiddleware struct {
-	Logger logger.Logger
+type middleware struct {
+	Logger Logger
 }
 
-func NewLoggingMiddleware(l logger.Logger) *LoggingMiddleware {
-	return &LoggingMiddleware{
-		Logger: l,
-	}
+// NewMiddleware returns the logger plugin: it writes one line per request to
+// the given logger.
+func NewMiddleware(l Logger) func(http.Handler) http.Handler {
+	return (&middleware{Logger: l}).wrap
 }
 
-func (lm *LoggingMiddleware) Middleware(next http.Handler) http.Handler {
+func (lm *middleware) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		details := fmt.Sprintf("%s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
 		go lm.Logger.Info("Request", details)
