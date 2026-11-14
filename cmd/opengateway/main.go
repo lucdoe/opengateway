@@ -37,7 +37,7 @@ type configLoader interface {
 type DefaultConfigLoader struct{}
 
 func (d *DefaultConfigLoader) LoadConfig(path string) (*config.Config, error) {
-	return config.NewParser(path).Parse()
+	return config.Load(path)
 }
 
 type ServerDependencies struct {
