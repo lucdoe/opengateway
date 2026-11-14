@@ -32,13 +32,11 @@ import (
 // storeFactory opens the store shared by the cache and rate-limit plugins.
 type storeFactory func(cfg config.StoreConfig) (store.Store, error)
 
-// buildPlugins creates the plugins that some service or endpoint in cfg uses,
-// and only those. A plugin that is not used is not built, so its settings do
-// not have to be present and its dependencies do not have to be reachable.
+// buildPlugins builds only the plugins some service or endpoint uses, so an
+// unused plugin needs no settings and no reachable dependencies.
 //
-// newStore is called at most once, and only if the cache or rate-limit plugin
-// is used. The returned closers must be closed when the gateway stops. If
-// building fails, what was built is closed already.
+// newStore is called at most once. The returned closers must be closed when
+// the gateway stops; if building fails, what was built is already closed.
 func buildPlugins(cfg *config.Config, newStore storeFactory) (_ map[string]server.Middleware, closers []io.Closer, err error) {
 	plugins := map[string]server.Middleware{}
 	defer func() {

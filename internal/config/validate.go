@@ -35,12 +35,8 @@ var knownMethods = []string{
 // implements.
 const supportedSigningMethod = "HS256"
 
-// Validate checks that the configuration describes a gateway that can start
-// and behave as written. It returns one error listing every problem found, so
-// they can all be fixed in one pass.
-//
-// Plugin settings are only checked for plugins that some service or endpoint
-// actually uses.
+// Validate reports every problem in one error, so they can be fixed in one
+// pass. Plugin settings are only checked for plugins in use.
 func (c *Config) Validate() error {
 	v := &validation{}
 

@@ -22,8 +22,7 @@ import (
 	"time"
 )
 
-// Environment variables that override the config file. A variable that is
-// unset or empty leaves the value from the file in place.
+// Environment variables that override the config file when set and non-empty.
 const (
 	EnvPort          = "PORT"
 	EnvStoreType     = "STORE_TYPE"
