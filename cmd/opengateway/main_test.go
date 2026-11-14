@@ -113,8 +113,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 		},
 		Plugins: config.PluginConfig{
 			LoggerConfig: config.LoggerConfig{
-				FilePath:  filepath.Join(t.TempDir(), "server.log"),
-				ErrOutput: "stderr",
+				FilePath: filepath.Join(t.TempDir(), "server.log"),
 			},
 			JWTConfig: config.JWTConfig{
 				SecretKey:     "your-256-bit-secret",
