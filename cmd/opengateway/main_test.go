@@ -42,15 +42,6 @@ func NewMockRouter() *MockRouter {
 	return &MockRouter{mux.NewRouter()}
 }
 
-type MockProxyService struct {
-	mock.Mock
-}
-
-func (m *MockProxyService) ReverseProxy(serviceName string, rw http.ResponseWriter, req *http.Request) error {
-	args := m.Called(serviceName, rw, req)
-	return args.Error(0)
-}
-
 type MockCacheService struct {
 	mock.Mock
 }
@@ -78,8 +69,9 @@ func (m *MockCacheService) GenerateCacheKey(r *http.Request) string {
 func TestInitializeServerSuccess(t *testing.T) {
 	mockConfigLoader := new(MockConfigLoader)
 	mockRouter := NewMockRouter()
-	mockProxyService := new(MockProxyService)
-	mockProxyService.On("ReverseProxy", mock.Anything, mock.Anything).Return(nil)
+	newProxy := func(target string) (http.Handler, error) {
+		return http.NotFoundHandler(), nil
+	}
 
 	mockCacheService := new(MockCacheService)
 	mockCacheService.On("Increment", mock.Anything, mock.Anything).Return(1, nil)
@@ -135,7 +127,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 	deps := ServerDependencies{
 		configLoader: mockConfigLoader,
 		router:       mockRouter.Router,
-		proxyService: mockProxyService,
+		newProxy:     newProxy,
 		cacheService: mockCacheService,
 	}
 
