@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -63,7 +64,20 @@ func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mw
 // one proxy to its upstream behind one circuit breaker, both shared by its
 // endpoints, and each route gets its own plugin chain, so a plugin only runs
 // for the services and endpoints that ask for it.
+//
+// A path with a cors endpoint also gets an OPTIONS route with that endpoint's
+// chain, so browser preflights reach the cors plugin, unless an endpoint
+// declares OPTIONS for the path itself.
 func (s *Server) SetupRoutes(cfg *config.Config) error {
+	hasOptions := map[string]bool{}
+	for _, service := range cfg.Services {
+		for _, endpoint := range service.Endpoints {
+			if strings.EqualFold(endpoint.HTTPMethod, http.MethodOptions) {
+				hasOptions[service.Subpath+endpoint.Path] = true
+			}
+		}
+	}
+
 	for _, name := range cfg.ServiceNames() {
 		service := cfg.Services[name]
 
@@ -87,7 +101,12 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 			}
 
 			handler := s.chain(plugins, upstream, afterAuth)
-			s.Router.Handle(service.Subpath+endpoint.Path, handler).Methods(endpoint.HTTPMethod)
+			path := service.Subpath + endpoint.Path
+			s.Router.Handle(path, handler).Methods(endpoint.HTTPMethod)
+			if slices.Contains(plugins, config.PluginCORS) && !hasOptions[path] {
+				s.Router.Handle(path, handler).Methods(http.MethodOptions)
+				hasOptions[path] = true
+			}
 		}
 	}
 	return nil

@@ -225,3 +225,33 @@ func TestDefaultDependenciesStartTheShippedConfig(t *testing.T) {
 	assert.Equal(t, ":4000", s.Addr)
 	assert.NotEmpty(t, s.Closers, "the shipped config uses the logger")
 }
+
+func TestInitializeServerAnswersCorsPreflights(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+Plugins: {CORSConfig: {Origins: "https://app.test", Methods: "GET, POST", Headers: "Content-Type"}}
+Services:
+  api:
+    URL: http://upstream.test
+    Plugins: [cors]
+    Endpoints: [{HTTPMethod: POST, Path: /items}]
+`))
+	require.NoError(t, err)
+	s, err := InitializeServer(ServerDependencies{
+		loadConfig: loads(cfg, nil),
+		router:     mux.NewRouter(),
+		newProxy: func(string, time.Duration) (http.Handler, error) {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("a preflight must not reach the upstream") }), nil
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("OPTIONS", "/items", nil)
+	req.Header.Set("Origin", "https://app.test")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "content-type")
+	rec := httptest.NewRecorder()
+	s.Router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "https://app.test", rec.Header().Get("Access-Control-Allow-Origin"))
+}
