@@ -7,8 +7,6 @@
 
 A lightweight, open-source API gateway written in Go for small to mid-sized projects. You describe your services and the plugins they need in one YAML file; the gateway routes requests to them. No vendor lock-in, no control plane.
 
-See the [architecture overview](docs/README.md) for how it is built.
-
 ## Quick start
 
 ```bash
@@ -20,13 +18,11 @@ Over SSH, clone `git@github.com:lucdoe/opengateway.git` instead.
 
 Edit [`cmd/opengateway/config.yaml`](cmd/opengateway/config.yaml) to describe your services, then start the gateway on port 4000 in one of two ways.
 
-**Docker** (needs Docker with Compose, for example [Docker Desktop](https://www.docker.com/products/docker-desktop/)). Starts the gateway and Redis, and sets `STORE_TYPE=redis`:
+**Docker** (needs Docker with Compose, for example [Docker Desktop](https://www.docker.com/products/docker-desktop/)). Starts the gateway and Redis, and sets `STORE_TYPE=redis`. The config file is copied into the image, so rebuild after changing it:
 
 ```bash
 docker compose up --build
 ```
-
-The config file is copied into the image, so rebuild after changing it.
 
 **Go** (needs Go 1.22 or newer; nothing else unless you choose the `redis` store):
 
@@ -34,27 +30,7 @@ The config file is copied into the image, so rebuild after changing it.
 go run ./cmd/opengateway
 ```
 
-## Configuration
-
-Everything is configured in `config.yaml`. The gateway reads it from the path given with `-c`, else from `CONFIG_PATH`, else from `./cmd/opengateway/config.yaml`. The file is validated at startup: an unknown key or an invalid value stops the gateway with a list of every problem.
-
-To validate a config without starting the gateway, for example in CI, run `check`. It lists every problem and exits with `1`, or prints a summary and exits with `0`. It contacts neither Redis nor the upstreams.
-
-```bash
-go run ./cmd/opengateway check -c path/to/config.yaml
-```
-
-Both `check` and startup print warnings for settings that are valid but risky. They don't stop the gateway or fail `check`. All of them only apply when auth is used:
-
-| Warning | Why |
-| --- | --- |
-| `SecretKey` is the example secret, or shorter than 32 bytes | Anyone can forge tokens with a known secret. HS256 needs 256 bits to resist guessing. |
-| `Issuer` or `Audience` is empty | Tokens from other issuers, or meant for other services that share the secret, are accepted. |
-| A service with auth endpoints has a plain `http://` URL to an outside host | The token is forwarded unencrypted. Loopback and private addresses, names without a dot (like a Compose service) and `.local`, `.internal`, `.lan`, `.svc` and `.localhost` names count as inside. |
-
-### Services
-
-Each service has an upstream `URL`, a list of `Endpoints`, and optionally a `Subpath` (starting with `/`, not ending with one) and `Plugins`.
+## A config
 
 ```yaml
 Services:
@@ -66,179 +42,24 @@ Services:
       - Name: "Get Person"
         HTTPMethod: "GET"
         Path: "/people/{id}"
-        Plugins: ["cache", "auth"] # in addition, for this endpoint only; auth requires a valid JWT
-        Scope: "people:read" # optional, with auth: scopes the token must carry, space-separated
+        Plugins: ["cache"] # in addition, for this endpoint only
 ```
 
-With this config, `GET /api/people/7` on the gateway is forwarded to `https://swapi.dev/api/people/7`.
+`GET /api/people/7` on the gateway is forwarded to `https://swapi.dev/api/people/7`. Check a config without starting the gateway, for example in CI:
 
-### Prefix routes and upstream paths
-
-You don't have to list every endpoint:
-
-- A `Path` ending in `/*` matches that path and every path below it: `/files/*` matches `/files`, `/files/a` and `/files/a/b`.
-- `HTTPMethod: "*"` matches every method.
-
-When routes overlap, the most specific one wins, whatever their order in the file: exact paths before prefixes, longer prefixes before shorter ones, a named method before `*`.
-
-`UpstreamPath` changes the path sent to the service, after the service URL's own path:
-
-```yaml
-Services:
-  accounts:
-    URL: "https://accounts.internal"
-    Subpath: "/api"
-    Endpoints:
-      - HTTPMethod: "GET"
-        Path: "/users/{id}"
-        UpstreamPath: "/v2/accounts/{id}" # GET /api/users/7 → /v2/accounts/7
-      - HTTPMethod: "*"
-        Path: "/files/*"
-        UpstreamPath: "/storage/*" # GET /api/files/a/b.txt → /storage/a/b.txt
-      - HTTPMethod: "*"
-        Path: "/*" # everything else under /api, forwarded as it is
+```bash
+go run ./cmd/opengateway check -c path/to/config.yaml
 ```
 
-`{name}` takes the value of the same variable in `Path`, and a final `/*` takes what came after the prefix. Without `UpstreamPath`, the full gateway path is forwarded.
+## Docs
 
-### Settings per service and endpoint
-
-A service or an endpoint can change the rate limit, the CORS policy and, for a service, the upstream timeout, in a `Settings` block. Only the fields it sets change. An endpoint's settings go over its service's, which go over `Plugins` and `Server`:
-
-```yaml
-Plugins:
-  RateLimit: {Limit: 1000, Window: 1m, Key: "jwt:sub"} # the default
-Services:
-  accounts:
-    URL: "https://accounts.internal"
-    Plugins: ["rate-limit"]
-    Settings:
-      UpstreamTimeout: 5s
-      RateLimit: {Limit: 100} # 100 a minute per user, for every endpoint of the service
-    Endpoints:
-      - Name: "Login"
-        HTTPMethod: "POST"
-        Path: "/login"
-        Settings:
-          RateLimit: {Limit: 5, Key: "ip"} # 5 a minute per IP, for this endpoint only
-```
-
-Each `Settings` block that changes the rate limit has its own count: the 5 logins above don't use up the 100 of the other accounts endpoints, or the global 1000. Endpoints that inherit a service's limit share one count. `UpstreamTimeout` can only be set for a service.
-
-### Plugins
-
-Plugins run in the order of this table, whatever order you list them in. Their settings live under `Plugins` in the config file.
-
-| Plugin       | What it does                                                                                                        | Settings          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes, client IP and request ID (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `Logger`    |
-| `cors`       | Answers preflights and sets the CORS headers; rejects origins that are not listed with `403`. Requests without an `Origin` header (curl, other servers) pass untouched. `Origins: "*"` allows every origin but without credentials (cookies); list origins to allow them. | `CORS`      |
-| `rate-limit` | Allows each client `Limit` requests per `Window`, then answers `429` with `Retry-After`. A client is an IP (IPv6: a /64) unless `Key` says otherwise (see [Rate-limit keys](#rate-limit-keys)). Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimit` |
-| `auth`       | Requires a `Bearer` JWT carrying `exp` (`401` otherwise), signed with `SecretKey` (HS256) or with a key from `JWKSURL` (see [Tokens from an identity provider](#tokens-from-an-identity-provider)). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Scope`, in their space-separated `scope` claim (`403` otherwise). | `JWT`       |
-| `cache`      | Stores `200` responses to `GET` requests in the store and shares them between clients, for the upstream's `s-maxage` or `max-age`, at most 10 minutes. Requests with an `Authorization` header are only cached when the upstream marks the response `public` or `s-maxage`; it then goes to every caller that auth lets through. Requests with a `Cookie` header, streamed responses and bodies over 1 MB are never cached. | none              |
-
-### Rate-limit keys
-
-`Plugins.RateLimit.Key` sets what counts as one client:
-
-| `Key` | Counts per | Use it when |
-| --- | --- | --- |
-| `ip` (default) | client IP, IPv6 per /64 | clients reach the gateway directly |
-| `header:Name`, e.g. `header:CF-Connecting-IP` | value of that header | a CDN or load balancer in front sets the real client address. Only name a header it sets: clients can send any value. |
-| `jwt:sub` | verified token subject | users share IPs, as behind a company NAT. Rate-limit then runs right after auth, so forged tokens get `401` and are never counted. |
-
-A request without the header, or without a token, counts by its IP, so leaving it out doesn't escape the limit. Header values and subjects are stored hashed.
-
-### Tokens from an identity provider
-
-To accept tokens from Auth0, Keycloak, Cognito, Entra ID or any other OpenID Connect provider, set `JWKSURL` to the provider's key set (its `jwks_uri`) instead of `SecretKey`:
-
-```yaml
-Plugins:
-  JWT:
-    JWKSURL: "https://auth.example.com/.well-known/jwks.json"
-    Issuer: "https://auth.example.com/"
-    Audience: "my-api"
-```
-
-- **Algorithms:** RS256/384/512, PS256/384/512, ES256/384/512 and EdDSA are accepted, each only with a key of its type. `SigningMethod` limits them to one. HS algorithms never are, so a public key can't be used as an HMAC secret.
-- **Key refresh:** the keys are fetched at startup, then every hour. A token naming an unknown `kid` fetches them again right away, at most once a minute, so rotated keys work without a restart.
-- **When the provider is down:** if it can't be reached at startup, the gateway still starts, retries every 30 seconds, and rejects tokens until it has keys. A failed refresh keeps the known keys.
-- **https:** `JWKSURL` must use https, except to hosts inside your network, such as a Compose service.
-
-With `SecretKey`, `SigningMethod` can be `HS256` (the default), `HS384` or `HS512`.
-
-### Store
-
-The `cache` and `rate-limit` plugins keep their state in a store. Pick one with `Store.Type`:
-
-| `Store.Type`       | Where state lives          | Use it when                                                                 |
-| ------------------ | -------------------------- | --------------------------------------------------------------------------- |
-| `memory` (default) | in the gateway process     | you run one instance. Nothing to set up; state is lost on restart.          |
-| `redis`            | a Redis server, 7.0 or newer | you run several instances that should share limits and cache. Valkey, KeyDB and Dragonfly work too. |
-
-With `memory`, every instance counts its own limits: three instances with `Limit: 100` let a client through 300 times per window. The memory store holds at most 100,000 cached responses and 100,000 rate-limit counters; once either is full, new responses are not cached, or new clients pass without a limit, until old keys expire.
-
-### Environment variables in the config
-
-Any value can come from the environment, so secrets and per-environment URLs stay out of the file:
-
-```yaml
-Services:
-  users:
-    URL: "${USERS_URL:-http://localhost:3001}" # the fallback after :- is used when USERS_URL is unset or empty
-Plugins:
-  JWT:
-    SecretKey: "${JWT_SECRET}" # the gateway does not start while JWT_SECRET is unset
-```
-
-- A variable that is unset or empty, and has no fallback, stops the gateway with its line. `check` reports it too.
-- The value is used exactly as it is, never read as YAML, so it can't change the structure of the config.
-- Unquoted, a placeholder takes the type of its value: `Port: ${PORT}` is a number. Inside `{ }` flow style, quote it, since its `}` would close the mapping.
-- Placeholders work in values, not in keys or comments. Write `$${` for a literal `${`.
-
-### Server and environment
-
-These settings are optional. An environment variable, where one exists, overrides the config file. Durations are written like `500ms`, `10s` or `2m`.
-
-| Config key                    | Environment variable | Default     | Meaning                                                         |
-| ----------------------------- | -------------------- | ----------- | --------------------------------------------------------------- |
-| `Server.Port`                 | `PORT`               | `4000`      | Port the gateway listens on                                     |
-| `Server.MetricsPort`          |                      | `0` (off)   | Port that serves Prometheus metrics at `/metrics`, see [Metrics](#metrics) |
-| `Server.ReadHeaderTimeout`    |                      | `10s`       | Time a client has to send its request headers                   |
-| `Server.IdleTimeout`          |                      | `120s`      | How long an idle keep-alive connection stays open               |
-| `Server.ShutdownTimeout`      |                      | `15s`       | Time requests in flight get to finish when the gateway stops    |
-| `Server.UpstreamTimeout`      |                      | `30s`       | Time an upstream has to start answering before the gateway responds `504` |
-| `Server.CircuitBreaker.ConsecutiveFailures` |        | `5`         | Failures in a row that open a service's circuit breaker         |
-| `Server.CircuitBreaker.OpenTimeout`         |        | `30s`       | How long it stays open before trial requests go through again   |
-| `Server.CircuitBreaker.HalfOpenRequests`    |        | `1`         | Trial requests allowed at once while it recovers                |
-| `Store.Type`                  | `STORE_TYPE`         | `memory`    | Store of the `cache` and `rate-limit` plugins: `memory` or `redis` |
-| `Store.Redis.Host`            | `REDIS_HOST`         | `localhost` | Redis server, only used when `Store.Type` is `redis`            |
-| `Store.Redis.Port`            | `REDIS_PORT`         | `6379`      |                                                                 |
-| `Store.Redis.Password`        | `REDIS_PASSWORD`     | empty       |                                                                 |
-| `Plugins.JWT.SecretKey` | `JWT_SECRET`         | none        | Secret for validating tokens, only needed when auth is used     |
-
-Every service has its own circuit breaker. A failure is an upstream that cannot be reached, times out, or answers `500`, `502`, `503` or `504`. While the breaker is open the gateway answers `503` with a `Retry-After` header straight away, without contacting the service.
-
-When the gateway answers a request itself, rather than passing on the upstream's response, the body is JSON with a `message`, for example `{"message":"Rate limit exceeded"}`. This covers unknown routes (`404`, `405`), plugin rejections (`401`, `403`, `429`) and upstream failures (`502`, `503`, `504`).
-
-`GET /__health` answers `200 {"status":"ok"}` while the gateway runs, without plugins or contacting a service, for load balancers and container health checks. Paths starting with `/__` belong to the gateway, so services can't route them.
-
-Every request carries an `X-Request-ID`: the one the client sent, if it is 1 to 128 visible ASCII characters, or else a new random one. The gateway sends it to the service, writes it in the log line and returns it on the response, also on errors it answers itself.
-
-On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets requests in flight finish, and exits.
-
-### Metrics
-
-With `Server.MetricsPort` set, the gateway serves Prometheus metrics at `/metrics` on that port. It's a port of its own, so you can keep it inside your network: the metrics name every service and route.
-
-| Metric | Type | Labels |
-| --- | --- | --- |
-| `opengateway_requests_total` | counter | `service`, `route`, `method`, `status` |
-| `opengateway_request_duration_seconds` | histogram, 1 ms to 10 s | `service`, `route` |
-| `opengateway_circuit_breaker_state` | gauge: `0` closed, `1` half-open, `2` open | `service` |
-
-Every answer counts, including ones from the gateway itself, such as a `429` or `503`. `route` is the path as configured, like `/api/users/{id}`, not the request path.
+| Page | What's in it |
+| --- | --- |
+| [Configuration](docs/configuration.md) | services, prefix routes and path rewrites, settings per service and endpoint, `${VAR}` placeholders, server and store settings |
+| [Plugins](docs/plugins.md) | logger, CORS, rate limits per IP, header or user, the response cache |
+| [Auth](docs/auth.md) | JWT with a shared secret or an identity provider's JWKS, scopes, warnings for risky settings |
+| [Operations](docs/operations.md) | health check, request IDs, error responses, circuit breaker, Prometheus metrics, shutdown |
+| [Architecture](docs/architecture.md) | how it's built, and how a request flows through it |
 
 ## Performance
 
