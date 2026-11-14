@@ -185,6 +185,13 @@ func TestValidateIgnoresRedisSettingsWhenNoPluginNeedsRedis(t *testing.T) {
 	assert.NoError(t, cfg.Validate())
 }
 
+func TestValidateAcceptsTheLoggerWithoutAFile(t *testing.T) {
+	cfg := validConfig()
+	cfg.Plugins.LoggerConfig.FilePath = "" // logs to stdout
+
+	assert.NoError(t, cfg.Validate())
+}
+
 func TestValidateIgnoresRedisSettingsOfTheMemoryStore(t *testing.T) {
 	cfg := validConfig()
 	cfg.Store = config.StoreConfig{Type: "memory"}
@@ -202,8 +209,6 @@ func TestValidatePluginSettings(t *testing.T) {
 		edit     func(p *config.PluginConfig)
 		expected string
 	}{
-		{"logger without file", func(p *config.PluginConfig) { p.LoggerConfig.FilePath = "" },
-			"Plugins.LoggerConfig.FilePath is required"},
 		{"cors without origins", func(p *config.PluginConfig) { p.CORSConfig.Origins = "" },
 			"Plugins.CORSConfig.Origins is required"},
 		{"cors without methods", func(p *config.PluginConfig) { p.CORSConfig.Methods = "" },

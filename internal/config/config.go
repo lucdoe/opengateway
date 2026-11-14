@@ -68,7 +68,9 @@ type Service struct {
 }
 
 type LoggerConfig struct {
-	FilePath  string `yaml:"FilePath"`
+	// FilePath is the file request lines are appended to. Empty means stdout.
+	FilePath string `yaml:"FilePath"`
+	// ErrOutput is accepted so existing configs still load. It has no effect.
 	ErrOutput string `yaml:"ErrOutput"`
 }
 

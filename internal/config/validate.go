@@ -205,9 +205,6 @@ func (v *validation) plugins(label string, plugins []string) {
 }
 
 func (v *validation) pluginSettings(c *Config) {
-	if c.UsesPlugin(PluginLogger) && c.Plugins.LoggerConfig.FilePath == "" {
-		v.addf("Plugins.LoggerConfig.FilePath is required because the logger plugin is used")
-	}
 
 	if c.UsesPlugin(PluginCORS) {
 		if c.Plugins.CORSConfig.Origins == "" {

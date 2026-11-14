@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/statuswriter"
 	"github.com/sony/gobreaker/v2"
 )
 
@@ -65,12 +66,12 @@ func Wrap(name string, settings config.CircuitBreakerConfig, next http.Handler) 
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := cb.Execute(func() (struct{}, error) {
-			rec := &statusWriter{ResponseWriter: w}
+			rec := statuswriter.New(w)
 			next.ServeHTTP(rec, r)
 			if r.Context().Err() != nil {
 				return struct{}{}, errClientGone
 			}
-			if isFailure(rec.status) {
+			if isFailure(rec.Status()) {
 				return struct{}{}, errUpstream
 			}
 			return struct{}{}, nil
@@ -89,32 +90,4 @@ func isFailure(status int) bool {
 		return true
 	}
 	return false
-}
-
-// statusWriter remembers the status code of the response it passes on,
-// without buffering the body.
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(code int) {
-	// 1xx responses such as 103 Early Hints come before the real status.
-	if w.status == 0 && code >= 200 {
-		w.status = code
-	}
-	w.ResponseWriter.WriteHeader(code)
-}
-
-func (w *statusWriter) Write(b []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	return w.ResponseWriter.Write(b)
-}
-
-// Unwrap lets http.ResponseController reach the underlying writer, so the
-// proxy can still flush streamed responses.
-func (w *statusWriter) Unwrap() http.ResponseWriter {
-	return w.ResponseWriter
 }

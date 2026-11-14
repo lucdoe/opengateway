@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/lucdoe/opengateway/internal/config"
@@ -36,9 +37,18 @@ type storeFactory func(cfg config.StoreConfig) (store.Store, error)
 // not have to be present and its dependencies do not have to be reachable.
 //
 // newStore is called at most once, and only if the cache or rate-limit plugin
-// is used.
-func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.Middleware, error) {
+// is used. The returned closers must be closed when the gateway stops. If
+// building fails, what was built is closed already.
+func buildPlugins(cfg *config.Config, newStore storeFactory) (_ map[string]server.Middleware, closers []io.Closer, err error) {
 	plugins := map[string]server.Middleware{}
+	defer func() {
+		if err != nil {
+			for _, closer := range closers {
+				closer.Close()
+			}
+			closers = nil
+		}
+	}()
 	settings := cfg.Plugins
 
 	var shared store.Store
@@ -55,11 +65,12 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.
 	}
 
 	if cfg.UsesPlugin(config.PluginLogger) {
-		log, err := logger.NewLogger(logger.LoggerConfig{FilePath: settings.LoggerConfig.FilePath})
+		requests, err := logger.New(logger.Config{FilePath: settings.LoggerConfig.FilePath})
 		if err != nil {
-			return nil, fmt.Errorf("%s plugin: %w", config.PluginLogger, err)
+			return nil, closers, fmt.Errorf("%s plugin: %w", config.PluginLogger, err)
 		}
-		plugins[config.PluginLogger] = logger.NewMiddleware(log)
+		closers = append(closers, requests)
+		plugins[config.PluginLogger] = logger.NewMiddleware(requests)
 	}
 
 	if cfg.UsesPlugin(config.PluginCORS) {
@@ -74,7 +85,7 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.
 	if cfg.UsesPlugin(config.PluginRateLimit) {
 		counters, err := sharedStore()
 		if err != nil {
-			return nil, fmt.Errorf("%s plugin: %w", config.PluginRateLimit, err)
+			return nil, closers, fmt.Errorf("%s plugin: %w", config.PluginRateLimit, err)
 		}
 		limiter := ratelimit.NewRateLimitService(ratelimit.RateLimitConfig{
 			Store:  counters,
@@ -93,7 +104,7 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.
 			Scope:         settings.JWTConfig.Scope,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("%s plugin: %w", config.PluginAuth, err)
+			return nil, closers, fmt.Errorf("%s plugin: %w", config.PluginAuth, err)
 		}
 		plugins[config.PluginAuth] = auth.NewMiddleware(service)
 	}
@@ -101,10 +112,10 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.
 	if cfg.UsesPlugin(config.PluginCache) {
 		responses, err := sharedStore()
 		if err != nil {
-			return nil, fmt.Errorf("%s plugin: %w", config.PluginCache, err)
+			return nil, closers, fmt.Errorf("%s plugin: %w", config.PluginCache, err)
 		}
 		plugins[config.PluginCache] = cache.NewMiddleware(responses)
 	}
 
-	return plugins, nil
+	return plugins, closers, nil
 }

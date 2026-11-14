@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -426,7 +427,7 @@ type runningServer struct {
 	result  chan error
 }
 
-func startServer(t *testing.T, settings config.ServerConfig) *runningServer {
+func startServer(t *testing.T, settings config.ServerConfig, closers ...io.Closer) *runningServer {
 	t.Helper()
 	rs := &runningServer{
 		started: make(chan struct{}, 1),
@@ -452,7 +453,7 @@ func startServer(t *testing.T, settings config.ServerConfig) *runningServer {
 	rs.stop = cancel
 	t.Cleanup(cancel)
 
-	s := &Server{Settings: settings, Router: router}
+	s := &Server{Settings: settings, Router: router, Closers: closers}
 	go func() { rs.result <- s.Serve(ctx, listener) }()
 	return rs
 }
@@ -466,6 +467,51 @@ func (rs *runningServer) waitForResult(t *testing.T) error {
 		t.Fatal("the server did not stop")
 		return nil
 	}
+}
+
+// closeRecorder notes when it was closed and whether the slow request had
+// finished by then.
+type closeRecorder struct {
+	finished *atomic.Bool
+	closed   atomic.Bool
+	err      error
+	sawDone  atomic.Bool
+}
+
+func (c *closeRecorder) Close() error {
+	c.sawDone.Store(c.finished.Load())
+	c.closed.Store(true)
+	return c.err
+}
+
+// A buffered log must be written out after the last request, not before.
+func TestServeClosesTheClosersAfterRequestsInFlightFinish(t *testing.T) {
+	var finished atomic.Bool
+	first := &closeRecorder{finished: &finished}
+	failing := &closeRecorder{finished: &finished, err: errors.New("disk full")}
+	rs := startServer(t, config.ServerConfig{ShutdownTimeout: 5 * time.Second}, failing, first)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		res, err := http.Get(rs.url + "/slow")
+		if err == nil {
+			res.Body.Close()
+		}
+	}()
+	<-rs.started
+	rs.stop()
+	time.Sleep(50 * time.Millisecond)
+	assert.False(t, first.closed.Load(), "nothing is closed while a request is in flight")
+
+	finished.Store(true)
+	close(rs.release)
+	<-done
+
+	assert.NoError(t, rs.waitForResult(t))
+	assert.True(t, first.closed.Load())
+	assert.True(t, first.sawDone.Load(), "closed after the request finished")
+	assert.True(t, failing.closed.Load(), "a closer that fails does not stop the others")
 }
 
 func TestServeAnswersRequestsUntilStopped(t *testing.T) {

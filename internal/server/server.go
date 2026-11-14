@@ -17,6 +17,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"net/http"
 	"slices"
@@ -44,6 +46,9 @@ type Server struct {
 	Router      *mux.Router
 	Middlewares map[string]Middleware
 	NewProxy    ProxyFactory
+	// Closers are closed when Serve returns, after the requests in flight
+	// have finished, for example to write out a buffered log.
+	Closers []io.Closer
 }
 
 // pluginOrder is the order plugins run in for a request, outermost first.
@@ -151,6 +156,7 @@ func (s *Server) Run(ctx context.Context) error {
 // If they have not finished within Settings.ShutdownTimeout, the remaining
 // connections are closed and an error is returned.
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
+	defer s.close()
 	httpServer := &http.Server{
 		Handler:           s.Router,
 		ReadHeaderTimeout: s.Settings.ReadHeaderTimeout,
@@ -173,4 +179,12 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 		return fmt.Errorf("requests still in flight after %s were cut off: %w", s.Settings.ShutdownTimeout, err)
 	}
 	return nil
+}
+
+func (s *Server) close() {
+	for _, closer := range s.Closers {
+		if err := closer.Close(); err != nil {
+			log.Printf("closing on shutdown: %v", err)
+		}
+	}
 }

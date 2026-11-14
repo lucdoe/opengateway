@@ -18,8 +18,7 @@ Store:
 
 Plugins:
   LoggerConfig:
-    FilePath: "server.log"
-    ErrOutput: "stderr"
+    FilePath: "" # empty: JSON lines to stdout; or a file to append to, such as "server.log"
   JWTConfig:
     SecretKey: "your-256-bit-secret"
     SigningMethod: "HS256"

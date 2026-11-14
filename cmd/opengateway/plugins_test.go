@@ -16,6 +16,7 @@ package main
 
 import (
 	"errors"
+	"io"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -58,8 +59,13 @@ func workingStore(connections *int) storeFactory {
 
 func builtPlugins(t *testing.T, cfg *config.Config, newStore storeFactory) []string {
 	t.Helper()
-	plugins, err := buildPlugins(cfg, newStore)
+	plugins, closers, err := buildPlugins(cfg, newStore)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		for _, closer := range closers {
+			closer.Close()
+		}
+	})
 
 	built := make([]string, 0, len(plugins))
 	for name, plugin := range plugins {
@@ -179,10 +185,38 @@ func TestBuildPluginsReturnsErrorsInsteadOfPanicking(t *testing.T) {
 
 			var plugins any
 			var err error
-			assert.NotPanics(t, func() { plugins, err = buildPlugins(tc.cfg(t), newStore) })
+			var closers []io.Closer
+			assert.NotPanics(t, func() { plugins, closers, err = buildPlugins(tc.cfg(t), newStore) })
 
 			assert.Nil(t, plugins)
+			assert.Nil(t, closers, "what was built is closed, not handed back")
 			assert.ErrorContains(t, err, tc.expected)
 		})
 	}
+}
+
+func TestBuildPluginsReturnsTheLoggerToClose(t *testing.T) {
+	cfg := configUsing("logger")
+	path := filepath.Join(t.TempDir(), "server.log")
+	cfg.Plugins.LoggerConfig.FilePath = path
+
+	_, closers, err := buildPlugins(cfg, noStore(t))
+	require.NoError(t, err)
+	require.Len(t, closers, 1)
+
+	assert.NoError(t, closers[0].Close())
+}
+
+// The logger built first is closed when a later plugin fails.
+func TestBuildPluginsClosesTheLoggerWhenALaterPluginFails(t *testing.T) {
+	cfg := configUsing("logger", "rate-limit")
+	cfg.Plugins.LoggerConfig.FilePath = filepath.Join(t.TempDir(), "server.log")
+	cfg.Plugins.RateLimitConfig = config.RateLimitConfig{Limit: 10, Window: time.Minute}
+	failingStore := func(config.StoreConfig) (store.Store, error) { return nil, errors.New("connection refused") }
+
+	plugins, closers, err := buildPlugins(cfg, failingStore)
+
+	assert.Nil(t, plugins)
+	assert.Nil(t, closers)
+	assert.ErrorContains(t, err, "rate-limit plugin: connection refused")
 }
