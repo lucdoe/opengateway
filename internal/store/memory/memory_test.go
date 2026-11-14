@@ -80,6 +80,45 @@ func TestSetDropsNewKeysWhenFull(t *testing.T) {
 	assert.Equal(t, int64(1), count, "counters are kept even when full")
 }
 
+// One client per IPv6 address could otherwise grow the store without limit.
+func TestIncrementRefusesNewCountersWhenFull(t *testing.T) {
+	s, _ := newTestStore()
+	refused := 0
+	for i := 0; i < MaxCounters*2; i++ {
+		if _, _, err := s.Increment("c"+strconv.Itoa(i), time.Minute); err != nil {
+			assert.ErrorIs(t, err, ErrFull)
+			refused++
+		}
+	}
+
+	held := 0
+	for i := range s.shards {
+		held += len(s.shards[i].entries)
+	}
+	assert.LessOrEqual(t, held, MaxCounters)
+	assert.Positive(t, refused)
+
+	count, _, err := s.Increment("c0", time.Minute)
+	require.NoError(t, err, "existing counters keep counting")
+	assert.Equal(t, int64(2), count)
+
+	require.NoError(t, s.Set("value", "v", time.Hour))
+	_, err = s.Get("value")
+	assert.NoError(t, err, "counters do not use up the room for values")
+}
+
+func TestExpiredCountersFreeTheirRoom(t *testing.T) {
+	s, clock := newTestStore()
+	for i := 0; i < MaxCounters; i++ {
+		s.Increment("c"+strconv.Itoa(i), time.Minute)
+	}
+
+	clock.Advance(2 * time.Minute)
+	_, _, err := s.Increment("new", time.Minute)
+
+	assert.NoError(t, err)
+}
+
 func TestSetReplacesAKeyEvenWhenFull(t *testing.T) {
 	s, _ := newTestStore()
 	for i := 0; i < MaxEntries*2; i++ {

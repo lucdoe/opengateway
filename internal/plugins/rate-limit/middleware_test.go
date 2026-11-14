@@ -69,14 +69,18 @@ func TestMiddlewareCountsPerClientIP(t *testing.T) {
 	counter := &fakeCounter{resetIn: time.Minute}
 	handler := NewMiddleware(NewLimiter(counter, 10, time.Minute))(ok)
 
-	for _, addr := range []string{"203.0.113.5:51000", "203.0.113.5:51001", "[2001:db8::1]:51000"} {
+	for _, addr := range []string{"203.0.113.5:51000", "203.0.113.5:51001", "[2001:db8::1]:51000", "[2001:db8::2]:51000", "[2001:db8:0:1::1]:51000"} {
 		req := httptest.NewRequest("GET", "/", nil)
 		req.RemoteAddr = addr
 		req.Header.Set("X-Forwarded-For", "10.0.0.1") // ignored: clients can set it
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
 
-	assert.Equal(t, []string{"ratelimit:203.0.113.5", "ratelimit:203.0.113.5", "ratelimit:2001:db8::1"}, counter.keys)
+	assert.Equal(t, []string{
+		"ratelimit:203.0.113.5", "ratelimit:203.0.113.5",
+		"ratelimit:2001:db8::/64", "ratelimit:2001:db8::/64", // one /64, one client
+		"ratelimit:2001:db8:0:1::/64",
+	}, counter.keys)
 }
 
 // A store outage must not take down the services behind the plugin.
@@ -100,4 +104,16 @@ func TestMiddlewareLetsRequestsThroughWhenTheStoreFails(t *testing.T) {
 	assert.Empty(t, last.Header().Get("X-RateLimit-Limit"), "no limit is claimed that was not checked")
 	assert.Equal(t, 1, strings.Count(logs.String(), "rate-limit: store failed"), "the outage is logged once, not per request")
 	assert.Contains(t, logs.String(), "rate limit exceeded")
+}
+
+func TestClientKey(t *testing.T) {
+	for ip, want := range map[string]string{
+		"203.0.113.5":          "203.0.113.5",
+		"::ffff:203.0.113.5":   "::ffff:203.0.113.5", // IPv4 client on an IPv6 socket
+		"2001:db8:1:2:3:4:5:6": "2001:db8:1:2::/64",
+		"not an address":       "not an address",
+		"":                     "",
+	} {
+		assert.Equal(t, want, clientKey(ip), ip)
+	}
 }

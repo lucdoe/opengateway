@@ -7,6 +7,7 @@
 package memory
 
 import (
+	"errors"
 	"hash/maphash"
 	"strconv"
 	"sync"
@@ -17,10 +18,14 @@ import (
 
 const (
 	shardCount = 32
-	// MaxEntries bounds how many keys the store holds, so keys made from
+	// MaxEntries bounds how many values the store holds, so keys made from
 	// request paths and queries cannot grow it without limit. Once it is
-	// full, Set drops new keys; counters are always kept.
+	// full, Set drops new keys.
 	MaxEntries = 100_000
+	// MaxCounters bounds the counters separately, so a full cache never
+	// stops rate limiting and many clients cannot grow the store either.
+	// Once it is full, Increment refuses new counters with ErrFull.
+	MaxCounters = 100_000
 	// sweepInterval is how often a shard removes its expired keys.
 	sweepInterval = time.Minute
 )
@@ -31,10 +36,38 @@ type entry struct {
 	expires time.Time
 }
 
+// ErrFull is returned by Increment for a new counter once MaxCounters
+// counters exist.
+var ErrFull = errors.New("memory store: too many counters")
+
 type shard struct {
 	mu        sync.Mutex
 	entries   map[string]entry
+	values    int // entries set with Set
+	counters  int // entries made by Increment
 	lastSweep time.Time
+}
+
+// put stores e at key and keeps the values and counters counts right.
+func (sh *shard) put(key string, e entry) {
+	sh.remove(key)
+	sh.entries[key] = e
+	sh.tally(e, 1)
+}
+
+func (sh *shard) remove(key string) {
+	if old, ok := sh.entries[key]; ok {
+		sh.tally(old, -1)
+		delete(sh.entries, key)
+	}
+}
+
+func (sh *shard) tally(e entry, delta int) {
+	if e.count > 0 {
+		sh.counters += delta
+	} else {
+		sh.values += delta
+	}
 }
 
 // Store is an in-process store.Store. Expired keys are dropped on read and by
@@ -73,7 +106,7 @@ func (s *Store) Get(key string) (string, error) {
 	defer sh.mu.Unlock()
 	e, ok := sh.entries[key]
 	if !ok || !now.Before(e.expires) {
-		delete(sh.entries, key)
+		sh.remove(key)
 		return "", store.ErrNotFound
 	}
 	return e.value, nil
@@ -87,15 +120,16 @@ func (s *Store) Set(key, value string, ttl time.Duration) error {
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 	sh.sweep(now)
-	if _, exists := sh.entries[key]; !exists && len(sh.entries) >= MaxEntries/shardCount {
+	if old, exists := sh.entries[key]; (!exists || old.count > 0) && sh.values >= MaxEntries/shardCount {
 		return nil
 	}
-	sh.entries[key] = entry{value: value, expires: now.Add(ttl)}
+	sh.put(key, entry{value: value, expires: now.Add(ttl)})
 	return nil
 }
 
 // Increment adds one to the counter at key. A counter that does not exist,
-// has expired, or holds a value set with Set starts over at 1.
+// has expired, or holds a value set with Set starts over at 1. A new counter
+// beyond MaxCounters is refused with ErrFull.
 func (s *Store) Increment(key string, window time.Duration) (int64, time.Duration, error) {
 	sh := s.shard(key)
 	now := s.now()
@@ -104,11 +138,14 @@ func (s *Store) Increment(key string, window time.Duration) (int64, time.Duratio
 	sh.sweep(now)
 	e, ok := sh.entries[key]
 	if !ok || !now.Before(e.expires) || e.count == 0 {
+		if (!ok || e.count == 0) && sh.counters >= MaxCounters/shardCount {
+			return 0, 0, ErrFull
+		}
 		e = entry{expires: now.Add(window)}
 	}
 	e.count++
 	e.value = strconv.FormatInt(e.count, 10)
-	sh.entries[key] = e
+	sh.put(key, e)
 	return e.count, e.expires.Sub(now), nil
 }
 
@@ -121,7 +158,7 @@ func (sh *shard) sweep(now time.Time) {
 	sh.lastSweep = now
 	for key, e := range sh.entries {
 		if !now.Before(e.expires) {
-			delete(sh.entries, key)
+			sh.remove(key)
 		}
 	}
 }

@@ -131,6 +131,10 @@ func (v *validation) service(name string, service Service, routes map[string]str
 	if service.Subpath != "" && !strings.HasPrefix(service.Subpath, "/") {
 		v.addf("%s: Subpath %q must start with \"/\"", label, service.Subpath)
 	}
+	// Paths start with "/", so a trailing one would make every route "//".
+	if strings.HasSuffix(service.Subpath, "/") {
+		v.addf("%s: Subpath %q must not end with \"/\"", label, service.Subpath)
+	}
 
 	v.plugins(label, service.Plugins)
 
