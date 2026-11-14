@@ -56,12 +56,37 @@ type LoggerConfig struct {
 	FilePath string `yaml:"FilePath"`
 }
 
+// JWTConfig says which tokens the auth plugin accepts. Tokens are verified
+// with SecretKey, or with the keys an identity provider publishes at
+// JWKSURL; exactly one is set.
 type JWTConfig struct {
-	SecretKey     string `yaml:"SecretKey"`
+	SecretKey string `yaml:"SecretKey"`
+	JWKSURL   string `yaml:"JWKSURL"`
+	// SigningMethod limits tokens to one algorithm. Empty means HS256 with
+	// SecretKey, and every algorithm in KeyAlgorithms with JWKSURL.
 	SigningMethod string `yaml:"SigningMethod"`
 	Issuer        string `yaml:"Issuer"`
 	Audience      string `yaml:"Audience"`
 	Scope         string `yaml:"Scope"`
+}
+
+// Algorithms the auth plugin accepts with a SecretKey, and with a JWKSURL.
+// Each list only holds algorithms of its own kind, so a token can never get
+// a public key used as an HMAC secret.
+var (
+	HMACAlgorithms = []string{"HS256", "HS384", "HS512"}
+	KeyAlgorithms  = []string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "EdDSA"}
+)
+
+// Algorithms returns the alg values tokens may be signed with.
+func (j JWTConfig) Algorithms() []string {
+	switch {
+	case j.SigningMethod != "":
+		return []string{j.SigningMethod}
+	case j.JWKSURL != "":
+		return KeyAlgorithms
+	}
+	return []string{"HS256"}
 }
 
 type RateLimitConfig struct {

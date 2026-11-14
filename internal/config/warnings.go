@@ -27,16 +27,19 @@ func (c *Config) Warnings() []string {
 	var warnings []string
 	jwt := c.Plugins.JWTConfig
 
-	if jwt.SecretKey == exampleSecret {
+	signers, others := "any issuer that has the secret", "other services that share the secret"
+	if jwt.JWKSURL != "" {
+		signers, others = "any issuer whose keys are in the key set", "other apps of the same identity provider"
+	} else if jwt.SecretKey == exampleSecret {
 		warnings = append(warnings, "Plugins.JWTConfig.SecretKey is the example secret from the docs, so anyone can sign tokens with it; set your own, for example with JWT_SECRET")
 	} else if len(jwt.SecretKey) < minSecretBytes {
 		warnings = append(warnings, fmt.Sprintf("Plugins.JWTConfig.SecretKey is %d bytes; HS256 needs at least %d (256 bits) to resist guessing", len(jwt.SecretKey), minSecretBytes))
 	}
 	if jwt.Issuer == "" {
-		warnings = append(warnings, "Plugins.JWTConfig.Issuer is empty, so tokens from any issuer that has the secret are accepted")
+		warnings = append(warnings, "Plugins.JWTConfig.Issuer is empty, so tokens from "+signers+" are accepted")
 	}
 	if jwt.Audience == "" {
-		warnings = append(warnings, "Plugins.JWTConfig.Audience is empty, so tokens meant for other services that share the secret are accepted")
+		warnings = append(warnings, "Plugins.JWTConfig.Audience is empty, so tokens meant for "+others+" are accepted")
 	}
 
 	for _, name := range c.ServiceNames() {

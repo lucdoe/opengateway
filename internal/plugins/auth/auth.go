@@ -35,28 +35,37 @@ func (c *Claims) HasScopes(required []string) bool {
 // JWTConfig says which tokens are accepted. Issuer, Audience and Scope are
 // only checked when set; Scope lists space-separated scopes every token needs.
 type JWTConfig struct {
-	SecretKey     []byte
-	SigningMethod jwt.SigningMethod
-	Issuer        string
-	Audience      string
-	Scope         string
+	// Keys returns the key, or keys, that may have signed a token: Secret
+	// for a shared secret, JWKS.Keyfunc for an identity provider's keys.
+	Keys jwt.Keyfunc
+	// Algorithms are the accepted alg values. A token signed with any other
+	// is rejected before Keys is asked.
+	Algorithms []string
+	Issuer     string
+	Audience   string
+	Scope      string
+}
+
+// Secret returns a Keys function for tokens signed with a shared secret.
+func Secret(secret []byte) jwt.Keyfunc {
+	return func(*jwt.Token) (any, error) { return secret, nil }
 }
 
 type Auth struct {
-	secret []byte
+	keys   jwt.Keyfunc
 	parser *jwt.Parser
 	scopes []string
 }
 
 func NewAuthService(config JWTConfig) (*Auth, error) {
-	if len(config.SecretKey) == 0 {
-		return nil, errors.New("secret key must not be empty")
+	if config.Keys == nil {
+		return nil, errors.New("keys must not be nil")
 	}
-	if config.SigningMethod == nil {
-		return nil, errors.New("signing method must not be nil")
+	if len(config.Algorithms) == 0 {
+		return nil, errors.New("at least one algorithm is required")
 	}
 	options := []jwt.ParserOption{
-		jwt.WithValidMethods([]string{config.SigningMethod.Alg()}),
+		jwt.WithValidMethods(config.Algorithms),
 		// A token without exp would stay valid forever once leaked.
 		jwt.WithExpirationRequired(),
 	}
@@ -67,7 +76,7 @@ func NewAuthService(config JWTConfig) (*Auth, error) {
 		options = append(options, jwt.WithAudience(config.Audience))
 	}
 	return &Auth{
-		secret: config.SecretKey,
+		keys:   config.Keys,
 		parser: jwt.NewParser(options...),
 		scopes: strings.Fields(config.Scope),
 	}, nil
@@ -77,9 +86,7 @@ func NewAuthService(config JWTConfig) (*Auth, error) {
 // that it carries the configured scopes, which fails with ErrMissingScope.
 func (a *Auth) Validate(token string) (*Claims, error) {
 	claims := &Claims{}
-	if _, err := a.parser.ParseWithClaims(token, claims, func(*jwt.Token) (any, error) {
-		return a.secret, nil
-	}); err != nil {
+	if _, err := a.parser.ParseWithClaims(token, claims, a.keys); err != nil {
 		return nil, err
 	}
 	if !claims.HasScopes(a.scopes) {

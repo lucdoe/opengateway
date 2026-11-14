@@ -63,6 +63,17 @@ func TestWarningsFlagMissingIssuerAndAudience(t *testing.T) {
 	}, cfg.Warnings())
 }
 
+func TestWarningsWithJWKSSkipTheSecretAndNameTheIdentityProvider(t *testing.T) {
+	safe := authConfig(t, "https://users.example.com", config.JWTConfig{JWKSURL: "https://auth.example.com/jwks.json", Issuer: "https://auth.example.com/", Audience: "gateway"})
+	open := authConfig(t, "https://users.example.com", config.JWTConfig{JWKSURL: "https://auth.example.com/jwks.json"})
+
+	assert.Empty(t, safe.Warnings(), "no secret is used, so its length does not matter")
+	assert.Equal(t, []string{
+		"Plugins.JWTConfig.Issuer is empty, so tokens from any issuer whose keys are in the key set are accepted",
+		"Plugins.JWTConfig.Audience is empty, so tokens meant for other apps of the same identity provider are accepted",
+	}, open.Warnings())
+}
+
 func TestWarningsFlagTokensSentOverPlainHTTPToOutsideHosts(t *testing.T) {
 	safe := config.JWTConfig{SecretKey: strongSecret, Issuer: "auth", Audience: "gateway"}
 

@@ -21,10 +21,6 @@ var knownMethods = []string{
 // /__health, so no service can route them.
 const ReservedPathPrefix = "/__"
 
-// supportedSigningMethod is the only JWT signing method the auth plugin
-// implements.
-const supportedSigningMethod = "HS256"
-
 // Validate reports every problem in one error, so they can be fixed in one
 // pass. Plugin settings are only checked for plugins in use.
 func (c *Config) Validate() error {
@@ -222,11 +218,31 @@ func (v *validation) pluginSettings(c *Config) {
 	}
 
 	if c.UsesPlugin(PluginAuth) {
-		if c.Plugins.JWTConfig.SecretKey == "" {
-			v.addf("Plugins.JWTConfig.SecretKey is required because auth is used")
+		v.jwt(c.Plugins.JWTConfig)
+	}
+}
+
+func (v *validation) jwt(jwt JWTConfig) {
+	switch {
+	case jwt.SecretKey == "" && jwt.JWKSURL == "":
+		v.addf("Plugins.JWTConfig needs SecretKey (for HS256 tokens) or JWKSURL (for RS256, ES256 and other tokens from an identity provider) because auth is used")
+	case jwt.SecretKey != "" && jwt.JWKSURL != "":
+		v.addf("Plugins.JWTConfig sets both SecretKey and JWKSURL; set one (JWT_SECRET also sets SecretKey)")
+	case jwt.JWKSURL != "":
+		if keys, err := url.Parse(jwt.JWKSURL); err != nil || (keys.Scheme != "https" && keys.Scheme != "http") || keys.Host == "" {
+			v.addf("Plugins.JWTConfig.JWKSURL %q must be an absolute https URL", jwt.JWKSURL)
+		} else if keys.Scheme == "http" && !internalHost(keys.Hostname()) {
+			v.addf("Plugins.JWTConfig.JWKSURL %q must use https: keys fetched over plain http can be swapped to forge tokens", jwt.JWKSURL)
 		}
 	}
-	if method := c.Plugins.JWTConfig.SigningMethod; method != "" && method != supportedSigningMethod {
-		v.addf("Plugins.JWTConfig.SigningMethod %q is not supported; only %s is", method, supportedSigningMethod)
+
+	if method := jwt.SigningMethod; method != "" {
+		allowed := HMACAlgorithms
+		if jwt.JWKSURL != "" {
+			allowed = KeyAlgorithms
+		}
+		if !slices.Contains(allowed, method) {
+			v.addf("Plugins.JWTConfig.SigningMethod %q is not one of %s", method, strings.Join(allowed, ", "))
+		}
 	}
 }
