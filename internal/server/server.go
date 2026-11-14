@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"slices"
-	"sort"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -45,17 +44,6 @@ type Server struct {
 	Closers []io.Closer
 }
 
-// pluginOrder is the order plugins run in for a request, outermost first.
-// Auth runs before cache so a cached response is never served to a caller
-// that has not been authenticated.
-var pluginOrder = []string{
-	config.PluginLogger,
-	config.PluginCORS,
-	config.PluginRateLimit,
-	config.PluginAuth,
-	config.PluginCache,
-}
-
 func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware, scopeCheck ScopeCheck) (*Server, error) {
 	server := &Server{
 		Addr:        cfg.ListenAddr(),
@@ -76,13 +64,7 @@ func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mw
 // endpoints, and each route gets its own plugin chain, so a plugin only runs
 // for the services and endpoints that ask for it.
 func (s *Server) SetupRoutes(cfg *config.Config) error {
-	names := make([]string, 0, len(cfg.Services))
-	for name := range cfg.Services {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	for _, name := range names {
+	for _, name := range cfg.ServiceNames() {
 		service := cfg.Services[name]
 
 		upstream, err := s.NewProxy(service.URL, cfg.Server.UpstreamTimeout)
@@ -121,13 +103,13 @@ func (s *Server) endpointPlugins(service config.Service, endpoint config.Endpoin
 	}
 
 	for _, name := range requested {
-		if _, ok := s.Middlewares[name]; !ok || !slices.Contains(pluginOrder, name) {
+		if _, ok := s.Middlewares[name]; !ok {
 			return nil, fmt.Errorf("unknown plugin %q", name)
 		}
 	}
 
 	enabled := make([]string, 0, len(requested))
-	for _, name := range pluginOrder {
+	for _, name := range config.PluginOrder {
 		if slices.Contains(requested, name) {
 			enabled = append(enabled, name)
 		}

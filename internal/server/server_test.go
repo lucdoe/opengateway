@@ -49,7 +49,7 @@ func (m *recordingMiddleware) Middleware(next http.Handler) http.Handler {
 
 func recordingMiddlewares(calls *[]string) map[string]Middleware {
 	mws := map[string]Middleware{}
-	for _, name := range pluginOrder {
+	for _, name := range config.PluginOrder {
 		mws[name] = (&recordingMiddleware{name: name, calls: calls}).Middleware
 	}
 	return mws
