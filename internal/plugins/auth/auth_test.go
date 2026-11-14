@@ -28,6 +28,15 @@ const (
 	scope    = "test_scope"
 )
 
+func mustNewAuthService(t *testing.T, config JWTConfig) *Auth {
+	t.Helper()
+	auth, err := NewAuthService(config)
+	if err != nil {
+		t.Fatalf("NewAuthService: %v", err)
+	}
+	return auth
+}
+
 func TestNewAuthService(t *testing.T) {
 	config := JWTConfig{
 		SecretKey:     []byte("secret"),
@@ -37,7 +46,7 @@ func TestNewAuthService(t *testing.T) {
 		Scope:         scope,
 	}
 
-	auth := NewAuthService(config)
+	auth := mustNewAuthService(t, config)
 
 	assert.NotNil(t, auth)
 	assert.Equal(t, config.SecretKey, auth.config.SecretKey)
@@ -56,9 +65,10 @@ func TestNewAuthServiceInvalidSecretKey(t *testing.T) {
 		Scope:         scope,
 	}
 
-	assert.Panics(t, func() {
-		NewAuthService(config)
-	})
+	auth, err := NewAuthService(config)
+
+	assert.Nil(t, auth)
+	assert.Error(t, err)
 }
 
 func TestNewAuthServiceInvalidSigningMethod(t *testing.T) {
@@ -70,9 +80,10 @@ func TestNewAuthServiceInvalidSigningMethod(t *testing.T) {
 		Scope:         scope,
 	}
 
-	assert.Panics(t, func() {
-		NewAuthService(config)
-	})
+	auth, err := NewAuthService(config)
+
+	assert.Nil(t, auth)
+	assert.Error(t, err)
 }
 
 func TestAuthValidate(t *testing.T) {
@@ -84,7 +95,7 @@ func TestAuthValidate(t *testing.T) {
 		Scope:         scope,
 	}
 
-	auth := NewAuthService(config)
+	auth := mustNewAuthService(t, config)
 
 	validToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    issuer,
@@ -109,7 +120,7 @@ func TestAuthValidateInvalidToken(t *testing.T) {
 		Scope:         scope,
 	}
 
-	auth := NewAuthService(config)
+	auth := mustNewAuthService(t, config)
 
 	tokenStr := "invalid-token"
 
@@ -127,7 +138,7 @@ func TestAuthParseToken(t *testing.T) {
 		Scope:         scope,
 	}
 
-	auth := NewAuthService(config)
+	auth := mustNewAuthService(t, config)
 
 	validToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:   issuer,
@@ -152,7 +163,7 @@ func TestAuthParseTokenInvalidToken(t *testing.T) {
 		Scope:         scope,
 	}
 
-	auth := NewAuthService(config)
+	auth := mustNewAuthService(t, config)
 
 	tokenStr := "invalid-token"
 
@@ -170,7 +181,7 @@ func TestAuthParseTokenInvalidAudience(t *testing.T) {
 		Scope:         scope,
 	}
 
-	auth := NewAuthService(config)
+	auth := mustNewAuthService(t, config)
 
 	wrongAudienceToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Audience: []string{"another_audience"},

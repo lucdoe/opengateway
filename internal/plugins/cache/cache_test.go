@@ -38,7 +38,8 @@ func TestRedisCacheOperations(t *testing.T) {
 		Addr:     mr.Addr(),
 		Password: "",
 	}
-	redisCache := cache.NewRedisCache(cacheConfig)
+	redisCache, err := cache.NewRedisCache(cacheConfig)
+	require.NoError(t, err)
 
 	t.Run("Set and Get operations", func(t *testing.T) {
 		keyValue, value := "testkey", "testvalue"
@@ -106,4 +107,16 @@ func TestRedisCacheOperations(t *testing.T) {
 		_, incErr := redisCache.Increment("errorKey", 10*time.Minute)
 		assert.Error(t, incErr, "Increment should error when Redis is unavailable")
 	})
+}
+
+func TestNewRedisCacheFailsWhenRedisIsUnreachable(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	addr := mr.Addr()
+	mr.Close()
+
+	redisCache, err := cache.NewRedisCache(cache.CacheConfig{Addr: addr})
+
+	assert.Nil(t, redisCache)
+	assert.ErrorContains(t, err, "connecting to redis at "+addr)
 }

@@ -16,6 +16,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -36,17 +37,20 @@ type RedisCache struct {
 	client *redis.Client
 }
 
-func NewRedisCache(cfg CacheConfig) *RedisCache {
+// NewRedisCache connects to the Redis server at cfg.Addr. It fails if the
+// server does not answer.
+func NewRedisCache(cfg CacheConfig) (*RedisCache, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.Addr,
 		Password: cfg.Password,
 	})
 
 	if _, err := client.Ping(context.Background()).Result(); err != nil {
-		panic(err)
+		client.Close()
+		return nil, fmt.Errorf("connecting to redis at %s: %w", cfg.Addr, err)
 	}
 
-	return &RedisCache{client: client}
+	return &RedisCache{client: client}, nil
 }
 
 func (r *RedisCache) Get(key string) (string, error) {

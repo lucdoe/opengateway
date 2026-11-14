@@ -54,6 +54,15 @@ func (m *MockTimeProvider) Now() time.Time {
 	return m.now
 }
 
+func mustNewLogger(t *testing.T, cfg LoggerConfig) *OSLogger {
+	t.Helper()
+	logger, err := NewLogger(cfg)
+	if err != nil {
+		t.Fatalf("NewLogger: %v", err)
+	}
+	return logger.(*OSLogger)
+}
+
 func TestNewLogger(t *testing.T) {
 	cfg := LoggerConfig{
 		FilePath:     logPath,
@@ -63,8 +72,9 @@ func TestNewLogger(t *testing.T) {
 		FileOpener:   DefaultFileOpener{},
 	}
 
-	logger := NewLogger(cfg)
+	logger, err := NewLogger(cfg)
 
+	assert.NoError(t, err)
 	assert.NotNil(t, logger)
 	assert.IsType(t, &OSLogger{}, logger)
 }
@@ -78,9 +88,10 @@ func TestNewLoggerInvalidFilePath(t *testing.T) {
 		FileOpener:   DefaultFileOpener{},
 	}
 
-	assert.Panics(t, func() {
-		NewLogger(cfg)
-	})
+	logger, err := NewLogger(cfg)
+
+	assert.Nil(t, logger)
+	assert.ErrorContains(t, err, "opening log file")
 }
 
 func TestOSLoggerInfo(t *testing.T) {
@@ -97,7 +108,7 @@ func TestOSLoggerInfo(t *testing.T) {
 		FileOpener:   mockFileOpener,
 	}
 
-	logger := NewLogger(cfg).(*OSLogger)
+	logger := mustNewLogger(t, cfg)
 
 	logger.Info(testMsg, testDetails)
 
@@ -119,7 +130,7 @@ func TestOSLoggerInfoErrorWritingToFile(t *testing.T) {
 		FileOpener:   mockFileOpener,
 	}
 
-	logger := NewLogger(cfg).(*OSLogger)
+	logger := mustNewLogger(t, cfg)
 
 	mockFileWriter.written = []byte{}
 	mockFileWriter.Write([]byte(""))

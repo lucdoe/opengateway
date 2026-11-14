@@ -15,12 +15,15 @@
 package main
 
 import (
+	"errors"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/plugins/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -74,7 +77,11 @@ func TestInitializeServerSuccess(t *testing.T) {
 	}
 
 	mockCacheService := new(MockCacheService)
-	mockCacheService.On("Increment", mock.Anything, mock.Anything).Return(1, nil)
+	storeConnections := 0
+	newStore := func() (cache.Cache, error) {
+		storeConnections++
+		return mockCacheService, nil
+	}
 
 	cfg := &config.Config{
 		Services: map[string]config.Service{
@@ -100,7 +107,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 		},
 		Plugins: config.PluginConfig{
 			LoggerConfig: config.LoggerConfig{
-				FilePath:  "server_test.log",
+				FilePath:  filepath.Join(t.TempDir(), "server.log"),
 				ErrOutput: "stderr",
 			},
 			JWTConfig: config.JWTConfig{
@@ -128,10 +135,37 @@ func TestInitializeServerSuccess(t *testing.T) {
 		configLoader: mockConfigLoader,
 		router:       mockRouter.Router,
 		newProxy:     newProxy,
-		cacheService: mockCacheService,
+		newStore:     newStore,
 	}
 
 	server, err := InitializeServer(deps)
 	assert.NoError(t, err)
 	assert.NotNil(t, server)
+	assert.Equal(t, 1, storeConnections, "cache and rate-limit must share one store connection")
+}
+
+func TestInitializeServerReturnsTheConfigError(t *testing.T) {
+	mockConfigLoader := new(MockConfigLoader)
+	mockConfigLoader.On("LoadConfig", mock.Anything).Return((*config.Config)(nil), errors.New("invalid configuration"))
+
+	server, err := InitializeServer(ServerDependencies{configLoader: mockConfigLoader, router: mux.NewRouter()})
+
+	assert.Nil(t, server)
+	assert.ErrorContains(t, err, "invalid configuration")
+}
+
+func TestInitializeServerReturnsThePluginError(t *testing.T) {
+	cfg := configUsing("cache")
+	mockConfigLoader := new(MockConfigLoader)
+	mockConfigLoader.On("LoadConfig", mock.Anything).Return(cfg, nil)
+
+	server, err := InitializeServer(ServerDependencies{
+		configLoader: mockConfigLoader,
+		router:       mux.NewRouter(),
+		newProxy:     func(string) (http.Handler, error) { return http.NotFoundHandler(), nil },
+		newStore:     func() (cache.Cache, error) { return nil, errors.New("connection refused") },
+	})
+
+	assert.Nil(t, server)
+	assert.ErrorContains(t, err, "cache plugin: connection refused")
 }
