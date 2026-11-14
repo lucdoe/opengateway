@@ -199,6 +199,24 @@ func TestValidateIgnoresRedisSettingsOfTheMemoryStore(t *testing.T) {
 	assert.NoError(t, cfg.Validate())
 }
 
+func TestValidateEndpointScope(t *testing.T) {
+	withScope := func(service config.Service, auth config.AuthConfig, plugins ...string) *config.Config {
+		cfg := validConfig()
+		service.Endpoints = []config.Endpoint{{Name: "Admin", HTTPMethod: "GET", Path: "/admin", Auth: auth, Plugins: plugins}}
+		cfg.Services["api"] = service
+		return cfg
+	}
+	service := validConfig().Services["api"]
+	serviceWithAuth := service
+	serviceWithAuth.Plugins = append([]string{"auth"}, service.Plugins...)
+
+	assert.NoError(t, withScope(service, config.AuthConfig{ApplyAuth: true, Scope: "admin"}).Validate(), "ApplyAuth")
+	assert.NoError(t, withScope(service, config.AuthConfig{Scope: "admin"}, "auth").Validate(), "endpoint plugin")
+	assert.NoError(t, withScope(serviceWithAuth, config.AuthConfig{Scope: "admin"}).Validate(), "service plugin")
+	assert.ErrorContains(t, withScope(service, config.AuthConfig{Scope: "admin"}).Validate(),
+		`service "api", endpoint "Admin": Auth.Scope needs auth: set Auth.ApplyAuth or add the auth plugin`)
+}
+
 func TestValidateRejectsAnEmptyConfig(t *testing.T) {
 	assert.ErrorContains(t, (&config.Config{}).Validate(), "no services are configured")
 }

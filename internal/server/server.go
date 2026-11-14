@@ -38,6 +38,10 @@ type Middleware func(next http.Handler) http.Handler
 // timeout. It is called once per service when routes are set up.
 type ProxyFactory func(target string, timeout time.Duration) (http.Handler, error)
 
+// ScopeCheck builds the check for an endpoint's Auth.Scope. It runs right
+// after the auth plugin, whose accepted token it inspects.
+type ScopeCheck func(scope string) Middleware
+
 type Server struct {
 	// Addr is the address Run listens on, for example ":4000".
 	Addr string
@@ -46,6 +50,7 @@ type Server struct {
 	Router      *mux.Router
 	Middlewares map[string]Middleware
 	NewProxy    ProxyFactory
+	ScopeCheck  ScopeCheck
 	// Closers are closed when Serve returns, after the requests in flight
 	// have finished, for example to write out a buffered log.
 	Closers []io.Closer
@@ -62,13 +67,14 @@ var pluginOrder = []string{
 	config.PluginCache,
 }
 
-func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware) (*Server, error) {
+func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware, scopeCheck ScopeCheck) (*Server, error) {
 	server := &Server{
 		Addr:        cfg.ListenAddr(),
 		Settings:    cfg.Server,
 		Router:      router,
 		Middlewares: mws,
 		NewProxy:    newProxy,
+		ScopeCheck:  scopeCheck,
 	}
 	if err := server.SetupRoutes(cfg); err != nil {
 		return nil, err
@@ -101,8 +107,15 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 			if err != nil {
 				return fmt.Errorf("service %q, endpoint %q: %w", name, endpoint.Name, err)
 			}
+			var afterAuth Middleware
+			if scope := endpoint.Auth.Scope; scope != "" {
+				if s.ScopeCheck == nil {
+					return fmt.Errorf("service %q, endpoint %q: Auth.Scope is set but no scope check is registered", name, endpoint.Name)
+				}
+				afterAuth = s.ScopeCheck(scope)
+			}
 
-			handler := s.chain(plugins, upstream)
+			handler := s.chain(plugins, upstream, afterAuth)
 			s.Router.Handle(service.Subpath+endpoint.Path, handler).Methods(endpoint.HTTPMethod)
 		}
 	}
@@ -134,8 +147,12 @@ func (s *Server) endpointPlugins(service config.Service, endpoint config.Endpoin
 }
 
 // chain wraps handler in the named plugins so the first name runs first.
-func (s *Server) chain(plugins []string, handler http.Handler) http.Handler {
+// afterAuth, if set, runs right after the auth plugin.
+func (s *Server) chain(plugins []string, handler http.Handler, afterAuth Middleware) http.Handler {
 	for i := len(plugins) - 1; i >= 0; i-- {
+		if plugins[i] == config.PluginAuth && afterAuth != nil {
+			handler = afterAuth(handler)
+		}
 		handler = s.Middlewares[plugins[i]](handler)
 	}
 	return handler

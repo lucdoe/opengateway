@@ -181,6 +181,11 @@ func (v *validation) service(name string, service Service, routes map[string]str
 
 		v.plugins(endpointLabel, endpoint.Plugins)
 
+		usesAuth := endpoint.Auth.ApplyAuth || slices.Contains(service.Plugins, PluginAuth) || slices.Contains(endpoint.Plugins, PluginAuth)
+		if endpoint.Auth.Scope != "" && !usesAuth {
+			v.addf("%s: Auth.Scope needs auth: set Auth.ApplyAuth or add the auth plugin", endpointLabel)
+		}
+
 		if validMethod && validPath {
 			route := method + " " + service.Subpath + endpoint.Path
 			if first, taken := routes[route]; taken {

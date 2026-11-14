@@ -55,6 +55,7 @@ Services:
         Plugins: ["cache"] # in addition, for this endpoint only
         Auth:
           ApplyAuth: true # require a valid JWT
+          Scope: "people:read" # optional: scopes the token must carry, space-separated
 ```
 
 With this config, `GET /api/people/7` on the gateway is forwarded to `https://swapi.dev/api/people/7`.
@@ -68,7 +69,7 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 | `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes and client IP (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `LoggerConfig`    |
 | `cors`       | Rejects requests from origins that are not allowed and sets the CORS response headers.                              | `CORSConfig`      |
 | `rate-limit` | Allows each client IP `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
-| `auth`       | Requires a `Bearer` JWT signed with HS256. Enabled per endpoint with `Auth.ApplyAuth: true`.                        | `JWTConfig`       |
+| `auth`       | Requires a `Bearer` JWT signed with HS256 (`401` otherwise). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Auth.Scope`, in their space-separated `scope` claim (`403` otherwise). Enabled per endpoint with `Auth.ApplyAuth: true`. | `JWTConfig`       |
 | `cache`      | Stores `200` responses to `GET` requests in the store for 10 minutes and shares them between clients. Requests with an `Authorization` header are never cached. | none              |
 
 ### Store

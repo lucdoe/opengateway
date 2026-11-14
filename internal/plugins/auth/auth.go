@@ -16,27 +16,47 @@ package auth
 
 import (
 	"errors"
-	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type AuthInterface interface {
-	Validate(token string) (jwt.Claims, error)
-	ParseToken(tokenStr string) (*jwt.RegisteredClaims, error)
+// ErrMissingScope means the token is valid but lacks a required scope.
+var ErrMissingScope = errors.New("token lacks a required scope")
+
+// Claims are the token claims the gateway reads. Scope is space-separated,
+// as in OAuth 2.0.
+type Claims struct {
+	jwt.RegisteredClaims
+	Scope string `json:"scope"`
 }
 
-type Auth struct {
-	config JWTConfig
+// HasScopes reports whether the token carries every scope in required.
+func (c *Claims) HasScopes(required []string) bool {
+	granted := strings.Fields(c.Scope)
+	for _, scope := range required {
+		if !slices.Contains(granted, scope) {
+			return false
+		}
+	}
+	return true
 }
 
+// JWTConfig says which tokens are accepted. Issuer, Audience and Scope are
+// only checked when set; Scope lists space-separated scopes every token needs.
 type JWTConfig struct {
 	SecretKey     []byte
 	SigningMethod jwt.SigningMethod
 	Issuer        string
 	Audience      string
 	Scope         string
+}
+
+type Auth struct {
+	secret []byte
+	parser *jwt.Parser
+	scopes []string
 }
 
 func NewAuthService(config JWTConfig) (*Auth, error) {
@@ -46,39 +66,31 @@ func NewAuthService(config JWTConfig) (*Auth, error) {
 	if config.SigningMethod == nil {
 		return nil, errors.New("signing method must not be nil")
 	}
-	return &Auth{config: config}, nil
+	options := []jwt.ParserOption{jwt.WithValidMethods([]string{config.SigningMethod.Alg()})}
+	if config.Issuer != "" {
+		options = append(options, jwt.WithIssuer(config.Issuer))
+	}
+	if config.Audience != "" {
+		options = append(options, jwt.WithAudience(config.Audience))
+	}
+	return &Auth{
+		secret: config.SecretKey,
+		parser: jwt.NewParser(options...),
+		scopes: strings.Fields(config.Scope),
+	}, nil
 }
 
-func (j *Auth) Validate(tokenStr string) (jwt.Claims, error) {
-	claims, err := j.ParseToken(tokenStr)
-	if err != nil {
+// Validate checks the token's signature, expiry, issuer and audience, then
+// that it carries the configured scopes, which fails with ErrMissingScope.
+func (a *Auth) Validate(token string) (*Claims, error) {
+	claims := &Claims{}
+	if _, err := a.parser.ParseWithClaims(token, claims, func(*jwt.Token) (any, error) {
+		return a.secret, nil
+	}); err != nil {
 		return nil, err
 	}
-
-	return claims, nil
-}
-
-func (j *Auth) ParseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if token.Method != j.config.SigningMethod {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return j.config.SecretKey, nil
-	})
-	if err != nil {
-		return nil, err
+	if !claims.HasScopes(a.scopes) {
+		return nil, ErrMissingScope
 	}
-
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
-	if !ok || !token.Valid {
-		return nil, fmt.Errorf("invalid token")
-	}
-
-	audienceStr := strings.Join(claims.Audience, ", ")
-	audienceMatch := audienceStr == j.config.Audience
-	if !audienceMatch {
-		return nil, fmt.Errorf("invalid audience")
-	}
-
 	return claims, nil
 }
