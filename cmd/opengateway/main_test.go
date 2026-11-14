@@ -186,7 +186,7 @@ Services:
 				Audience:  []string{"gateway"},
 				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
 			},
-			Scope:            scope,
+			Scope: scope,
 		}).SignedString([]byte("secret"))
 		require.NoError(t, err)
 		return signed
