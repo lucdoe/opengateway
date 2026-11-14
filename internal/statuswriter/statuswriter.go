@@ -1,4 +1,4 @@
-// Copyright 2024 lucdoe
+// Copyright lucdoe
 // SPDX-License-Identifier: Apache-2.0
 
 // Package statuswriter records what a handler answered, its status code and

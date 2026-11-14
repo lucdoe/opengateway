@@ -1,4 +1,4 @@
-// Copyright 2024 lucdoe
+// Copyright lucdoe
 // SPDX-License-Identifier: Apache-2.0
 
 // Package breaker stops the gateway from sending requests to an upstream

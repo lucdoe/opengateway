@@ -1,4 +1,4 @@
-// Copyright 2024 lucdoe
+// Copyright lucdoe
 // SPDX-License-Identifier: Apache-2.0
 
 // Package redisstore is a store kept in a Redis server, or one that speaks

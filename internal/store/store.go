@@ -1,4 +1,4 @@
-// Copyright 2024 lucdoe
+// Copyright lucdoe
 // SPDX-License-Identifier: Apache-2.0
 
 // Package store defines the key-value store the cache and rate-limit plugins
