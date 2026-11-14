@@ -158,7 +158,7 @@ func TestOpenStoreOpensTheConfiguredType(t *testing.T) {
 func TestInitializeServerEnforcesTokenClaims(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
 Plugins:
-  JWTConfig:
+  JWT:
     SecretKey: secret
     Issuer: issuer
     Audience: gateway
@@ -227,7 +227,7 @@ Services:
 // through: the cache runs after both.
 func TestInitializeServerOnlyServesCachedAuthorizedResponsesToAllowedCallers(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
-Plugins: {JWTConfig: {SecretKey: secret}}
+Plugins: {JWT: {SecretKey: secret}}
 Services:
   api:
     URL: http://upstream.test
@@ -288,7 +288,7 @@ func TestInitializeServerVerifiesTokensWithTheJWKS(t *testing.T) {
 	t.Cleanup(provider.Close)
 
 	cfg, err := config.Parse([]byte(`
-Plugins: {JWTConfig: {JWKSURL: "` + provider.URL + `/jwks.json", Audience: gateway}}
+Plugins: {JWT: {JWKSURL: "` + provider.URL + `/jwks.json", Audience: gateway}}
 Services:
   api:
     URL: http://upstream.test
@@ -331,8 +331,8 @@ Services:
 func TestInitializeServerRateLimitsPerTokenSubject(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
 Plugins:
-  JWTConfig: {SecretKey: secret}
-  RateLimitConfig: {Limit: 1, Window: 1m, Key: "jwt:sub"}
+  JWT: {SecretKey: secret}
+  RateLimit: {Limit: 1, Window: 1m, Key: "jwt:sub"}
 Services:
   api:
     URL: http://upstream.test
@@ -386,20 +386,20 @@ Services:
 func TestInitializeServerAppliesSettingsPerServiceAndEndpoint(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
 Plugins:
-  RateLimitConfig: {Limit: 2, Window: 1m}
-  CORSConfig: {Origins: "https://news.test", Methods: GET}
+  RateLimit: {Limit: 2, Window: 1m}
+  CORS: {Origins: "https://news.test", Methods: GET}
 Services:
   accounts:
     URL: http://accounts.test
     Plugins: [rate-limit, cors]
     Settings:
       UpstreamTimeout: 3s
-      RateLimitConfig: {Limit: 1}
-      CORSConfig: {Origins: "https://app.test"}
+      RateLimit: {Limit: 1}
+      CORS: {Origins: "https://app.test"}
     Endpoints:
       - {HTTPMethod: GET, Path: /me}
       - {HTTPMethod: GET, Path: /profile}
-      - {HTTPMethod: POST, Path: /login, Settings: {RateLimitConfig: {Limit: 3}}}
+      - {HTTPMethod: POST, Path: /login, Settings: {RateLimit: {Limit: 3}}}
   news:
     URL: http://news.test
     Plugins: [rate-limit, cors]
@@ -465,7 +465,7 @@ func TestDefaultDependenciesStartTheShippedConfig(t *testing.T) {
 
 func TestInitializeServerAnswersCorsPreflights(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
-Plugins: {CORSConfig: {Origins: "https://app.test", Methods: "GET, POST", Headers: "Content-Type"}}
+Plugins: {CORS: {Origins: "https://app.test", Methods: "GET, POST", Headers: "Content-Type"}}
 Services:
   api:
     URL: http://upstream.test
@@ -501,9 +501,9 @@ func TestInitializeServerAnswersErrorsAsJSON(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
 Server: {CircuitBreaker: {ConsecutiveFailures: 1}}
 Plugins:
-  CORSConfig: {Origins: "https://app.test", Methods: "GET"}
-  RateLimitConfig: {Limit: 1, Window: 1m}
-  JWTConfig: {SecretKey: test-secret}
+  CORS: {Origins: "https://app.test", Methods: "GET"}
+  RateLimit: {Limit: 1, Window: 1m}
+  JWT: {SecretKey: test-secret}
 Services:
   api:
     URL: ` + down.URL + `

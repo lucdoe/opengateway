@@ -27,8 +27,18 @@ var (
 		"ApplyAuth": `Auth.ApplyAuth has been removed: add "auth" to the endpoint's Plugins, or the service's for all its endpoints`,
 		"Scope":     "Auth.Scope has moved: write it as the endpoint's Scope",
 		"Method":    "Auth.Method has been removed: auth always expects a Bearer token",
-		"Algorithm": "Auth.Algorithm has been removed: set Plugins.JWTConfig.SigningMethod",
-		"SecretKey": "Auth.SecretKey has been removed: set Plugins.JWTConfig.SecretKey or JWT_SECRET",
+		"Algorithm": "Auth.Algorithm has been removed: set Plugins.JWT.SigningMethod",
+		"SecretKey": "Auth.SecretKey has been removed: set Plugins.JWT.SecretKey or JWT_SECRET",
+	}
+	retiredPluginKeys = map[string]string{
+		"LoggerConfig":    "Plugins.LoggerConfig has been renamed: write Plugins.Logger",
+		"JWTConfig":       "Plugins.JWTConfig has been renamed: write Plugins.JWT",
+		"RateLimitConfig": "Plugins.RateLimitConfig has been renamed: write Plugins.RateLimit",
+		"CORSConfig":      "Plugins.CORSConfig has been renamed: write Plugins.CORS",
+	}
+	retiredSettingsKeys = map[string]string{
+		"RateLimitConfig": "Settings.RateLimitConfig has been renamed: write Settings.RateLimit",
+		"CORSConfig":      "Settings.CORSConfig has been renamed: write Settings.CORS",
 	}
 )
 
@@ -48,14 +58,17 @@ func rejectRetiredKeys(data []byte) error {
 
 	top := doc.Content[0]
 	check(top, retiredTopKeys)
+	check(child(top, "Plugins"), retiredPluginKeys)
 	services := child(top, "Services")
 	for _, name := range mappingKeys(services) {
 		service := child(services, name.Value)
 		check(service, retiredServiceKeys)
+		check(child(service, "Settings"), retiredSettingsKeys)
 		if endpoints := child(service, "Endpoints"); endpoints != nil && endpoints.Kind == yaml.SequenceNode {
 			for _, endpoint := range endpoints.Content {
 				check(endpoint, retiredEndpointKeys)
 				check(child(endpoint, "Auth"), retiredAuthKeys)
+				check(child(endpoint, "Settings"), retiredSettingsKeys)
 			}
 		}
 	}

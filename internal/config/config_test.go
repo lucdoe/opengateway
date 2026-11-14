@@ -16,18 +16,18 @@ import (
 
 const fullConfig = `
 Plugins:
-  LoggerConfig:
+  Logger:
     FilePath: "server.log"
-  JWTConfig:
+  JWT:
     SecretKey: "secret"
     SigningMethod: "HS256"
     Issuer: "issuer"
     Audience: "audience"
     Scope: "scope"
-  RateLimitConfig:
+  RateLimit:
     Limit: 100
     Window: 1m
-  CORSConfig:
+  CORS:
     Origins: "*"
     Methods: "GET, POST"
     Headers: "Content-Type"
@@ -206,4 +206,35 @@ Services:
 
 	assert.ErrorContains(t, err, `line 9: Auth.ApplyAuth has been removed: add "auth" to the endpoint's Plugins, or the service's for all its endpoints`)
 	assert.ErrorContains(t, err, "line 10: Auth.Scope has moved: write it as the endpoint's Scope")
+}
+
+func TestParseExplainsTheRenamedSettings(t *testing.T) {
+	_, err := config.Parse([]byte(`
+Plugins:
+  LoggerConfig: {}
+  JWTConfig: {SecretKey: secret}
+  RateLimitConfig: {Limit: 1, Window: 1m}
+  CORSConfig: {Origins: "*"}
+Services:
+  a:
+    URL: http://example.com
+    Settings:
+      RateLimitConfig: {Limit: 5}
+    Endpoints:
+      - HTTPMethod: GET
+        Path: /items
+        Settings:
+          CORSConfig: {Origins: "*"}
+`))
+
+	for _, want := range []string{
+		"line 3: Plugins.LoggerConfig has been renamed: write Plugins.Logger",
+		"line 4: Plugins.JWTConfig has been renamed: write Plugins.JWT",
+		"line 5: Plugins.RateLimitConfig has been renamed: write Plugins.RateLimit",
+		"line 6: Plugins.CORSConfig has been renamed: write Plugins.CORS",
+		"line 11: Settings.RateLimitConfig has been renamed: write Settings.RateLimit",
+		"line 16: Settings.CORSConfig has been renamed: write Settings.CORS",
+	} {
+		assert.ErrorContains(t, err, want)
+	}
 }

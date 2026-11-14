@@ -107,20 +107,20 @@ A service or an endpoint can change the rate limit, the CORS policy and, for a s
 
 ```yaml
 Plugins:
-  RateLimitConfig: {Limit: 1000, Window: 1m, Key: "jwt:sub"} # the default
+  RateLimit: {Limit: 1000, Window: 1m, Key: "jwt:sub"} # the default
 Services:
   accounts:
     URL: "https://accounts.internal"
     Plugins: ["rate-limit"]
     Settings:
       UpstreamTimeout: 5s
-      RateLimitConfig: {Limit: 100} # 100 a minute per user, for every endpoint of the service
+      RateLimit: {Limit: 100} # 100 a minute per user, for every endpoint of the service
     Endpoints:
       - Name: "Login"
         HTTPMethod: "POST"
         Path: "/login"
         Settings:
-          RateLimitConfig: {Limit: 5, Key: "ip"} # 5 a minute per IP, for this endpoint only
+          RateLimit: {Limit: 5, Key: "ip"} # 5 a minute per IP, for this endpoint only
 ```
 
 Each `Settings` block that changes the rate limit has its own count: the 5 logins above don't use up the 100 of the other accounts endpoints, or the global 1000. Endpoints that inherit a service's limit share one count. `UpstreamTimeout` can only be set for a service.
@@ -131,15 +131,15 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 
 | Plugin       | What it does                                                                                                        | Settings          |
 | ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes, client IP and request ID (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `LoggerConfig`    |
-| `cors`       | Answers preflights and sets the CORS headers; rejects origins that are not listed with `403`. Requests without an `Origin` header (curl, other servers) pass untouched. `Origins: "*"` allows every origin but without credentials (cookies); list origins to allow them. | `CORSConfig`      |
-| `rate-limit` | Allows each client `Limit` requests per `Window`, then answers `429` with `Retry-After`. A client is an IP (IPv6: a /64) unless `Key` says otherwise (see [Rate-limit keys](#rate-limit-keys)). Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
-| `auth`       | Requires a `Bearer` JWT carrying `exp` (`401` otherwise), signed with `SecretKey` (HS256) or with a key from `JWKSURL` (see [Tokens from an identity provider](#tokens-from-an-identity-provider)). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Scope`, in their space-separated `scope` claim (`403` otherwise). | `JWTConfig`       |
+| `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes, client IP and request ID (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `Logger`    |
+| `cors`       | Answers preflights and sets the CORS headers; rejects origins that are not listed with `403`. Requests without an `Origin` header (curl, other servers) pass untouched. `Origins: "*"` allows every origin but without credentials (cookies); list origins to allow them. | `CORS`      |
+| `rate-limit` | Allows each client `Limit` requests per `Window`, then answers `429` with `Retry-After`. A client is an IP (IPv6: a /64) unless `Key` says otherwise (see [Rate-limit keys](#rate-limit-keys)). Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimit` |
+| `auth`       | Requires a `Bearer` JWT carrying `exp` (`401` otherwise), signed with `SecretKey` (HS256) or with a key from `JWKSURL` (see [Tokens from an identity provider](#tokens-from-an-identity-provider)). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Scope`, in their space-separated `scope` claim (`403` otherwise). | `JWT`       |
 | `cache`      | Stores `200` responses to `GET` requests in the store and shares them between clients, for the upstream's `s-maxage` or `max-age`, at most 10 minutes. Requests with an `Authorization` header are only cached when the upstream marks the response `public` or `s-maxage`; it then goes to every caller that auth lets through. Requests with a `Cookie` header, streamed responses and bodies over 1 MB are never cached. | none              |
 
 ### Rate-limit keys
 
-`Plugins.RateLimitConfig.Key` sets what counts as one client:
+`Plugins.RateLimit.Key` sets what counts as one client:
 
 | `Key` | Counts per | Use it when |
 | --- | --- | --- |
@@ -155,7 +155,7 @@ To accept tokens from Auth0, Keycloak, Cognito, Entra ID or any other OpenID Con
 
 ```yaml
 Plugins:
-  JWTConfig:
+  JWT:
     JWKSURL: "https://auth.example.com/.well-known/jwks.json"
     Issuer: "https://auth.example.com/"
     Audience: "my-api"
@@ -188,7 +188,7 @@ Services:
   users:
     URL: "${USERS_URL:-http://localhost:3001}" # the fallback after :- is used when USERS_URL is unset or empty
 Plugins:
-  JWTConfig:
+  JWT:
     SecretKey: "${JWT_SECRET}" # the gateway does not start while JWT_SECRET is unset
 ```
 
@@ -215,7 +215,7 @@ These settings are optional. An environment variable, where one exists, override
 | `Store.Redis.Host`            | `REDIS_HOST`         | `localhost` | Redis server, only used when `Store.Type` is `redis`            |
 | `Store.Redis.Port`            | `REDIS_PORT`         | `6379`      |                                                                 |
 | `Store.Redis.Password`        | `REDIS_PASSWORD`     | empty       |                                                                 |
-| `Plugins.JWTConfig.SecretKey` | `JWT_SECRET`         | none        | Secret for validating tokens, only needed when auth is used     |
+| `Plugins.JWT.SecretKey` | `JWT_SECRET`         | none        | Secret for validating tokens, only needed when auth is used     |
 
 Every service has its own circuit breaker. A failure is an upstream that cannot be reached, times out, or answers `500`, `502`, `503` or `504`. While the breaker is open the gateway answers `503` with a `Retry-After` header straight away, without contacting the service.
 

@@ -57,7 +57,7 @@ type Endpoint struct {
 	Path       string   `yaml:"Path"`
 	Plugins    []string `yaml:"Plugins"`
 	// Scope lists space-separated scopes a token needs for this endpoint, on
-	// top of Plugins.JWTConfig.Scope. It needs the auth plugin.
+	// top of Plugins.JWT.Scope. It needs the auth plugin.
 	Scope    string   `yaml:"Scope"`
 	Settings Settings `yaml:"Settings"`
 	// UpstreamPath, when set, is the path sent upstream instead of the
@@ -127,10 +127,10 @@ type CORSConfig struct {
 }
 
 type PluginConfig struct {
-	LoggerConfig    `yaml:"LoggerConfig"`
-	JWTConfig       `yaml:"JWTConfig"`
-	RateLimitConfig `yaml:"RateLimitConfig"`
-	CORSConfig      `yaml:"CORSConfig"`
+	LoggerConfig    `yaml:"Logger"`
+	JWTConfig       `yaml:"JWT"`
+	RateLimitConfig `yaml:"RateLimit"`
+	CORSConfig      `yaml:"CORS"`
 }
 
 // ServerConfig holds the settings of the gateway's own HTTP server.

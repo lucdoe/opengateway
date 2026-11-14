@@ -284,9 +284,9 @@ func (v *validation) pluginSettings(c *Config) {
 			}
 
 			if uses(PluginCORS) {
-				where := "Plugins.CORSConfig"
+				where := "Plugins.CORS"
 				if route.CORSScope != "" {
-					where = label + ": CORSConfig"
+					where = label + ": CORS"
 				}
 				if route.CORS.Origins == "" {
 					once("%s.Origins is required because the cors plugin is used", where)
@@ -297,9 +297,9 @@ func (v *validation) pluginSettings(c *Config) {
 			}
 
 			if uses(PluginRateLimit) {
-				where := "Plugins.RateLimitConfig"
+				where := "Plugins.RateLimit"
 				if route.RateLimitScope != "" {
-					where = label + ": RateLimitConfig"
+					where = label + ": RateLimit"
 				}
 				if route.RateLimit.Limit <= 0 {
 					once("%s.Limit must be greater than 0 because the rate-limit plugin is used", where)
@@ -322,14 +322,14 @@ func (v *validation) pluginSettings(c *Config) {
 func (v *validation) jwt(jwt JWTConfig) {
 	switch {
 	case jwt.SecretKey == "" && jwt.JWKSURL == "":
-		v.addf("Plugins.JWTConfig needs SecretKey (for HS256 tokens) or JWKSURL (for RS256, ES256 and other tokens from an identity provider) because auth is used")
+		v.addf("Plugins.JWT needs SecretKey (for HS256 tokens) or JWKSURL (for RS256, ES256 and other tokens from an identity provider) because auth is used")
 	case jwt.SecretKey != "" && jwt.JWKSURL != "":
-		v.addf("Plugins.JWTConfig sets both SecretKey and JWKSURL; set one (JWT_SECRET also sets SecretKey)")
+		v.addf("Plugins.JWT sets both SecretKey and JWKSURL; set one (JWT_SECRET also sets SecretKey)")
 	case jwt.JWKSURL != "":
 		if keys, err := url.Parse(jwt.JWKSURL); err != nil || (keys.Scheme != "https" && keys.Scheme != "http") || keys.Host == "" {
-			v.addf("Plugins.JWTConfig.JWKSURL %q must be an absolute https URL", jwt.JWKSURL)
+			v.addf("Plugins.JWT.JWKSURL %q must be an absolute https URL", jwt.JWKSURL)
 		} else if keys.Scheme == "http" && !internalHost(keys.Hostname()) {
-			v.addf("Plugins.JWTConfig.JWKSURL %q must use https: keys fetched over plain http can be swapped to forge tokens", jwt.JWKSURL)
+			v.addf("Plugins.JWT.JWKSURL %q must use https: keys fetched over plain http can be swapped to forge tokens", jwt.JWKSURL)
 		}
 	}
 
@@ -339,7 +339,7 @@ func (v *validation) jwt(jwt JWTConfig) {
 			allowed = KeyAlgorithms
 		}
 		if !slices.Contains(allowed, method) {
-			v.addf("Plugins.JWTConfig.SigningMethod %q is not one of %s", method, strings.Join(allowed, ", "))
+			v.addf("Plugins.JWT.SigningMethod %q is not one of %s", method, strings.Join(allowed, ", "))
 		}
 	}
 }

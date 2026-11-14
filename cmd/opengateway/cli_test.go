@@ -78,7 +78,7 @@ Services:
 
 func TestCheckPrintsWarningsButPasses(t *testing.T) {
 	path := writeConfig(t, `
-Plugins: {JWTConfig: {SecretKey: your-256-bit-secret, Issuer: auth, Audience: gateway}}
+Plugins: {JWT: {SecretKey: your-256-bit-secret, Issuer: auth, Audience: gateway}}
 Services:
   users:
     URL: http://users.example.com
@@ -88,7 +88,7 @@ Services:
 
 	assert.Equal(t, 0, code, "warnings do not fail the check")
 	assert.Contains(t, stdout, "is valid: 1 services, 1 endpoints")
-	assert.Equal(t, "warning: Plugins.JWTConfig.SecretKey is the example secret from the docs, so anyone can sign tokens with it; set your own, for example with JWT_SECRET\n"+
+	assert.Equal(t, "warning: Plugins.JWT.SecretKey is the example secret from the docs, so anyone can sign tokens with it; set your own, for example with JWT_SECRET\n"+
 		"warning: service \"users\": tokens are forwarded over plain http to users.example.com; use https\n", stderr)
 }
 

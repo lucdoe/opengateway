@@ -33,10 +33,10 @@ func TestParseFillsPlaceholdersFromTheEnvironment(t *testing.T) {
 Server:
   Port: ${GATEWAY_PORT}
 Plugins:
-  RateLimitConfig:
+  RateLimit:
     Limit: 10
     Window: ${WINDOW}
-  JWTConfig:
+  JWT:
     SecretKey: "${SECRET}"
     Issuer: 'https://${REGION}.auth.test/'
 `))
@@ -59,7 +59,7 @@ func TestParseUsesTheFallbackWhenTheVariableIsUnsetOrEmpty(t *testing.T) {
 }
 
 func TestParseKeepsAnEscapedPlaceholder(t *testing.T) {
-	cfg, err := config.Parse(withService(`Plugins: {JWTConfig: {Issuer: "$${NOT_A_VARIABLE} and $$5"}}`))
+	cfg, err := config.Parse(withService(`Plugins: {JWT: {Issuer: "$${NOT_A_VARIABLE} and $$5"}}`))
 	require.NoError(t, err)
 
 	assert.Equal(t, "${NOT_A_VARIABLE} and $$5", cfg.Plugins.JWTConfig.Issuer, "only $${ is an escape")
@@ -78,7 +78,7 @@ func TestParseLeavesKeysAndCommentsAlone(t *testing.T) {
 func TestParseReportsEveryPlaceholderThatCannotBeFilled(t *testing.T) {
 	_, err := config.Parse([]byte(`
 Plugins:
-  JWTConfig:
+  JWT:
     SecretKey: ${UNSET_SECRET}
     Issuer: ${1BAD}
     Audience: ${UNCLOSED
