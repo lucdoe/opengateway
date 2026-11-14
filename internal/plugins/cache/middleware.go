@@ -10,13 +10,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/lucdoe/opengateway/internal"
 )
 
 const (
 	cacheKeyPrefix = "cache:"
-	cacheTTL       = 10 * time.Minute
+	// cacheTTL is the longest a response is kept, and how long one without
+	// max-age or s-maxage is kept.
+	cacheTTL = 10 * time.Minute
 
 	cacheStatusHeader = "X-Cache"
 	cacheHit          = "HIT"
@@ -36,8 +36,9 @@ type middleware struct {
 
 // NewMiddleware returns the cache plugin. It is a shared response cache: one
 // stored response is served to every client that sends an equivalent request.
-// To keep that safe it only handles GET requests without an Authorization
-// header and only stores responses that are not specific to one caller.
+// To keep that safe it only handles GET requests without an Authorization or
+// Cookie header and only stores responses that are not specific to one
+// caller, no longer than their Cache-Control allows.
 func NewMiddleware(store Cache) func(http.Handler) http.Handler {
 	return (&middleware{store: store}).wrap
 }
@@ -61,12 +62,15 @@ func (cm *middleware) wrap(next http.Handler) http.Handler {
 		ownHeaders := w.Header().Clone()
 
 		w.Header().Set(cacheStatusHeader, cacheMiss)
-		recorder := internal.NewResponseRecorder(w)
-		next.ServeHTTP(recorder, r)
+		rec := &recorder{ResponseWriter: w}
+		next.ServeHTTP(rec, r)
 
-		answered := upstreamHeader(recorder.Header(), ownHeaders)
-		if recorder.StatusCode == http.StatusOK && cacheableResponse(answered) {
-			cm.save(key, answered, recorder.Body.Bytes())
+		if rec.status != http.StatusOK || rec.tooBig || rec.streamed {
+			return
+		}
+		answered := upstreamHeader(rec.Header(), ownHeaders)
+		if ttl, ok := storeFor(answered); ok {
+			cm.save(key, answered, rec.body.Bytes(), ttl)
 		}
 	})
 }
@@ -80,7 +84,9 @@ func cacheKey(r *http.Request) string {
 }
 
 func cacheableRequest(r *http.Request) bool {
-	return r.Method == http.MethodGet && r.Header.Get("Authorization") == ""
+	// A cookie can make the upstream answer for one user only, without saying
+	// so in Vary, so such requests are never shared.
+	return r.Method == http.MethodGet && r.Header.Get("Authorization") == "" && r.Header.Get("Cookie") == ""
 }
 
 // upstreamHeader returns the header values added after the earlier plugins
@@ -101,22 +107,49 @@ func upstreamHeader(header, own http.Header) http.Header {
 	return added
 }
 
-func cacheableResponse(header http.Header) bool {
+// storeFor reports whether a response with header may be shared, and for
+// how long: s-maxage, else max-age, at most cacheTTL.
+func storeFor(header http.Header) (time.Duration, bool) {
 	if len(header.Values("Set-Cookie")) > 0 {
-		return false
-	}
-	for _, directive := range headerTokens(header, "Cache-Control") {
-		name, _, _ := strings.Cut(directive, "=")
-		if name == "no-store" || name == "no-cache" || name == "private" {
-			return false
-		}
+		return 0, false
 	}
 	for _, field := range headerTokens(header, "Vary") {
 		if field != "accept-encoding" {
-			return false
+			return 0, false
 		}
 	}
-	return true
+	maxAge, sMaxAge := -1, -1
+	for _, directive := range headerTokens(header, "Cache-Control") {
+		name, value, _ := strings.Cut(directive, "=")
+		switch name {
+		case "no-store", "no-cache", "private":
+			return 0, false
+		case "max-age":
+			maxAge = seconds(value)
+		case "s-maxage":
+			sMaxAge = seconds(value)
+		}
+	}
+	age := sMaxAge
+	if age < 0 {
+		age = maxAge
+	}
+	switch {
+	case age == 0:
+		return 0, false
+	case age < 0 || age > int(cacheTTL/time.Second):
+		return cacheTTL, true
+	}
+	return time.Duration(age) * time.Second, true
+}
+
+// seconds parses a delta-seconds value, or returns -1 if it is not one.
+func seconds(value string) int {
+	n, err := strconv.Atoi(strings.Trim(value, `"`))
+	if err != nil || n < 0 {
+		return -1
+	}
+	return n
 }
 
 func headerTokens(header http.Header, name string) []string {
@@ -139,9 +172,9 @@ func (cm *middleware) lookup(key string) (entry, bool) {
 	return decodeEntry(value)
 }
 
-func (cm *middleware) save(key string, header http.Header, body []byte) {
+func (cm *middleware) save(key string, header http.Header, body []byte, ttl time.Duration) {
 	// A failed write only means the next request is a miss again.
-	_ = cm.store.Set(key, encodeEntry(header, body, time.Now()), cacheTTL)
+	_ = cm.store.Set(key, encodeEntry(header, body, time.Now()), ttl)
 }
 
 func writeCached(w http.ResponseWriter, cached entry) {
