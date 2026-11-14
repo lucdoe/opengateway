@@ -25,11 +25,11 @@ import (
 	"github.com/lucdoe/opengateway/internal/plugins/logger"
 	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
 	"github.com/lucdoe/opengateway/internal/server"
+	"github.com/lucdoe/opengateway/internal/store"
 )
 
-// storeFactory connects to the store shared by the cache and rate-limit
-// plugins.
-type storeFactory func(cfg config.RedisConfig) (cache.Cache, error)
+// storeFactory opens the store shared by the cache and rate-limit plugins.
+type storeFactory func(cfg config.StoreConfig) (store.Store, error)
 
 // buildPlugins creates the plugins that some service or endpoint in cfg uses,
 // and only those. A plugin that is not used is not built, so its settings do
@@ -41,17 +41,17 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.
 	plugins := map[string]server.Middleware{}
 	settings := cfg.Plugins
 
-	var store cache.Cache
-	sharedStore := func() (cache.Cache, error) {
-		if store != nil {
-			return store, nil
+	var shared store.Store
+	sharedStore := func() (store.Store, error) {
+		if shared != nil {
+			return shared, nil
 		}
-		connected, err := newStore(cfg.Redis)
+		opened, err := newStore(cfg.Store)
 		if err != nil {
 			return nil, err
 		}
-		store = connected
-		return store, nil
+		shared = opened
+		return shared, nil
 	}
 
 	if cfg.UsesPlugin(config.PluginLogger) {
@@ -72,12 +72,12 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.
 	}
 
 	if cfg.UsesPlugin(config.PluginRateLimit) {
-		store, err := sharedStore()
+		counters, err := sharedStore()
 		if err != nil {
 			return nil, fmt.Errorf("%s plugin: %w", config.PluginRateLimit, err)
 		}
 		limiter := ratelimit.NewRateLimitService(ratelimit.RateLimitConfig{
-			Store:  store,
+			Store:  counters,
 			Limit:  settings.RateLimitConfig.Limit,
 			Window: settings.RateLimitConfig.Window,
 		})
@@ -99,11 +99,11 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.
 	}
 
 	if cfg.UsesPlugin(config.PluginCache) {
-		store, err := sharedStore()
+		responses, err := sharedStore()
 		if err != nil {
 			return nil, fmt.Errorf("%s plugin: %w", config.PluginCache, err)
 		}
-		plugins[config.PluginCache] = cache.NewMiddleware(store)
+		plugins[config.PluginCache] = cache.NewMiddleware(responses)
 	}
 
 	return plugins, nil

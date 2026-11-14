@@ -44,10 +44,12 @@ Server:
     ConsecutiveFailures: 3
     OpenTimeout: 10s
     HalfOpenRequests: 2
-Redis:
-  Host: "redis.internal"
-  Port: 6380
-  Password: "from-file"
+Store:
+  Type: "redis"
+  Redis:
+    Host: "redis.internal"
+    Port: 6380
+    Password: "from-file"
 Plugins:
   JWTConfig:
     SecretKey: "from-file"
@@ -57,7 +59,7 @@ Plugins:
 // machine that runs it.
 func clearEnvironment(t *testing.T) {
 	t.Helper()
-	for _, name := range []string{config.EnvPort, config.EnvRedisHost, config.EnvRedisPort, config.EnvRedisPassword, config.EnvJWTSecret} {
+	for _, name := range []string{config.EnvPort, config.EnvStoreType, config.EnvRedisHost, config.EnvRedisPort, config.EnvRedisPassword, config.EnvJWTSecret} {
 		t.Setenv(name, "")
 	}
 }
@@ -76,9 +78,9 @@ func TestParseAppliesDefaults(t *testing.T) {
 		UpstreamTimeout:   30 * time.Second,
 		CircuitBreaker:    config.CircuitBreakerConfig{ConsecutiveFailures: 5, OpenTimeout: 30 * time.Second, HalfOpenRequests: 1},
 	}, cfg.Server)
-	assert.Equal(t, config.RedisConfig{Host: "localhost", Port: 6379}, cfg.Redis)
+	assert.Equal(t, config.StoreConfig{Type: "memory", Redis: config.RedisConfig{Host: "localhost", Port: 6379}}, cfg.Store)
 	assert.Equal(t, ":4000", cfg.ListenAddr())
-	assert.Equal(t, "localhost:6379", cfg.Redis.Addr())
+	assert.Equal(t, "localhost:6379", cfg.Store.Redis.Addr())
 	assert.Empty(t, cfg.Plugins.JWTConfig.SecretKey)
 }
 
@@ -97,8 +99,8 @@ func TestParseUsesTheFileOverDefaults(t *testing.T) {
 		CircuitBreaker:    config.CircuitBreakerConfig{ConsecutiveFailures: 3, OpenTimeout: 10 * time.Second, HalfOpenRequests: 2},
 	}, cfg.Server)
 	assert.Equal(t, ":8080", cfg.ListenAddr())
-	assert.Equal(t, "redis.internal:6380", cfg.Redis.Addr())
-	assert.Equal(t, "from-file", cfg.Redis.Password)
+	assert.Equal(t, "redis.internal:6380", cfg.Store.Redis.Addr())
+	assert.Equal(t, "from-file", cfg.Store.Redis.Password)
 	assert.Equal(t, "from-file", cfg.Plugins.JWTConfig.SecretKey)
 }
 
@@ -114,8 +116,8 @@ func TestParseUsesTheEnvironmentOverTheFile(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, ":9090", cfg.ListenAddr())
-	assert.Equal(t, "redis.env:6381", cfg.Redis.Addr())
-	assert.Equal(t, "from-env", cfg.Redis.Password)
+	assert.Equal(t, "redis.env:6381", cfg.Store.Redis.Addr())
+	assert.Equal(t, "from-env", cfg.Store.Redis.Password)
 	assert.Equal(t, "from-env", cfg.Plugins.JWTConfig.SecretKey)
 }
 
@@ -126,7 +128,7 @@ func TestParseAppliesEachVariableOnItsOwn(t *testing.T) {
 	cfg, err := config.Parse([]byte(minimalConfig))
 	require.NoError(t, err)
 
-	assert.Equal(t, "redis:6379", cfg.Redis.Addr(), "the host comes from the environment, the port from the default")
+	assert.Equal(t, "redis:6379", cfg.Store.Redis.Addr(), "the host comes from the environment, the port from the default")
 	assert.Equal(t, ":4000", cfg.ListenAddr())
 }
 
@@ -137,7 +139,7 @@ func TestParseFormatsIPv6RedisHosts(t *testing.T) {
 	cfg, err := config.Parse([]byte(minimalConfig))
 	require.NoError(t, err)
 
-	assert.Equal(t, "[::1]:6379", cfg.Redis.Addr())
+	assert.Equal(t, "[::1]:6379", cfg.Store.Redis.Addr())
 }
 
 // The secret can be left out of the file when the environment provides it.
@@ -210,4 +212,32 @@ func TestParseRejectsInvalidEnvironmentValues(t *testing.T) {
 			assert.ErrorContains(t, err, tc.expected)
 		})
 	}
+}
+
+func TestParseTakesTheStoreTypeFromTheEnvironment(t *testing.T) {
+	clearEnvironment(t)
+	t.Setenv("STORE_TYPE", "redis")
+
+	cfg, err := config.Parse([]byte(minimalConfig))
+	require.NoError(t, err)
+
+	assert.Equal(t, "redis", cfg.Store.Type)
+}
+
+func TestParseAcceptsTheStoreTypeInAnyCase(t *testing.T) {
+	clearEnvironment(t)
+
+	cfg, err := config.Parse([]byte("Store:\n  Type: \" Redis \"\n" + minimalConfig))
+	require.NoError(t, err)
+
+	assert.Equal(t, "redis", cfg.Store.Type)
+}
+
+func TestParseNamesTheNewPlaceOfTheRedisSection(t *testing.T) {
+	clearEnvironment(t)
+
+	cfg, err := config.Parse([]byte("Redis:\n  Host: \"redis\"\n" + minimalConfig))
+
+	assert.Nil(t, cfg)
+	assert.ErrorContains(t, err, "line 1: the top-level Redis section has moved: set Store.Type: redis and put its settings under Store.Redis")
 }

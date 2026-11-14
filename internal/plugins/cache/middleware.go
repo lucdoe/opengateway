@@ -33,6 +33,13 @@ const (
 	cacheMiss         = "MISS"
 )
 
+// Cache is the part of a store.Store the cache plugin uses. Any error from
+// Get counts as a miss.
+type Cache interface {
+	Get(key string) (string, error)
+	Set(key, value string, ttl time.Duration) error
+}
+
 type middleware struct {
 	store Cache
 }

@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cache_test
+package redisstore_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/lucdoe/opengateway/internal/plugins/cache"
+	"github.com/lucdoe/opengateway/internal/store"
+	"github.com/lucdoe/opengateway/internal/store/redisstore"
+	"github.com/lucdoe/opengateway/internal/store/storetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,16 +31,16 @@ const (
 	incrementShouldReturnIncValue = "Increment should return incremented value"
 )
 
-func TestRedisCacheOperations(t *testing.T) {
+func TestStoreOperations(t *testing.T) {
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 	defer mr.Close()
 
-	cacheConfig := cache.CacheConfig{
+	cacheConfig := redisstore.Config{
 		Addr:     mr.Addr(),
 		Password: "",
 	}
-	redisCache, err := cache.NewRedisCache(cacheConfig)
+	redisCache, err := redisstore.New(cacheConfig)
 	require.NoError(t, err)
 
 	t.Run("Set and Get operations", func(t *testing.T) {
@@ -75,7 +77,7 @@ func TestRedisCacheOperations(t *testing.T) {
 		mr.FastForward(1 * time.Second)
 
 		retrievedValue, getErr = redisCache.Get(expireKey)
-		assert.Error(t, getErr, "Get should error after expiration")
+		assert.ErrorIs(t, getErr, store.ErrNotFound, "Get reports an expired key as not found")
 		assert.Equal(t, "", retrievedValue, "Get should return an empty string after expiration")
 	})
 
@@ -133,14 +135,23 @@ func TestRedisCacheOperations(t *testing.T) {
 	})
 }
 
-func TestNewRedisCacheFailsWhenRedisIsUnreachable(t *testing.T) {
+func TestNewFailsWhenRedisIsUnreachable(t *testing.T) {
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 	addr := mr.Addr()
 	mr.Close()
 
-	redisCache, err := cache.NewRedisCache(cache.CacheConfig{Addr: addr})
+	redisCache, err := redisstore.New(redisstore.Config{Addr: addr})
 
 	assert.Nil(t, redisCache)
 	assert.ErrorContains(t, err, "connecting to redis at "+addr)
+}
+
+func TestStoreConformance(t *testing.T) {
+	storetest.Run(t, func(t *testing.T) storetest.Backend {
+		mr := miniredis.RunT(t)
+		s, err := redisstore.New(redisstore.Config{Addr: mr.Addr()})
+		require.NoError(t, err)
+		return storetest.Backend{Store: s, Advance: mr.FastForward}
+	})
 }

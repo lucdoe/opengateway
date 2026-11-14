@@ -40,7 +40,7 @@ func validServer() config.ServerConfig {
 func validConfig() *config.Config {
 	return &config.Config{
 		Server: validServer(),
-		Redis:  config.RedisConfig{Host: "localhost", Port: 6379},
+		Store:  config.StoreConfig{Type: "redis", Redis: config.RedisConfig{Host: "localhost", Port: 6379}},
 		Plugins: config.PluginConfig{
 			LoggerConfig:    config.LoggerConfig{FilePath: "server.log"},
 			JWTConfig:       config.JWTConfig{SecretKey: "secret", SigningMethod: "HS256"},
@@ -160,8 +160,9 @@ func TestValidateServerAndRedisSettings(t *testing.T) {
 		{"no breaker failures", func(c *config.Config) { c.Server.CircuitBreaker.ConsecutiveFailures = 0 }, "Server.CircuitBreaker.ConsecutiveFailures 0 must be greater than 0"},
 		{"negative breaker open timeout", func(c *config.Config) { c.Server.CircuitBreaker.OpenTimeout = -time.Second }, "Server.CircuitBreaker.OpenTimeout -1s must be greater than 0"},
 		{"negative breaker half-open requests", func(c *config.Config) { c.Server.CircuitBreaker.HalfOpenRequests = -1 }, "Server.CircuitBreaker.HalfOpenRequests -1 must be greater than 0"},
-		{"redis without host", func(c *config.Config) { c.Redis.Host = "" }, "Redis.Host is required"},
-		{"redis port too large", func(c *config.Config) { c.Redis.Port = 70000 }, "Redis.Port 70000 must be between 1 and 65535"},
+		{"redis without host", func(c *config.Config) { c.Store.Redis.Host = "" }, "Store.Redis.Host is required because Store.Type is redis"},
+		{"redis port too large", func(c *config.Config) { c.Store.Redis.Port = 70000 }, "Store.Redis.Port 70000 must be between 1 and 65535"},
+		{"unknown store", func(c *config.Config) { c.Store.Type = "memcached" }, `Store.Type "memcached" is not one of memory, redis`},
 	}
 
 	for _, tc := range tests {
@@ -179,7 +180,14 @@ func TestValidateIgnoresRedisSettingsWhenNoPluginNeedsRedis(t *testing.T) {
 	service := cfg.Services["api"]
 	service.Plugins = []string{"logger", "cors"}
 	cfg.Services["api"] = service
-	cfg.Redis = config.RedisConfig{}
+	cfg.Store.Redis = config.RedisConfig{}
+
+	assert.NoError(t, cfg.Validate())
+}
+
+func TestValidateIgnoresRedisSettingsOfTheMemoryStore(t *testing.T) {
+	cfg := validConfig()
+	cfg.Store = config.StoreConfig{Type: "memory"}
 
 	assert.NoError(t, cfg.Validate())
 }
@@ -223,7 +231,7 @@ func TestValidatePluginSettings(t *testing.T) {
 func TestValidateIgnoresSettingsOfUnusedPlugins(t *testing.T) {
 	cfg := &config.Config{
 		Server: validServer(),
-		Redis:  config.RedisConfig{Host: "localhost", Port: 6379},
+		Store:  config.StoreConfig{Type: "memory"},
 		Services: map[string]config.Service{
 			"api": {
 				URL:       "https://example.com",

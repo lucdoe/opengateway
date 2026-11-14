@@ -1,6 +1,6 @@
 # Architecture
 
-OpenGateway is a single Go binary. It reads one YAML file, builds a route for every configured endpoint, and reverse-proxies matching requests to the service behind it. Redis is only needed by the `cache` and `rate-limit` plugins.
+OpenGateway is a single Go binary. It reads one YAML file, builds a route for every configured endpoint, and reverse-proxies matching requests to the service behind it. Nothing else is required: the `cache` and `rate-limit` plugins keep their state in memory unless the config points them at Redis.
 
 The first two diagrams follow the [C4 model](https://c4model.com/); their sources are in [diagrams-as-code](diagrams-as-code).
 
@@ -28,17 +28,20 @@ flowchart LR
     breaker["internal/breaker<br/>one circuit breaker per service"]
     proxy["internal/proxy<br/>one reverse proxy per service"]
     plugins["internal/plugins<br/>logger, cors, rate-limit, auth, cache"]
+    store["internal/store<br/>memory or redisstore"]
     yaml[("config.yaml")]
     redis[("Redis")]
     upstream[("Services")]
 
     main --> config --> yaml
     main --> plugins
+    main --> store
     main --> server
     main --> proxy
     server --> config
     server --> breaker
-    plugins -.->|"cache, rate-limit"| redis
+    plugins -.->|"cache, rate-limit"| store
+    store -.->|"Store.Type: redis"| redis
     proxy --> upstream
 ```
 
@@ -47,6 +50,7 @@ flowchart LR
 - **`internal/server`** registers one route per endpoint and wraps it in that endpoint's plugins and its service's circuit breaker.
 - **`internal/breaker`** answers `503` for a service that keeps failing, without calling it, until it has had time to recover.
 - **`internal/plugins/<name>`** holds one plugin each: its logic and its HTTP middleware.
+- **`internal/store`** defines the `Store` interface the cache and rate-limit plugins use, with a `memory` and a `redisstore` backend. A new backend implements `Get`, `Set` and `Increment` and passes `storetest.Run`.
 - **`internal/proxy`** forwards a request to a service and maps failures to `502` and `504`.
 
 ## Request flow
