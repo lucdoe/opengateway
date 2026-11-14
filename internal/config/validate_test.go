@@ -99,7 +99,10 @@ func TestValidateServicesAndEndpoints(t *testing.T) {
 			`UpstreamPath "/a/*/b" may only have * at the end`},
 		{"UpstreamPath prefix for an exact Path", func(s *config.Service) { s.Endpoints[0].UpstreamPath = "/v2/*" },
 			`service "api", endpoint "List": UpstreamPath "/v2/*" ends in "/*", so Path must too`},
-		{"UpstreamPath with an unknown variable", func(s *config.Service) { s.Endpoints[0].Path = "/items/{id}"; s.Endpoints[0].UpstreamPath = "/v2/{item}" },
+		{"UpstreamPath with an unknown variable", func(s *config.Service) {
+			s.Endpoints[0].Path = "/items/{id}"
+			s.Endpoints[0].UpstreamPath = "/v2/{item}"
+		},
 			`service "api", endpoint "List": UpstreamPath "/v2/{item}" uses {item}, which Path "/items/{id}" does not have`},
 		{"unknown endpoint plugin", func(s *config.Service) { s.Endpoints[1].Plugins = []string{"cash"} },
 			`service "api", endpoint "Create": unknown plugin "cash"`},
