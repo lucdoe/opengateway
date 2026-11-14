@@ -19,7 +19,9 @@ type Validator interface {
 
 type claimsKey struct{}
 
-func claimsFrom(ctx context.Context) *Claims {
+// ClaimsFrom returns the claims of the token the auth plugin accepted for the
+// request with ctx, or nil before auth ran or without auth.
+func ClaimsFrom(ctx context.Context) *Claims {
 	claims, _ := ctx.Value(claimsKey{}).(*Claims)
 	return claims
 }
@@ -63,7 +65,7 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 	required := strings.Fields(scope)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if claims := claimsFrom(r.Context()); claims == nil || !claims.HasScopes(required) {
+			if claims := ClaimsFrom(r.Context()); claims == nil || !claims.HasScopes(required) {
 				httpx.Error(w, http.StatusForbidden, "Token lacks a required scope")
 				return
 			}

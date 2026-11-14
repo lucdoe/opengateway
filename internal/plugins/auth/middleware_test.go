@@ -46,7 +46,7 @@ func TestMiddleware(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var seen *Claims
 			handler := NewMiddleware(fakeValidator{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				seen = claimsFrom(r.Context())
+				seen = ClaimsFrom(r.Context())
 			}))
 			req := httptest.NewRequest("GET", "/", nil)
 			if tc.header != "" {

@@ -6,6 +6,8 @@ package main
 import (
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/lucdoe/opengateway/internal/config"
@@ -75,7 +77,7 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (_ map[string]serve
 			return nil, closers, fmt.Errorf("%s plugin: %w", config.PluginRateLimit, err)
 		}
 		limiter := ratelimit.NewLimiter(counters, settings.RateLimitConfig.Limit, settings.RateLimitConfig.Window)
-		plugins[config.PluginRateLimit] = ratelimit.NewMiddleware(limiter)
+		plugins[config.PluginRateLimit] = ratelimit.NewMiddleware(limiter, rateLimitKey(settings.RateLimitConfig.Key))
 	}
 
 	if cfg.UsesPlugin(config.PluginAuth) {
@@ -112,4 +114,23 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (_ map[string]serve
 	}
 
 	return plugins, closers, nil
+}
+
+// rateLimitKey returns what the rate-limit plugin counts by, for a
+// validated RateLimitConfig.Key.
+func rateLimitKey(key string) ratelimit.KeyFunc {
+	if header, ok := strings.CutPrefix(key, config.RateLimitByHeader); ok {
+		return ratelimit.ByHeader(header)
+	}
+	if key == config.RateLimitBySubject {
+		// Rate-limit runs after auth with this key (see
+		// Config.PluginsInOrder), so the claims are verified ones.
+		return ratelimit.ByValue("sub", func(r *http.Request) string {
+			if claims := auth.ClaimsFrom(r.Context()); claims != nil {
+				return claims.Subject
+			}
+			return ""
+		})
+	}
+	return ratelimit.ByClientIP
 }

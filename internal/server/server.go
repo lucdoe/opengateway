@@ -98,6 +98,7 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 		}
 	}
 
+	order := cfg.PluginsInOrder()
 	for _, name := range cfg.ServiceNames() {
 		service := cfg.Services[name]
 
@@ -108,7 +109,7 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 		upstream = breaker.Wrap(name, cfg.Server.CircuitBreaker, upstream)
 
 		for _, endpoint := range service.Endpoints {
-			plugins, err := s.endpointPlugins(service, endpoint)
+			plugins, err := s.endpointPlugins(order, service, endpoint)
 			if err != nil {
 				return fmt.Errorf("service %q, endpoint %q: %w", name, endpoint.Name, err)
 			}
@@ -138,10 +139,10 @@ func health(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"ok"}` + "\n"))
 }
 
-// endpointPlugins returns the plugins enabled for an endpoint in the order
-// they run: the service's plugins, the endpoint's own plugins, and auth when
-// the endpoint sets ApplyAuth. A name with no registered plugin is an error.
-func (s *Server) endpointPlugins(service config.Service, endpoint config.Endpoint) ([]string, error) {
+// endpointPlugins returns the plugins enabled for an endpoint, in order:
+// the service's plugins, the endpoint's own plugins, and auth when the
+// endpoint sets ApplyAuth. A name with no registered plugin is an error.
+func (s *Server) endpointPlugins(order []string, service config.Service, endpoint config.Endpoint) ([]string, error) {
 	requested := append(append([]string{}, service.Plugins...), endpoint.Plugins...)
 	if endpoint.Auth.ApplyAuth {
 		requested = append(requested, config.PluginAuth)
@@ -154,7 +155,7 @@ func (s *Server) endpointPlugins(service config.Service, endpoint config.Endpoin
 	}
 
 	enabled := make([]string, 0, len(requested))
-	for _, name := range config.PluginOrder {
+	for _, name := range order {
 		if slices.Contains(requested, name) {
 			enabled = append(enabled, name)
 		}

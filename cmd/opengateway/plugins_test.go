@@ -6,6 +6,7 @@ package main
 import (
 	"errors"
 	"io"
+	"net/http/httptest"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -209,4 +210,15 @@ func TestBuildPluginsClosesTheLoggerWhenALaterPluginFails(t *testing.T) {
 	assert.Nil(t, plugins)
 	assert.Nil(t, closers)
 	assert.ErrorContains(t, err, "rate-limit plugin: connection refused")
+}
+
+func TestRateLimitKeyFollowsTheConfig(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "203.0.113.5:1234"
+	req.Header.Set("X-API-Key", "k-1")
+
+	assert.Equal(t, "203.0.113.5", rateLimitKey("")(req))
+	assert.Equal(t, "203.0.113.5", rateLimitKey("ip")(req))
+	assert.Regexp(t, `^header:[0-9a-f]{32}$`, rateLimitKey("header:X-API-Key")(req))
+	assert.Equal(t, "203.0.113.5", rateLimitKey("jwt:sub")(req), "before auth or without a token, the IP counts")
 }

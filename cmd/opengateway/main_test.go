@@ -325,6 +325,60 @@ Services:
 	}
 }
 
+// With Key: jwt:sub every verified subject has its own limit, and a forged
+// token can't pick one, since rate-limit runs after auth.
+func TestInitializeServerRateLimitsPerTokenSubject(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+Plugins:
+  JWTConfig: {SecretKey: secret}
+  RateLimitConfig: {Limit: 1, Window: 1m, Key: "jwt:sub"}
+Services:
+  api:
+    URL: http://upstream.test
+    Plugins: [rate-limit]
+    Endpoints:
+      - {HTTPMethod: GET, Path: /me, Auth: {ApplyAuth: true}}
+      - {HTTPMethod: GET, Path: /news}
+`))
+	require.NoError(t, err)
+	s, err := InitializeServer(ServerDependencies{
+		loadConfig: loads(cfg, nil),
+		router:     mux.NewRouter(),
+		newProxy: func(string, time.Duration) (http.Handler, error) {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), nil
+		},
+		newStore: func(config.StoreConfig) (store.Store, error) { return memory.New(), nil },
+	}, "config.yaml")
+	require.NoError(t, err)
+
+	token := func(subject, secret string) string {
+		signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, auth.Claims{RegisteredClaims: jwt.RegisteredClaims{
+			Subject: subject, ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		}}).SignedString([]byte(secret))
+		require.NoError(t, err)
+		return signed
+	}
+	send := func(path, token string) int {
+		req := httptest.NewRequest("GET", path, nil)
+		req.RemoteAddr = "203.0.113.5:1234" // every caller shares one IP, as behind a NAT
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		rec := httptest.NewRecorder()
+		s.Router.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	assert.Equal(t, http.StatusOK, send("/me", token("alice", "secret")))
+	assert.Equal(t, http.StatusTooManyRequests, send("/me", token("alice", "secret")), "alice used her one request")
+	assert.Equal(t, http.StatusOK, send("/me", token("bob", "secret")), "bob has his own limit, from the same IP")
+	for i := 0; i < 3; i++ {
+		assert.Equal(t, http.StatusUnauthorized, send("/me", token("forged", "wrong-secret")), "rejected by auth, never counted")
+	}
+	assert.Equal(t, http.StatusOK, send("/news", ""), "without a token, the IP counts")
+	assert.Equal(t, http.StatusTooManyRequests, send("/news", ""))
+}
+
 // main's own wiring must start the gateway from the shipped config.
 func TestDefaultDependenciesStartTheShippedConfig(t *testing.T) {
 	t.Setenv("CONFIG_PATH", "config.yaml")
