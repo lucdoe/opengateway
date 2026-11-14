@@ -39,6 +39,7 @@ func TestMiddleware(t *testing.T) {
 		{"invalid token", "Bearer nope", http.StatusUnauthorized},
 		{"token without the required scope", "Bearer unscoped", http.StatusForbidden},
 		{"valid token", "Bearer valid", http.StatusOK},
+		{"scheme in another case", "bearer valid", http.StatusOK},
 	}
 
 	for _, tc := range tests {
@@ -56,6 +57,7 @@ func TestMiddleware(t *testing.T) {
 			handler.ServeHTTP(rec, req)
 
 			assert.Equal(t, tc.status, rec.Code)
+			assert.NotContains(t, rec.Body.String(), "bad signature", "why a token failed is not told to the caller")
 			if tc.status == http.StatusOK {
 				assert.Equal(t, "read", seen.Scope, "claims reach the next handler")
 			}

@@ -96,6 +96,11 @@ func TestValidateRejectsBadTokens(t *testing.T) {
 	expired := Claims{RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Minute))}}
 	_, err = auth.Validate(sign(t, jwt.SigningMethodHS256, expired))
 	assert.Error(t, err, "expired")
+
+	neverExpires, err := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{}).SignedString(secret)
+	require.NoError(t, err)
+	_, err = auth.Validate(neverExpires)
+	assert.Error(t, err, "a token without exp would be valid forever")
 }
 
 func TestHasScopes(t *testing.T) {
