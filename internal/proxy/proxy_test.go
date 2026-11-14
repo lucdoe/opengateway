@@ -247,3 +247,20 @@ func TestHandlerCopiesLargeBodiesThroughPooledBuffers(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestHandlerKeepsOneRequestIDWhenTheUpstreamEchoesIt(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Request-ID", r.Header.Get("X-Request-ID"))
+	}))
+	t.Cleanup(server.Close)
+	handler, err := proxy.NewHandler(server.URL, time.Second)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "http://gateway.test/", nil)
+	req.Header.Set("X-Request-ID", "abc")
+	w := httptest.NewRecorder()
+	w.Header().Set("X-Request-ID", "abc") // as the request ID middleware does
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, []string{"abc"}, w.Header().Values("X-Request-ID"))
+}

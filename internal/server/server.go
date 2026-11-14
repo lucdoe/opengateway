@@ -18,6 +18,7 @@ import (
 	"github.com/lucdoe/opengateway/internal/breaker"
 	"github.com/lucdoe/opengateway/internal/config"
 	"github.com/lucdoe/opengateway/internal/httpx"
+	"github.com/lucdoe/opengateway/internal/requestid"
 )
 
 // Middleware wraps a handler with one plugin's behaviour.
@@ -45,6 +46,16 @@ type Server struct {
 	// have finished, for example to write out a buffered log.
 	Closers []io.Closer
 }
+
+// Handler is what Serve answers requests with: Router behind the request
+// ID, so every response carries one, including a 404.
+func (s *Server) Handler() http.Handler {
+	return requestid.Middleware(s.Router)
+}
+
+// HealthPath answers 200 while the gateway is running, for load balancers
+// and container health checks. It runs no plugins and calls no upstream.
+const HealthPath = config.ReservedPathPrefix + "health"
 
 func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware, scopeCheck ScopeCheck) (*Server, error) {
 	server := &Server{
@@ -76,6 +87,8 @@ func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mw
 // chain, so browser preflights reach the cors plugin, unless an endpoint
 // declares OPTIONS for the path itself.
 func (s *Server) SetupRoutes(cfg *config.Config) error {
+	s.Router.HandleFunc(HealthPath, health).Methods(http.MethodGet, http.MethodHead)
+
 	hasOptions := map[string]bool{}
 	for _, service := range cfg.Services {
 		for _, endpoint := range service.Endpoints {
@@ -117,6 +130,12 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 		}
 	}
 	return nil
+}
+
+func health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write([]byte(`{"status":"ok"}` + "\n"))
 }
 
 // endpointPlugins returns the plugins enabled for an endpoint in the order
@@ -172,7 +191,7 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	defer s.close()
 	httpServer := &http.Server{
-		Handler:           s.Router,
+		Handler:           s.Handler(),
 		ReadHeaderTimeout: s.Settings.ReadHeaderTimeout,
 		IdleTimeout:       s.Settings.IdleTimeout,
 	}

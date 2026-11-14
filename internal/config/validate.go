@@ -17,6 +17,10 @@ var knownMethods = []string{
 	http.MethodPatch, http.MethodDelete, http.MethodOptions,
 }
 
+// ReservedPathPrefix starts the paths the gateway answers itself, such as
+// /__health, so no service can route them.
+const ReservedPathPrefix = "/__"
+
 // supportedSigningMethod is the only JWT signing method the auth plugin
 // implements.
 const supportedSigningMethod = "HS256"
@@ -161,6 +165,8 @@ func (v *validation) service(name string, service Service, routes map[string]str
 			v.addf("%s: Path is required", endpointLabel)
 		} else if !validPath {
 			v.addf("%s: Path %q must start with \"/\"", endpointLabel, endpoint.Path)
+		} else if full := service.Subpath + endpoint.Path; strings.HasPrefix(full, ReservedPathPrefix) {
+			v.addf("%s: path %s is reserved: paths starting with %s belong to the gateway", endpointLabel, full, ReservedPathPrefix)
 		}
 
 		v.plugins(endpointLabel, endpoint.Plugins)

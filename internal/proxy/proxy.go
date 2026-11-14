@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/lucdoe/opengateway/internal/httpx"
+	"github.com/lucdoe/opengateway/internal/requestid"
 )
 
 // NewHandler returns a handler that forwards every request it receives to
@@ -49,6 +50,12 @@ func NewHandler(target string, timeout time.Duration) (http.Handler, error) {
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(upstream)
 			r.SetXForwarded()
+		},
+		// The gateway already set the request ID on the response. An upstream
+		// that echoes it would add a second value.
+		ModifyResponse: func(res *http.Response) error {
+			res.Header.Del(requestid.Header)
+			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("proxy: %s %s to %s failed: %v", r.Method, r.URL.Path, upstream.Host, err)

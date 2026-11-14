@@ -666,3 +666,37 @@ func TestRunFailsWhenTheAddressIsTaken(t *testing.T) {
 
 	assert.ErrorContains(t, s.Run(context.Background()), "address already in use")
 }
+
+func TestHealthAnswersWithoutPluginsOrUpstream(t *testing.T) {
+	cfg := &config.Config{Services: map[string]config.Service{
+		"api": {URL: "http://upstream.test", Plugins: []string{"logger", "rate-limit"},
+			Endpoints: []config.Endpoint{{HTTPMethod: "GET", Path: "/items"}}},
+	}}
+	var calls []string
+	noProxy := func(string, time.Duration) (http.Handler, error) {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("health must not reach the upstream") }), nil
+	}
+	s, err := NewServer(cfg, mux.NewRouter(), noProxy, recordingMiddlewares(&calls), nil)
+	require.NoError(t, err)
+
+	for _, method := range []string{"GET", "HEAD"} {
+		w := httptest.NewRecorder()
+		s.Handler().ServeHTTP(w, httptest.NewRequest(method, HealthPath, nil))
+		assert.Equal(t, http.StatusOK, w.Code, method)
+		assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+	}
+	assert.Empty(t, calls, "no plugin runs for the health check")
+}
+
+func TestHandlerSetsARequestIDOnEveryResponse(t *testing.T) {
+	s, err := NewServer(&config.Config{Services: map[string]config.Service{
+		"api": {URL: "http://upstream.test", Endpoints: []config.Endpoint{{HTTPMethod: "GET", Path: "/items"}}},
+	}}, mux.NewRouter(), okProxy, map[string]Middleware{}, nil)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, httptest.NewRequest("GET", "/missing", nil))
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Len(t, w.Header().Get("X-Request-ID"), 32, "a 404 carries a request ID too")
+}
