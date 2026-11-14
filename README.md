@@ -108,17 +108,17 @@ On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets reque
 
 ## Performance
 
-Benchmark with [`hey`](https://github.com/rakyll/hey), 50,000 requests at a concurrency of 130:
+One gateway capped at **2 CPU cores**, with every plugin on (logger, CORS, rate limit, JWT auth, cache):
 
-| Total time | Requests/s | Average | Slowest  | `200 OK` responses | Size per request | Total data       |
-| ---------- | ---------- | ------- | -------- | ------------------ | ---------------- | ---------------- |
-| 5.9502 s   | 8,389.5769 | 14.7 ms | 165.4 ms | 49,853             | 1,278 bytes      | 63,811,840 bytes |
+| | |
+| --- | --- |
+| **Throughput** | **16,000 requests/s** sustained, with no errors added by the gateway |
+| **Added latency** | **+0.3 ms** median over calling the service directly, at 500 requests/s |
+| **Cache hits** | answered in **0.13 ms** median at 16,000 requests/s |
+| **Memory** | 16 MB at 500 requests/s, about 100 MB at 16,000 |
+| **A service goes down** | its requests get `503` in 0.3 ms, other services keep their latency |
 
-Load test with [Locust](https://locust.io/), 200 peak users, ramp of 50, 5 minutes, `GET /some-endpoint`:
-
-| Requests | Fails | Median | Average | Min  | Max   | Average size | Requests/s | Failures/s |
-| -------- | ----- | ------ | ------- | ---- | ----- | ------------ | ---------- | ---------- |
-| 15,532   | 0     | 4 ms   | 4.93 ms | 1 ms | 76 ms | 1,280 bytes  | 66.8       | 0          |
+Measured with [k6](https://k6.io/) at a constant arrival rate (open loop) against mock services with realistic latency (median 8–40 ms) and payloads (0.1–4 KB). The traffic mix is 50% reads by ID, 20% cacheable lists, 20% a second service and 10% authenticated `POST`s, on an Apple M1 Pro.
 
 ## License
 

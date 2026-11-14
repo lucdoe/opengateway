@@ -15,7 +15,7 @@
 package cache
 
 import (
-	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -50,13 +50,6 @@ type middleware struct {
 // header and only stores responses that are not specific to one caller.
 func NewMiddleware(store Cache) func(http.Handler) http.Handler {
 	return (&middleware{store: store}).wrap
-}
-
-// cachedResponse is what is kept in the store for one cache key.
-type cachedResponse struct {
-	Header   http.Header `json:"header"`
-	Body     []byte      `json:"body"`
-	StoredAt time.Time   `json:"stored_at"`
 }
 
 func (cm *middleware) wrap(next http.Handler) http.Handler {
@@ -131,16 +124,12 @@ func headerTokens(header http.Header, name string) []string {
 	return tokens
 }
 
-func (cm *middleware) lookup(key string) (cachedResponse, bool) {
-	var cached cachedResponse
+func (cm *middleware) lookup(key string) (entry, bool) {
 	value, err := cm.store.Get(key)
-	if err != nil || value == "" {
-		return cached, false
+	if err != nil {
+		return entry{}, false
 	}
-	if err := json.Unmarshal([]byte(value), &cached); err != nil {
-		return cached, false
-	}
-	return cached, true
+	return decodeEntry(value)
 }
 
 func (cm *middleware) save(key string, recorder *internal.ResponseRecorder, exclude http.Header) {
@@ -151,32 +140,23 @@ func (cm *middleware) save(key string, recorder *internal.ResponseRecorder, excl
 		}
 		header[name] = values
 	}
-
-	value, err := json.Marshal(cachedResponse{
-		Header:   header,
-		Body:     recorder.Body.Bytes(),
-		StoredAt: time.Now(),
-	})
-	if err != nil {
-		return
-	}
 	// A failed write only means the next request is a miss again.
-	_ = cm.store.Set(key, string(value), cacheTTL)
+	_ = cm.store.Set(key, encodeEntry(header, recorder.Body.Bytes(), time.Now()), cacheTTL)
 }
 
-func writeCached(w http.ResponseWriter, cached cachedResponse) {
-	for name, values := range cached.Header {
+func writeCached(w http.ResponseWriter, cached entry) {
+	for name, values := range cached.header {
 		// Headers set by earlier plugins for this request win over stored ones.
 		if _, set := w.Header()[name]; !set {
 			w.Header()[name] = values
 		}
 	}
-	age := int(time.Since(cached.StoredAt).Seconds())
+	age := int(time.Since(cached.storedAt).Seconds())
 	if age < 0 {
 		age = 0
 	}
 	w.Header().Set("Age", strconv.Itoa(age))
 	w.Header().Set(cacheStatusHeader, cacheHit)
 	w.WriteHeader(http.StatusOK)
-	w.Write(cached.Body)
+	io.WriteString(w, cached.body)
 }
