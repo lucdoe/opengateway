@@ -32,22 +32,12 @@ import (
 	"github.com/lucdoe/opengateway/internal/store/redisstore"
 )
 
-type configLoader interface {
-	LoadConfig(path string) (*config.Config, error)
-}
-
-type DefaultConfigLoader struct{}
-
-func (d *DefaultConfigLoader) LoadConfig(path string) (*config.Config, error) {
-	return config.Load(path)
-}
-
 // ServerDependencies holds what reaches outside the process, so tests can
 // replace it.
 type ServerDependencies struct {
-	configLoader configLoader
-	router       *mux.Router
-	newProxy     server.ProxyFactory
+	loadConfig func(path string) (*config.Config, error)
+	router     *mux.Router
+	newProxy   server.ProxyFactory
 	// newStore is only called when the cache or rate-limit plugin is in use.
 	newStore storeFactory
 }
@@ -57,7 +47,7 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 	if configPath == "" {
 		configPath = "./cmd/opengateway/config.yaml"
 	}
-	cfg, err := deps.configLoader.LoadConfig(configPath)
+	cfg, err := deps.loadConfig(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -99,15 +89,18 @@ func requireScope(scope string) server.Middleware {
 	return auth.RequireScope(scope)
 }
 
-func main() {
-	deps := ServerDependencies{
-		configLoader: &DefaultConfigLoader{},
-		router:       mux.NewRouter(),
-		newProxy:     proxy.NewHandler,
-		newStore:     openStore,
+// defaultDependencies are the real ones main runs with.
+func defaultDependencies() ServerDependencies {
+	return ServerDependencies{
+		loadConfig: config.Load,
+		router:     mux.NewRouter(),
+		newProxy:   proxy.NewHandler,
+		newStore:   openStore,
 	}
+}
 
-	server, err := InitializeServer(deps)
+func main() {
+	server, err := InitializeServer(defaultDependencies())
 	if err != nil {
 		log.Fatalf("Failed to initialize the server: %v", err)
 	}

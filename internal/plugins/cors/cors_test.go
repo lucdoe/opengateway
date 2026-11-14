@@ -15,123 +15,69 @@
 package cors_test
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/lucdoe/opengateway/internal/plugins/cors"
+	"github.com/stretchr/testify/assert"
 )
 
-const (
-	GETAndPOST                  = "GET, POST"
-	GETandPOSTandPUT            = "GET, POST, PUT"
-	contentTypeAuthzXReqHeaders = "Content-Type, Authorization, X-Requested-With"
-	contentTypeAuthzHeaders     = "Content-Type, Authorization"
-)
+func TestPolicy(t *testing.T) {
+	p := cors.New(cors.Config{
+		Origins: "http://example.com,http://example.org",
+		Methods: "GET, POST",
+		Headers: "Content-Type, Authorization",
+	})
 
-func TestValidateOrigin(t *testing.T) {
-	corsConfig := cors.CORSConfig{
-		Origins: "http://example.com, http://example.org, *",
-		Methods: GETAndPOST,
-		Headers: contentTypeAuthzHeaders,
-	}
-	c := cors.NewCors(corsConfig)
+	assert.True(t, p.AllowsOrigin("http://example.org"), "lists need no space after the comma")
+	assert.False(t, p.AllowsOrigin("http://notallowed.com"))
+	assert.False(t, p.AllowsOrigin(""))
 
-	tests := []struct {
-		name         string
-		origin       string
-		expectedPass bool
-	}{
-		{"Allowed Origin", "http://example.com", true},
-		{"Another Allowed Origin", "http://example.org", true},
-		{"Disallowed Origin", "http://notallowed.com", false},
-		{"Wildcard Origin", "*", true},
-	}
+	assert.True(t, p.AllowsMethod("POST"))
+	assert.False(t, p.AllowsMethod("DELETE"))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if pass := c.ValidateOrigin(tt.origin); pass != tt.expectedPass {
-				t.Errorf("ValidateOrigin(%q) = %v, want %v", tt.origin, pass, tt.expectedPass)
-			}
-		})
-	}
+	assert.True(t, p.AllowsHeaders(""), "no headers requested")
+	assert.True(t, p.AllowsHeaders("content-type,authorization"), "browsers send lower case")
+	assert.False(t, p.AllowsHeaders("Content-Type, X-Custom"))
+
+	assert.True(t, cors.New(cors.Config{Origins: "http://example.com, *"}).AllowsOrigin("http://any.test"), "* allows every origin")
 }
 
-func TestValidateMethod(t *testing.T) {
-	corsConfig := cors.CORSConfig{
-		Origins: "*",
-		Methods: GETAndPOST,
+func TestMiddleware(t *testing.T) {
+	handler := cors.NewMiddleware(cors.New(cors.Config{
+		Origins: "http://allowed.com",
+		Methods: "GET, POST",
 		Headers: "Content-Type",
-	}
-	c := cors.NewCors(corsConfig)
+	}))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusTeapot) }))
 
 	tests := []struct {
-		method       string
-		expectedPass bool
+		name, method, origin, requestMethod, requestHeaders string
+		status                                              int
 	}{
-		{"GET", true},
-		{"POST", true},
-		{"DELETE", false},
-		{"PUT", false},
-		{"OPTIONS", false},
+		{"invalid origin", "GET", "http://forbidden.com", "", "", http.StatusForbidden},
+		{"preflight with a method not allowed", "OPTIONS", "http://allowed.com", "DELETE", "", http.StatusForbidden},
+		{"preflight with a header not allowed", "OPTIONS", "http://allowed.com", "GET", "x-custom", http.StatusForbidden},
+		{"valid preflight is answered here", "OPTIONS", "http://allowed.com", "POST", "content-type", http.StatusOK},
+		{"valid request reaches the next handler", "GET", "http://allowed.com", "", "", http.StatusTeapot},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.method, func(t *testing.T) {
-			if pass := c.ValidateMethod(tt.method); pass != tt.expectedPass {
-				t.Errorf("ValidateMethod(%q) = %v, want %v", tt.method, pass, tt.expectedPass)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, "/", nil)
+			req.Header.Set("Origin", tc.origin)
+			req.Header.Set("Access-Control-Request-Method", tc.requestMethod)
+			req.Header.Set("Access-Control-Request-Headers", tc.requestHeaders)
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			assert.Equal(t, tc.status, rec.Code)
+			if tc.status != http.StatusForbidden {
+				assert.Equal(t, tc.origin, rec.Header().Get("Access-Control-Allow-Origin"))
+				assert.Equal(t, "GET, POST", rec.Header().Get("Access-Control-Allow-Methods"))
+				assert.Equal(t, "Content-Type", rec.Header().Get("Access-Control-Allow-Headers"))
 			}
 		})
-	}
-}
-
-func TestValidateHeaders(t *testing.T) {
-	corsConfig := cors.CORSConfig{
-		Origins: "*",
-		Methods: GETAndPOST,
-		Headers: contentTypeAuthzHeaders,
-	}
-	c := cors.NewCors(corsConfig)
-
-	tests := []struct {
-		headers      string
-		expectedPass bool
-	}{
-		{"Content-Type", true},
-		{"Authorization", true},
-		{"X-Custom-Header", false},
-		{contentTypeAuthzHeaders, true},
-		{"Content-Type, X-Custom-Header", false},
-		{"", true}, // No headers requested, should pass
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.headers, func(t *testing.T) {
-			if pass := c.ValidateHeaders(tt.headers); pass != tt.expectedPass {
-				t.Errorf("ValidateHeaders(%q) = %v, want %v", tt.headers, pass, tt.expectedPass)
-			}
-		})
-	}
-}
-
-func TestGetAllowedMethods(t *testing.T) {
-	corsConfig := cors.CORSConfig{
-		Methods: GETandPOSTandPUT,
-	}
-	c := cors.NewCors(corsConfig)
-
-	expected := GETandPOSTandPUT
-	if methods := c.GetAllowedMethods(); methods != expected {
-		t.Errorf("GetAllowedMethods() = %v, want %v", methods, expected)
-	}
-}
-
-func TestGetAllowedHeaders(t *testing.T) {
-	corsConfig := cors.CORSConfig{
-		Headers: contentTypeAuthzXReqHeaders,
-	}
-	c := cors.NewCors(corsConfig)
-
-	expected := contentTypeAuthzXReqHeaders
-	if headers := c.GetAllowedHeaders(); headers != expected {
-		t.Errorf("GetAllowedHeaders() = %v, want %v", headers, expected)
 	}
 }
