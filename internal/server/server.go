@@ -18,6 +18,7 @@ import (
 	"github.com/lucdoe/opengateway/internal/breaker"
 	"github.com/lucdoe/opengateway/internal/config"
 	"github.com/lucdoe/opengateway/internal/httpx"
+	"github.com/lucdoe/opengateway/internal/metrics"
 	"github.com/lucdoe/opengateway/internal/requestid"
 )
 
@@ -51,6 +52,10 @@ func (m Middlewares) Middleware(name string, _ config.RouteSettings) (Middleware
 type Server struct {
 	// Addr is the address Run listens on, for example ":4000".
 	Addr string
+	// MetricsAddr is where Run serves Metrics, or "" for nowhere.
+	MetricsAddr string
+	// Metrics counts what every route answers. Nil when metrics are off.
+	Metrics *metrics.Registry
 	// Settings holds the timeouts of the HTTP server and its shutdown.
 	Settings    config.ServerConfig
 	Router      *mux.Router
@@ -75,11 +80,15 @@ const HealthPath = config.ReservedPathPrefix + "health"
 func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws Plugins, scopeCheck ScopeCheck) (*Server, error) {
 	server := &Server{
 		Addr:        cfg.ListenAddr(),
+		MetricsAddr: cfg.MetricsAddr(),
 		Settings:    cfg.Server,
 		Router:      router,
 		Middlewares: mws,
 		NewProxy:    newProxy,
 		ScopeCheck:  scopeCheck,
+	}
+	if server.MetricsAddr != "" {
+		server.Metrics = metrics.New()
 	}
 	if err := server.SetupRoutes(cfg); err != nil {
 		return nil, err
@@ -122,7 +131,13 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 		if err != nil {
 			return fmt.Errorf("service %q: %w", name, err)
 		}
-		upstream = breaker.Wrap(name, cfg.Server.CircuitBreaker, upstream)
+		var observers []func(int64)
+		if s.Metrics != nil {
+			service := name
+			s.Metrics.BreakerState(service, metrics.BreakerClosed)
+			observers = append(observers, func(state int64) { s.Metrics.BreakerState(service, state) })
+		}
+		upstream = breaker.Wrap(name, cfg.Server.CircuitBreaker, upstream, observers...)
 
 		for _, endpoint := range service.Endpoints {
 			route := cfg.RouteSettings(name, endpoint)
@@ -145,6 +160,9 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 				target = rewritePath(path, endpoint.UpstreamPath, upstream)
 			}
 			handler := s.chain(plugins, route, target, afterAuth)
+			if s.Metrics != nil {
+				handler = s.Metrics.Middleware(name, full)(handler)
+			}
 			routes = append(routes, pendingRoute{path: path, method: strings.ToUpper(endpoint.HTTPMethod), handler: handler})
 			if slices.Contains(plugins, config.PluginCORS) && !hasOptions[full] {
 				routes = append(routes, pendingRoute{path: path, method: http.MethodOptions, handler: handler})
@@ -204,7 +222,30 @@ func (s *Server) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if s.MetricsAddr != "" {
+		metricsListener, err := net.Listen("tcp", s.MetricsAddr)
+		if err != nil {
+			listener.Close()
+			return fmt.Errorf("metrics: %w", err)
+		}
+		stop := s.serveMetrics(metricsListener)
+		defer stop()
+	}
 	return s.Serve(ctx, listener)
+}
+
+// serveMetrics serves Metrics at /metrics on listener until the returned
+// function is called.
+func (s *Server) serveMetrics(listener net.Listener) (stop func()) {
+	mux := http.NewServeMux()
+	mux.Handle("GET /metrics", s.Metrics)
+	metricsServer := &http.Server{Handler: mux, ReadHeaderTimeout: s.Settings.ReadHeaderTimeout}
+	go func() {
+		if err := metricsServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			log.Printf("metrics: %v", err)
+		}
+	}()
+	return func() { metricsServer.Close() }
 }
 
 // Serve serves requests on listener until ctx is cancelled. It then stops

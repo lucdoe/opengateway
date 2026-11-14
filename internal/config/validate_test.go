@@ -376,3 +376,18 @@ func TestUsesPlugin(t *testing.T) {
 	assert.False(t, cfg.UsesPlugin(config.PluginCORS))
 	assert.False(t, cfg.UsesPlugin(config.PluginRateLimit))
 }
+
+func TestValidateMetricsPort(t *testing.T) {
+	cfg := validConfig()
+	assert.Empty(t, cfg.MetricsAddr(), "off by default")
+
+	cfg.Server.MetricsPort = 9090
+	assert.NoError(t, cfg.Validate())
+	assert.Equal(t, ":9090", cfg.MetricsAddr())
+
+	cfg.Server.MetricsPort = 70000
+	assert.ErrorContains(t, cfg.Validate(), "Server.MetricsPort 70000 must be between 1 and 65535, or 0 for no metrics")
+
+	cfg.Server.MetricsPort = cfg.Server.Port
+	assert.ErrorContains(t, cfg.Validate(), "must differ from Server.Port, so metrics can stay inside the network")
+}

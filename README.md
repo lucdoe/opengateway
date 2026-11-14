@@ -204,6 +204,7 @@ These settings are optional. An environment variable, where one exists, override
 | Config key                    | Environment variable | Default     | Meaning                                                         |
 | ----------------------------- | -------------------- | ----------- | --------------------------------------------------------------- |
 | `Server.Port`                 | `PORT`               | `4000`      | Port the gateway listens on                                     |
+| `Server.MetricsPort`          |                      | `0` (off)   | Port that serves Prometheus metrics at `/metrics`, see [Metrics](#metrics) |
 | `Server.ReadHeaderTimeout`    |                      | `10s`       | Time a client has to send its request headers                   |
 | `Server.IdleTimeout`          |                      | `120s`      | How long an idle keep-alive connection stays open               |
 | `Server.ShutdownTimeout`      |                      | `15s`       | Time requests in flight get to finish when the gateway stops    |
@@ -226,6 +227,18 @@ When the gateway answers a request itself, rather than passing on the upstream's
 Every request carries an `X-Request-ID`: the one the client sent, if it is 1 to 128 visible ASCII characters, or else a new random one. The gateway sends it to the service, writes it in the log line and returns it on the response, also on errors it answers itself.
 
 On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets requests in flight finish, and exits.
+
+### Metrics
+
+With `Server.MetricsPort` set, the gateway serves Prometheus metrics at `/metrics` on that port. It's a port of its own, so you can keep it inside your network: the metrics name every service and route.
+
+| Metric | Type | Labels |
+| --- | --- | --- |
+| `opengateway_requests_total` | counter | `service`, `route`, `method`, `status` |
+| `opengateway_request_duration_seconds` | histogram, 1 ms to 10 s | `service`, `route` |
+| `opengateway_circuit_breaker_state` | gauge: `0` closed, `1` half-open, `2` open | `service` |
+
+Every answer counts, including ones from the gateway itself, such as a `429` or `503`. `route` is the path as configured, like `/api/users/{id}`, not the request path.
 
 ## Performance
 
