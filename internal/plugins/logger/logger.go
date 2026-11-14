@@ -52,14 +52,15 @@ type OSLogger struct {
 	timeProvider TimeProvider
 }
 
-func NewLogger(cfg LoggerConfig) Logger {
+// NewLogger opens the log file at cfg.FilePath for appending, creating it if
+// needed, and returns a logger that writes to it.
+func NewLogger(cfg LoggerConfig) (Logger, error) {
 	cfg.setDefaults()
 
 	var err error
 	cfg.FileWriter, err = cfg.FileOpener.OpenFile(cfg.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		panic(err)
-
+		return nil, fmt.Errorf("opening log file %q: %w", cfg.FilePath, err)
 	}
 
 	return &OSLogger{
@@ -67,7 +68,7 @@ func NewLogger(cfg LoggerConfig) Logger {
 		file:         cfg.FileWriter,
 		errOutput:    cfg.ErrOutput,
 		timeProvider: cfg.TimeProvider,
-	}
+	}, nil
 }
 
 func (l *OSLogger) Info(msg string, details string) {
