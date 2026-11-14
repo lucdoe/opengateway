@@ -1,4 +1,7 @@
-# Auth
+---
+title: Auth
+description: JWT auth with a shared secret or an identity provider's JWKS, scopes, and warnings for risky settings.
+---
 
 Add `auth` to an endpoint's `Plugins`, or a service's for all its endpoints, to require a `Bearer` JWT. A token is accepted when:
 

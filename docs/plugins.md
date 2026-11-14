@@ -1,4 +1,7 @@
-# Plugins
+---
+title: Plugins
+description: Logging, CORS, rate limits per IP, header or user, and a shared response cache.
+---
 
 A service's `Plugins` run for each of its endpoints, an endpoint's in addition. They run in the order of this table, whatever order you list them in, and their settings live under `Plugins` in the config. A service or endpoint can change a plugin's settings for itself with [`Settings`](configuration.md#settings-per-service-and-endpoint).
 

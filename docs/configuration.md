@@ -1,4 +1,7 @@
-# Configuration
+---
+title: Configuration
+description: Services, routes, path rewrites, per-route settings, environment variables, and the server and store settings.
+---
 
 Everything is configured in one YAML file. The gateway reads it from the path given with `-c`, else from `CONFIG_PATH`, else from `./cmd/opengateway/config.yaml`. It's validated at startup: an unknown key or an invalid value stops the gateway with a list of every problem, and a key that has been renamed or removed says what to write instead.
 

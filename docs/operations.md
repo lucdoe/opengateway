@@ -1,4 +1,7 @@
-# Operations
+---
+title: Operations
+description: Health check, request IDs, error responses, the circuit breaker, Prometheus metrics and shutdown.
+---
 
 ## Health check
 

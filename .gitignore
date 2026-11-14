@@ -32,3 +32,8 @@ go.work
 
 # Local coverage report
 .coverage.html
+
+# Docs site (site/)
+site/node_modules/
+site/dist/
+site/.astro/
