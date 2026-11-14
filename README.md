@@ -44,6 +44,14 @@ To validate a config without starting the gateway, for example in CI, run `check
 go run ./cmd/opengateway check -c path/to/config.yaml
 ```
 
+Both `check` and startup print warnings for settings that are valid but risky. They don't stop the gateway or fail `check`. All of them only apply when auth is used:
+
+| Warning | Why |
+| --- | --- |
+| `SecretKey` is the example secret, or shorter than 32 bytes | Anyone can forge tokens with a known secret. HS256 needs 256 bits to resist guessing. |
+| `Issuer` or `Audience` is empty | Tokens from other issuers, or meant for other services that share the secret, are accepted. |
+| A service with auth endpoints has a plain `http://` URL to an outside host | The token is forwarded unencrypted. Loopback and private addresses, names without a dot (like a Compose service) and `.local`, `.internal`, `.lan`, `.svc` and `.localhost` names count as inside. |
+
 ### Services
 
 Each service has an upstream `URL`, a list of `Endpoints`, and optionally a `Subpath` (starting with `/`, not ending with one) and `Plugins`.

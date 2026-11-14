@@ -76,6 +76,22 @@ Services:
 	assert.Contains(t, stderr, `HTTPMethod "FETCH" is not one of`)
 }
 
+func TestCheckPrintsWarningsButPasses(t *testing.T) {
+	path := writeConfig(t, `
+Plugins: {JWTConfig: {SecretKey: your-256-bit-secret, Issuer: auth, Audience: gateway}}
+Services:
+  users:
+    URL: http://users.example.com
+    Endpoints: [{HTTPMethod: GET, Path: /me, Auth: {ApplyAuth: true}}]
+`)
+	code, stdout, stderr := runCLI("check", "-c", path)
+
+	assert.Equal(t, 0, code, "warnings do not fail the check")
+	assert.Contains(t, stdout, "is valid: 1 services, 1 endpoints")
+	assert.Equal(t, "warning: Plugins.JWTConfig.SecretKey is the example secret from the docs, so anyone can sign tokens with it; set your own, for example with JWT_SECRET\n"+
+		"warning: service \"users\": tokens are forwarded over plain http to users.example.com; use https\n", stderr)
+}
+
 func TestCheckReportsAMissingFile(t *testing.T) {
 	code, _, stderr := runCLI("check", "-c", filepath.Join(t.TempDir(), "missing.yaml"))
 
