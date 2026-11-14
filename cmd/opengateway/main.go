@@ -64,27 +64,23 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 	return server.NewServer(cfg, deps.router, deps.newProxy, plugins)
 }
 
-func main() {
-	redisHost := os.Getenv("REDIS_HOST")
-	redisPort := os.Getenv("REDIS_PORT")
-	if redisHost == "" || redisPort == "" {
-		redisHost = "localhost"
-		redisPort = "6379"
+func connectRedis(cfg config.RedisConfig) (cache.Cache, error) {
+	store, err := cache.NewRedisCache(cache.CacheConfig{
+		Addr:     cfg.Addr(),
+		Password: cfg.Password,
+	})
+	if err != nil {
+		return nil, err
 	}
+	return store, nil
+}
+
+func main() {
 	deps := ServerDependencies{
 		configLoader: &DefaultConfigLoader{},
 		router:       mux.NewRouter(),
 		newProxy:     proxy.NewHandler,
-		newStore: func() (cache.Cache, error) {
-			store, err := cache.NewRedisCache(cache.CacheConfig{
-				Addr:     redisHost + ":" + redisPort,
-				Password: "",
-			})
-			if err != nil {
-				return nil, err
-			}
-			return store, nil
-		},
+		newStore:     connectRedis,
 	}
 
 	server, err := InitializeServer(deps)
@@ -92,6 +88,7 @@ func main() {
 		log.Fatalf("Failed to initialize the server: %v", err)
 	}
 
+	log.Printf("Listening on %s", server.Addr)
 	if err := server.Run(); err != nil {
 		log.Fatalf("Failed to run the server: %v", err)
 	}

@@ -29,7 +29,7 @@ import (
 
 // storeFactory connects to the store shared by the cache and rate-limit
 // plugins.
-type storeFactory func() (cache.Cache, error)
+type storeFactory func(cfg config.RedisConfig) (cache.Cache, error)
 
 // buildPlugins creates the plugins that some service or endpoint in cfg uses,
 // and only those. A plugin that is not used is not built, so its settings do
@@ -46,7 +46,7 @@ func buildPlugins(cfg *config.Config, newStore storeFactory) (map[string]server.
 		if store != nil {
 			return store, nil
 		}
-		connected, err := newStore()
+		connected, err := newStore(cfg.Redis)
 		if err != nil {
 			return nil, err
 		}

@@ -42,6 +42,8 @@ func (dsr *DefaultServerRunner) ListenAndServe(addr string, handler http.Handler
 }
 
 type Server struct {
+	// Addr is the address Run listens on, for example ":4000".
+	Addr        string
 	Router      *mux.Router
 	Middlewares map[string]Middleware
 	NewProxy    ProxyFactory
@@ -61,6 +63,7 @@ var pluginOrder = []string{
 
 func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware) (*Server, error) {
 	server := &Server{
+		Addr:        cfg.ListenAddr(),
 		Router:      router,
 		Middlewares: mws,
 		NewProxy:    newProxy,
@@ -137,5 +140,5 @@ func (s *Server) chain(plugins []string, handler http.Handler) http.Handler {
 }
 
 func (s *Server) Run() error {
-	return s.Runner.ListenAndServe(":4000", s.Router)
+	return s.Runner.ListenAndServe(s.Addr, s.Router)
 }

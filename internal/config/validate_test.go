@@ -28,6 +28,8 @@ import (
 // validation. Tests break one thing at a time.
 func validConfig() *config.Config {
 	return &config.Config{
+		Server: config.ServerConfig{Port: 4000},
+		Redis:  config.RedisConfig{Host: "localhost", Port: 6379},
 		Plugins: config.PluginConfig{
 			LoggerConfig:    config.LoggerConfig{FilePath: "server.log"},
 			JWTConfig:       config.JWTConfig{SecretKey: "secret", SigningMethod: "HS256"},
@@ -131,6 +133,39 @@ func TestValidateRejectsTheSameRouteInTwoServices(t *testing.T) {
 	assert.NotContains(t, err.Error(), "Other Delete")
 }
 
+func TestValidateServerAndRedisSettings(t *testing.T) {
+	tests := []struct {
+		name     string
+		edit     func(c *config.Config)
+		expected string
+	}{
+		{"port of zero", func(c *config.Config) { c.Server.Port = 0 }, "Server.Port 0 must be between 1 and 65535"},
+		{"port too large", func(c *config.Config) { c.Server.Port = 70000 }, "Server.Port 70000 must be between 1 and 65535"},
+		{"negative port", func(c *config.Config) { c.Server.Port = -1 }, "Server.Port -1 must be between 1 and 65535"},
+		{"redis without host", func(c *config.Config) { c.Redis.Host = "" }, "Redis.Host is required"},
+		{"redis port too large", func(c *config.Config) { c.Redis.Port = 70000 }, "Redis.Port 70000 must be between 1 and 65535"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			tc.edit(cfg)
+
+			assert.ErrorContains(t, cfg.Validate(), tc.expected)
+		})
+	}
+}
+
+func TestValidateIgnoresRedisSettingsWhenNoPluginNeedsRedis(t *testing.T) {
+	cfg := validConfig()
+	service := cfg.Services["api"]
+	service.Plugins = []string{"logger", "cors"}
+	cfg.Services["api"] = service
+	cfg.Redis = config.RedisConfig{}
+
+	assert.NoError(t, cfg.Validate())
+}
+
 func TestValidateRejectsAnEmptyConfig(t *testing.T) {
 	assert.ErrorContains(t, (&config.Config{}).Validate(), "no services are configured")
 }
@@ -169,6 +204,8 @@ func TestValidatePluginSettings(t *testing.T) {
 
 func TestValidateIgnoresSettingsOfUnusedPlugins(t *testing.T) {
 	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 4000},
+		Redis:  config.RedisConfig{Host: "localhost", Port: 6379},
 		Services: map[string]config.Service{
 			"api": {
 				URL:       "https://example.com",
