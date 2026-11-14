@@ -24,6 +24,9 @@ import (
 	"github.com/lucdoe/opengateway/internal/config"
 )
 
+// Middleware wraps a handler with one plugin's behaviour.
+type Middleware func(next http.Handler) http.Handler
+
 // ProxyFactory builds the handler that forwards requests to the upstream at
 // target. It is called once per service when routes are set up.
 type ProxyFactory func(target string) (http.Handler, error)

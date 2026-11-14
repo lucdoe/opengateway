@@ -15,6 +15,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -38,14 +39,14 @@ type JWTConfig struct {
 	Scope         string
 }
 
-func NewAuthService(config JWTConfig) *Auth {
+func NewAuthService(config JWTConfig) (*Auth, error) {
 	if len(config.SecretKey) == 0 {
-		panic("secret key must not be empty")
+		return nil, errors.New("secret key must not be empty")
 	}
 	if config.SigningMethod == nil {
-		panic("signing method must not be nil")
+		return nil, errors.New("signing method must not be nil")
 	}
-	return &Auth{config: config}
+	return &Auth{config: config}, nil
 }
 
 func (j *Auth) Validate(tokenStr string) (jwt.Claims, error) {
