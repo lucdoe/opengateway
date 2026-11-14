@@ -48,9 +48,13 @@ type Server struct {
 // pluginOrder is the order plugins run in for a request, outermost first.
 // Auth runs before cache so a cached response is never served to a caller
 // that has not been authenticated.
-var pluginOrder = []string{"logger", "cors", "rate-limit", authPlugin, "cache"}
-
-const authPlugin = "auth"
+var pluginOrder = []string{
+	config.PluginLogger,
+	config.PluginCORS,
+	config.PluginRateLimit,
+	config.PluginAuth,
+	config.PluginCache,
+}
 
 func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware) (*Server, error) {
 	server := &Server{
@@ -103,7 +107,7 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 func (s *Server) endpointPlugins(service config.Service, endpoint config.Endpoint) ([]string, error) {
 	requested := append(append([]string{}, service.Plugins...), endpoint.Plugins...)
 	if endpoint.Auth.ApplyAuth {
-		requested = append(requested, authPlugin)
+		requested = append(requested, config.PluginAuth)
 	}
 
 	for _, name := range requested {
