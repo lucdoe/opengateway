@@ -82,7 +82,7 @@ Plugins: {JWTConfig: {SecretKey: your-256-bit-secret, Issuer: auth, Audience: ga
 Services:
   users:
     URL: http://users.example.com
-    Endpoints: [{HTTPMethod: GET, Path: /me, Auth: {ApplyAuth: true}}]
+    Endpoints: [{HTTPMethod: GET, Path: /me, Plugins: [auth]}]
 `)
 	code, stdout, stderr := runCLI("check", "-c", path)
 

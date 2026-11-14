@@ -22,7 +22,7 @@ func authConfig(t *testing.T, url string, jwt config.JWTConfig) *config.Config {
 	return &config.Config{
 		Plugins: config.PluginConfig{JWTConfig: jwt},
 		Services: map[string]config.Service{
-			"users": {URL: url, Endpoints: []config.Endpoint{{HTTPMethod: "GET", Path: "/me", Auth: config.AuthConfig{ApplyAuth: true}}}},
+			"users": {URL: url, Endpoints: []config.Endpoint{{HTTPMethod: "GET", Path: "/me", Plugins: []string{"auth"}}}},
 		},
 	}
 }

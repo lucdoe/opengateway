@@ -95,7 +95,7 @@ func (c *Config) Validate() error {
 }
 
 // UsesPlugin reports whether any service or endpoint enables the named
-// plugin. Auth also counts as used when an endpoint sets ApplyAuth.
+// plugin.
 func (c *Config) UsesPlugin(name string) bool {
 	for _, service := range c.Services {
 		if service.UsesPlugin(name) {
@@ -112,7 +112,7 @@ func (s Service) UsesPlugin(name string) bool {
 		return true
 	}
 	for _, endpoint := range s.Endpoints {
-		if slices.Contains(endpoint.Plugins, name) || (name == PluginAuth && endpoint.Auth.ApplyAuth) {
+		if slices.Contains(endpoint.Plugins, name) {
 			return true
 		}
 	}
@@ -231,9 +231,9 @@ func (v *validation) service(name string, service Service, routes map[string]str
 
 		v.plugins(endpointLabel, endpoint.Plugins)
 
-		usesAuth := endpoint.Auth.ApplyAuth || slices.Contains(service.Plugins, PluginAuth) || slices.Contains(endpoint.Plugins, PluginAuth)
-		if endpoint.Auth.Scope != "" && !usesAuth {
-			v.addf("%s: Auth.Scope needs auth: set Auth.ApplyAuth or add the auth plugin", endpointLabel)
+		usesAuth := slices.Contains(service.Plugins, PluginAuth) || slices.Contains(endpoint.Plugins, PluginAuth)
+		if endpoint.Scope != "" && !usesAuth {
+			v.addf("%s: Scope needs auth: add \"auth\" to the endpoint's or the service's Plugins", endpointLabel)
 		}
 
 		if validMethod && validPath {

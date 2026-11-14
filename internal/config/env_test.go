@@ -141,8 +141,7 @@ Services:
       - Name: "Items"
         HTTPMethod: "GET"
         Path: "/items"
-        Auth:
-          ApplyAuth: true
+        Plugins: ["auth"]
 `
 	clearEnvironment(t)
 
