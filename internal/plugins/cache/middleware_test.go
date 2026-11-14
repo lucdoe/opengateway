@@ -176,8 +176,14 @@ func TestCacheSkipsRequestsAndResponsesThatMustNotBeShared(t *testing.T) {
 	}{
 		{name: "POST request", method: "POST", respond: ok},
 		{name: "HEAD request", method: "HEAD", respond: ok},
-		{name: "request with Authorization", method: "GET", respond: ok,
+		{name: "request with Authorization, response not marked shareable", method: "GET", respond: ok,
 			edit: func(r *http.Request) { r.Header.Set("Authorization", "Bearer token") }},
+		{name: "request with Authorization, response with max-age only", method: "GET",
+			respond: respondWith(http.StatusOK, "Cache-Control", "max-age=60"),
+			edit:    func(r *http.Request) { r.Header.Set("Authorization", "Bearer token") }},
+		{name: "request with Authorization, public but private too", method: "GET",
+			respond: respondWith(http.StatusOK, "Cache-Control", "public, private"),
+			edit:    func(r *http.Request) { r.Header.Set("Authorization", "Bearer token") }},
 		{name: "request with a cookie", method: "GET", respond: ok,
 			edit: func(r *http.Request) { r.AddCookie(&http.Cookie{Name: "session", Value: "alice"}) }},
 		{name: "404 response", method: "GET", respond: respondWith(http.StatusNotFound, "", "")},
@@ -220,6 +226,39 @@ func TestCacheSkipsRequestsAndResponsesThatMustNotBeShared(t *testing.T) {
 			assert.Empty(t, store.values, "nothing may be stored")
 		})
 	}
+}
+
+func TestCacheSharesAuthorizedResponsesTheUpstreamMarksShareable(t *testing.T) {
+	alice := func(r *http.Request) { r.Header.Set("Authorization", "Bearer alice") }
+	bob := func(r *http.Request) { r.Header.Set("Authorization", "Bearer bob") }
+
+	for _, cacheControl := range []string{"public", "public, max-age=60", "s-maxage=60", "max-age=5, S-MAXAGE=60"} {
+		t.Run(cacheControl, func(t *testing.T) {
+			upstream := &countingUpstream{respond: respondWith(http.StatusOK, "Cache-Control", cacheControl)}
+			handler := NewMiddleware(newMemoryStore())(upstream)
+
+			get(handler, "/api/catalog", alice)
+			hit := get(handler, "/api/catalog", bob)
+
+			assert.Equal(t, 1, upstream.calls)
+			assert.Equal(t, "HIT", hit.Header().Get("X-Cache"))
+		})
+	}
+}
+
+// A response stored for a request without Authorization was only allowed to
+// be shared with such requests, unless it says otherwise.
+func TestCacheDoesNotServeAnAnonymousEntryToAnAuthorizedRequest(t *testing.T) {
+	upstream := &countingUpstream{respond: respondWith(http.StatusOK, "Cache-Control", "max-age=60")}
+	handler := NewMiddleware(newMemoryStore())(upstream)
+
+	get(handler, "/api/people")
+	authorized := get(handler, "/api/people", func(r *http.Request) { r.Header.Set("Authorization", "Bearer alice") })
+	anonymous := get(handler, "/api/people")
+
+	assert.Equal(t, 2, upstream.calls)
+	assert.Equal(t, "MISS", authorized.Header().Get("X-Cache"))
+	assert.Equal(t, "HIT", anonymous.Header().Get("X-Cache"), "the stored entry still serves requests without Authorization")
 }
 
 func TestCacheStoresResponsesThatOnlyVaryOnAcceptEncoding(t *testing.T) {

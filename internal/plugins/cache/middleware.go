@@ -36,9 +36,11 @@ type middleware struct {
 
 // NewMiddleware returns the cache plugin. It is a shared response cache: one
 // stored response is served to every client that sends an equivalent request.
-// To keep that safe it only handles GET requests without an Authorization or
-// Cookie header and only stores responses that are not specific to one
-// caller, no longer than their Cache-Control allows.
+// To keep that safe it only handles GET requests without a Cookie header and
+// only stores responses that are not specific to one caller, no longer than
+// their Cache-Control allows. A request with an Authorization header is only
+// answered from, and stored in, the cache when the response says it may be
+// shared anyway, with public or s-maxage (RFC 9111, section 3.5).
 func NewMiddleware(store Cache) func(http.Handler) http.Handler {
 	return (&middleware{store: store}).wrap
 }
@@ -50,8 +52,13 @@ func (cm *middleware) wrap(next http.Handler) http.Handler {
 			return
 		}
 
+		// The auth plugin runs before the cache, so the caller has been
+		// checked. What is left to rule out is a response meant for one user.
+		authorized := r.Header.Get("Authorization") != ""
+		shareable := func(header http.Header) bool { return !authorized || sharedDespiteAuthorization(header) }
+
 		key := cacheKey(r)
-		if cached, ok := cm.lookup(key); ok {
+		if cached, ok := cm.lookup(key); ok && shareable(cached.header) {
 			writeCached(w, cached)
 			return
 		}
@@ -69,7 +76,7 @@ func (cm *middleware) wrap(next http.Handler) http.Handler {
 			return
 		}
 		answered := upstreamHeader(rec.Header(), ownHeaders)
-		if ttl, ok := storeFor(answered); ok {
+		if ttl, ok := storeFor(answered); ok && shareable(answered) {
 			cm.save(key, answered, rec.body.Bytes(), ttl)
 		}
 	})
@@ -86,7 +93,20 @@ func cacheKey(r *http.Request) string {
 func cacheableRequest(r *http.Request) bool {
 	// A cookie can make the upstream answer for one user only, without saying
 	// so in Vary, so such requests are never shared.
-	return r.Method == http.MethodGet && r.Header.Get("Authorization") == "" && r.Header.Get("Cookie") == ""
+	return r.Method == http.MethodGet && r.Header.Get("Cookie") == ""
+}
+
+// sharedDespiteAuthorization reports whether a response to a request with
+// an Authorization header may be shared with other callers: only when its
+// Cache-Control says public or s-maxage. must-revalidate would allow it too,
+// but the cache does not revalidate.
+func sharedDespiteAuthorization(header http.Header) bool {
+	for _, directive := range headerTokens(header, "Cache-Control") {
+		if name, _, _ := strings.Cut(directive, "="); name == "public" || name == "s-maxage" {
+			return true
+		}
+	}
+	return false
 }
 
 // upstreamHeader returns the header values added after the earlier plugins
