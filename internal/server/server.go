@@ -100,19 +100,21 @@ func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mw
 //
 // A path with a cors endpoint also gets an OPTIONS route with that endpoint's
 // chain, so browser preflights reach the cors plugin, unless an endpoint
-// declares OPTIONS for the path itself.
+// declares OPTIONS, or any method, for the path itself.
 func (s *Server) SetupRoutes(cfg *config.Config) error {
+	// First, so a catch-all route never takes it.
 	s.Router.HandleFunc(HealthPath, health).Methods(http.MethodGet, http.MethodHead)
 
 	hasOptions := map[string]bool{}
 	for _, service := range cfg.Services {
 		for _, endpoint := range service.Endpoints {
-			if strings.EqualFold(endpoint.HTTPMethod, http.MethodOptions) {
+			if method := strings.ToUpper(endpoint.HTTPMethod); method == http.MethodOptions || method == config.AnyMethod {
 				hasOptions[service.Subpath+endpoint.Path] = true
 			}
 		}
 	}
 
+	var routes []pendingRoute
 	for _, name := range cfg.ServiceNames() {
 		service := cfg.Services[name]
 
@@ -136,15 +138,21 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 				afterAuth = s.ScopeCheck(scope)
 			}
 
-			handler := s.chain(plugins, route, upstream, afterAuth)
-			path := service.Subpath + endpoint.Path
-			s.Router.Handle(path, handler).Methods(endpoint.HTTPMethod)
-			if slices.Contains(plugins, config.PluginCORS) && !hasOptions[path] {
-				s.Router.Handle(path, handler).Methods(http.MethodOptions)
-				hasOptions[path] = true
+			full := service.Subpath + endpoint.Path
+			path := parsePath(full)
+			target := upstream
+			if endpoint.UpstreamPath != "" {
+				target = rewritePath(path, endpoint.UpstreamPath, upstream)
+			}
+			handler := s.chain(plugins, route, target, afterAuth)
+			routes = append(routes, pendingRoute{path: path, method: strings.ToUpper(endpoint.HTTPMethod), handler: handler})
+			if slices.Contains(plugins, config.PluginCORS) && !hasOptions[full] {
+				routes = append(routes, pendingRoute{path: path, method: http.MethodOptions, handler: handler})
+				hasOptions[full] = true
 			}
 		}
 	}
+	s.registerRoutes(routes)
 	return nil
 }
 

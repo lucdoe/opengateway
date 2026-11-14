@@ -15,8 +15,15 @@ import (
 
 var knownMethods = []string{
 	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
-	http.MethodPatch, http.MethodDelete, http.MethodOptions,
+	http.MethodPatch, http.MethodDelete, http.MethodOptions, AnyMethod,
 }
+
+// AnyMethod as an HTTPMethod matches every method.
+const AnyMethod = "*"
+
+// PrefixSuffix ends a Path that also matches every path below it, and an
+// UpstreamPath that takes what came after the prefix.
+const PrefixSuffix = "/*"
 
 // ReservedPathPrefix starts the paths the gateway answers itself, such as
 // /__health, so no service can route them.
@@ -136,6 +143,37 @@ func (v *validation) addf(format string, args ...any) {
 
 // service checks one service and its endpoints. routes maps every route seen
 // so far to the endpoint that declared it, to find duplicates.
+// pathVariableName matches the name in a {name} or {name:pattern}.
+var pathVariableName = regexp.MustCompile(`\{([^}:]+)(?::[^}]*)?\}`)
+
+// upstreamPath checks that an UpstreamPath can be filled in from the
+// endpoint's Path: every {name} it uses is in Path, and it ends in "/*" only
+// when Path does.
+func (v *validation) upstreamPath(label string, endpoint Endpoint) {
+	upstream := endpoint.UpstreamPath
+	if upstream == "" {
+		return
+	}
+	if !strings.HasPrefix(upstream, "/") {
+		v.addf("%s: UpstreamPath %q must start with \"/\"", label, upstream)
+	}
+	prefix := strings.HasSuffix(upstream, PrefixSuffix)
+	if strings.Contains(strings.TrimSuffix(upstream, PrefixSuffix), "*") {
+		v.addf("%s: UpstreamPath %q may only have * at the end, as %q", label, upstream, PrefixSuffix)
+	} else if prefix && !strings.HasSuffix(endpoint.Path, PrefixSuffix) {
+		v.addf("%s: UpstreamPath %q ends in %q, so Path must too", label, upstream, PrefixSuffix)
+	}
+	known := map[string]bool{}
+	for _, match := range pathVariableName.FindAllStringSubmatch(endpoint.Path, -1) {
+		known[match[1]] = true
+	}
+	for _, match := range pathVariableName.FindAllStringSubmatch(upstream, -1) {
+		if !known[match[1]] {
+			v.addf("%s: UpstreamPath %q uses {%s}, which Path %q does not have", label, upstream, match[1], endpoint.Path)
+		}
+	}
+}
+
 // endpointLabel names the i-th endpoint of a service in error messages, by
 // its Name if it has one.
 func endpointLabel(service string, i int, endpoint Endpoint) string {
@@ -186,7 +224,10 @@ func (v *validation) service(name string, service Service, routes map[string]str
 			v.addf("%s: Path %q must start with \"/\"", endpointLabel, endpoint.Path)
 		} else if full := service.Subpath + endpoint.Path; strings.HasPrefix(full, ReservedPathPrefix) {
 			v.addf("%s: path %s is reserved: paths starting with %s belong to the gateway", endpointLabel, full, ReservedPathPrefix)
+		} else if strings.Contains(strings.TrimSuffix(endpoint.Path, PrefixSuffix), "*") {
+			v.addf("%s: Path %q may only have * at the end, as %q", endpointLabel, endpoint.Path, PrefixSuffix)
 		}
+		v.upstreamPath(endpointLabel, endpoint)
 
 		v.plugins(endpointLabel, endpoint.Plugins)
 
