@@ -16,6 +16,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/lucdoe/opengateway/internal/config"
 	"github.com/stretchr/testify/assert"
@@ -35,6 +36,10 @@ Services:
 const explicitSettings = `
 Server:
   Port: 8080
+  ReadHeaderTimeout: 5s
+  IdleTimeout: 1m
+  ShutdownTimeout: 20s
+  UpstreamTimeout: 500ms
 Redis:
   Host: "redis.internal"
   Port: 6380
@@ -59,7 +64,13 @@ func TestParseAppliesDefaults(t *testing.T) {
 	cfg, err := config.Parse([]byte(minimalConfig))
 	require.NoError(t, err)
 
-	assert.Equal(t, config.ServerConfig{Port: 4000}, cfg.Server)
+	assert.Equal(t, config.ServerConfig{
+		Port:              4000,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		ShutdownTimeout:   15 * time.Second,
+		UpstreamTimeout:   30 * time.Second,
+	}, cfg.Server)
 	assert.Equal(t, config.RedisConfig{Host: "localhost", Port: 6379}, cfg.Redis)
 	assert.Equal(t, ":4000", cfg.ListenAddr())
 	assert.Equal(t, "localhost:6379", cfg.Redis.Addr())
@@ -72,6 +83,13 @@ func TestParseUsesTheFileOverDefaults(t *testing.T) {
 	cfg, err := config.Parse([]byte(explicitSettings))
 	require.NoError(t, err)
 
+	assert.Equal(t, config.ServerConfig{
+		Port:              8080,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       time.Minute,
+		ShutdownTimeout:   20 * time.Second,
+		UpstreamTimeout:   500 * time.Millisecond,
+	}, cfg.Server)
 	assert.Equal(t, ":8080", cfg.ListenAddr())
 	assert.Equal(t, "redis.internal:6380", cfg.Redis.Addr())
 	assert.Equal(t, "from-file", cfg.Redis.Password)
@@ -138,6 +156,28 @@ Services:
 	cfg, err := config.Parse([]byte(withAuth))
 	require.NoError(t, err)
 	assert.Equal(t, "from-env", cfg.Plugins.JWTConfig.SecretKey)
+}
+
+func TestParseRejectsInvalidTimeouts(t *testing.T) {
+	clearEnvironment(t)
+
+	tests := []struct {
+		name     string
+		server   string
+		expected string
+	}{
+		{"negative timeout", "Server:\n  UpstreamTimeout: -5s\n", "Server.UpstreamTimeout -5s must be greater than 0"},
+		{"not a duration", "Server:\n  IdleTimeout: soon\n", "cannot unmarshal"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := config.Parse([]byte(tc.server + minimalConfig))
+
+			assert.Nil(t, cfg)
+			assert.ErrorContains(t, err, tc.expected)
+		})
+	}
 }
 
 func TestParseRejectsInvalidEnvironmentValues(t *testing.T) {
