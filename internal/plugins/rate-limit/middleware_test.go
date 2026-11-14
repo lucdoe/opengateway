@@ -62,7 +62,7 @@ func TestMiddlewareCountsDownThenRejects(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 	assert.Equal(t, "0", rec.Header().Get("X-RateLimit-Remaining"))
 	assert.Equal(t, "2", rec.Header().Get("Retry-After"))
-	assert.Equal(t, "Rate limit exceeded\n", rec.Body.String())
+	assert.JSONEq(t, `{"message": "Rate limit exceeded"}`, rec.Body.String())
 }
 
 func TestMiddlewareCountsPerClientIP(t *testing.T) {

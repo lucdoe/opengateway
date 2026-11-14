@@ -121,6 +121,7 @@ func TestHandlerAnswersBadGatewayWhenUpstreamIsDown(t *testing.T) {
 	res := forward(t, target, httptest.NewRequest("GET", "http://gateway.test/api/people", nil))
 
 	assert.Equal(t, http.StatusBadGateway, res.StatusCode)
+	assert.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
 }
 
 // slowUpstream starts a test server that only answers once release is closed.
@@ -150,6 +151,7 @@ func TestHandlerAnswersGatewayTimeoutWhenUpstreamIsTooSlow(t *testing.T) {
 	handler.ServeHTTP(w, httptest.NewRequest("GET", "http://gateway.test/api/people", nil))
 
 	assert.Equal(t, http.StatusGatewayTimeout, w.Code)
+	assert.JSONEq(t, `{"message": "Gateway timeout"}`, w.Body.String())
 	assert.Less(t, time.Since(started), 2*time.Second)
 }
 

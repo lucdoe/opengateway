@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/lucdoe/opengateway/internal/httpx"
 )
 
 // NewHandler returns a handler that forwards every request it receives to
@@ -51,10 +53,10 @@ func NewHandler(target string, timeout time.Duration) (http.Handler, error) {
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("proxy: %s %s to %s failed: %v", r.Method, r.URL.Path, upstream.Host, err)
 			if isTimeout(err) {
-				http.Error(w, "Gateway timeout", http.StatusGatewayTimeout)
+				httpx.Error(w, http.StatusGatewayTimeout, "Gateway timeout")
 				return
 			}
-			http.Error(w, "Bad gateway", http.StatusBadGateway)
+			httpx.Error(w, http.StatusBadGateway, "Bad gateway")
 		},
 	}, nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
 	"github.com/lucdoe/opengateway/internal/plugins/auth"
+	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/lucdoe/opengateway/internal/store"
 	"github.com/lucdoe/opengateway/internal/store/memory"
 	"github.com/lucdoe/opengateway/internal/store/redisstore"
@@ -258,4 +259,66 @@ Services:
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "https://app.test", rec.Header().Get("Access-Control-Allow-Origin"))
+}
+
+// Every response the gateway answers itself, rather than the upstream, is
+// JSON with a message, whichever part of the gateway rejected the request.
+func TestInitializeServerAnswersErrorsAsJSON(t *testing.T) {
+	down := httptest.NewServer(http.NotFoundHandler())
+	down.Close()
+	cfg, err := config.Parse([]byte(`
+Server: {CircuitBreaker: {ConsecutiveFailures: 1}}
+Plugins:
+  CORSConfig: {Origins: "https://app.test", Methods: "GET"}
+  RateLimitConfig: {Limit: 1, Window: 1m}
+  JWTConfig: {SecretKey: test-secret}
+Services:
+  api:
+    URL: ` + down.URL + `
+    Plugins: [cors, rate-limit]
+    Endpoints:
+      - {HTTPMethod: GET, Path: /items}
+      - {HTTPMethod: GET, Path: /secure, Auth: {ApplyAuth: true}}
+`))
+	require.NoError(t, err)
+	s, err := InitializeServer(ServerDependencies{
+		loadConfig: loads(cfg, nil),
+		router:     mux.NewRouter(),
+		newProxy:   proxy.NewHandler,
+		newStore:   func(config.StoreConfig) (store.Store, error) { return memory.New(), nil },
+	}, "config.yaml")
+	require.NoError(t, err)
+
+	send := func(method, path, client, origin string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, nil)
+		req.RemoteAddr = client + ":1234"
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		rec := httptest.NewRecorder()
+		s.Router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	tests := []struct {
+		name    string
+		rec     *httptest.ResponseRecorder
+		status  int
+		message string
+	}{
+		{"unknown path", send("GET", "/missing", "10.0.0.1", ""), http.StatusNotFound, "Not found"},
+		{"unknown method", send("DELETE", "/items", "10.0.0.2", ""), http.StatusMethodNotAllowed, "Method not allowed"},
+		{"origin not allowed", send("GET", "/items", "10.0.0.3", "https://evil.test"), http.StatusForbidden, "CORS policy violation: Invalid Origin"},
+		{"no token", send("GET", "/secure", "10.0.0.4", ""), http.StatusUnauthorized, "Authorization header is required"},
+		{"upstream down", send("GET", "/items", "10.0.0.5", ""), http.StatusBadGateway, "Bad gateway"},
+		{"rate limited", send("GET", "/items", "10.0.0.5", ""), http.StatusTooManyRequests, "Rate limit exceeded"},
+		{"breaker open", send("GET", "/items", "10.0.0.6", ""), http.StatusServiceUnavailable, "Service unavailable"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.status, tc.rec.Code)
+			assert.Equal(t, "application/json; charset=utf-8", tc.rec.Header().Get("Content-Type"))
+			assert.JSONEq(t, `{"message": "`+tc.message+`"}`, tc.rec.Body.String())
+		})
+	}
 }

@@ -44,7 +44,7 @@ func NewMiddleware(l *Limiter) func(http.Handler) http.Handler {
 				reset := httpx.Seconds(resetIn)
 				setHeaders(w, 0, reset)
 				w.Header().Set("Retry-After", reset)
-				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+				httpx.Error(w, http.StatusTooManyRequests, "Rate limit exceeded")
 				return
 			case err != nil:
 				now := time.Now().UnixNano()

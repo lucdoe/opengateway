@@ -69,6 +69,7 @@ func TestWrapOpensAfterConsecutiveFailures(t *testing.T) {
 
 			assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 			assert.Equal(t, "90", w.Header().Get("Retry-After"))
+			assert.JSONEq(t, `{"message": "Service unavailable"}`, w.Body.String())
 			assert.Equal(t, int32(3), up.calls.Load(), "the open breaker does not call the upstream")
 		})
 	}
