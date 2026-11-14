@@ -55,7 +55,11 @@ func NewAuthService(config JWTConfig) (*Auth, error) {
 	if config.SigningMethod == nil {
 		return nil, errors.New("signing method must not be nil")
 	}
-	options := []jwt.ParserOption{jwt.WithValidMethods([]string{config.SigningMethod.Alg()})}
+	options := []jwt.ParserOption{
+		jwt.WithValidMethods([]string{config.SigningMethod.Alg()}),
+		// A token without exp would stay valid forever once leaked.
+		jwt.WithExpirationRequired(),
+	}
 	if config.Issuer != "" {
 		options = append(options, jwt.WithIssuer(config.Issuer))
 	}
@@ -69,7 +73,7 @@ func NewAuthService(config JWTConfig) (*Auth, error) {
 	}, nil
 }
 
-// Validate checks the token's signature, expiry, issuer and audience, then
+// Validate checks the token's signature, required expiry, issuer and audience, then
 // that it carries the configured scopes, which fails with ErrMissingScope.
 func (a *Auth) Validate(token string) (*Claims, error) {
 	claims := &Claims{}

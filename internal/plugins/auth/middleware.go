@@ -33,8 +33,8 @@ func NewMiddleware(v Validator) func(http.Handler) http.Handler {
 				http.Error(w, "Authorization header is required", http.StatusUnauthorized)
 				return
 			}
-			token, ok := strings.CutPrefix(authHeader, "Bearer ")
-			if !ok || token == "" || strings.Contains(token, " ") {
+			scheme, token, _ := strings.Cut(authHeader, " ")
+			if !strings.EqualFold(scheme, "Bearer") || token == "" || strings.Contains(token, " ") {
 				http.Error(w, "Authorization header must be Bearer token", http.StatusUnauthorized)
 				return
 			}
@@ -45,7 +45,8 @@ func NewMiddleware(v Validator) func(http.Handler) http.Handler {
 				http.Error(w, "Token lacks a required scope", http.StatusForbidden)
 				return
 			case err != nil:
-				http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
+				// Why it failed would help someone forging tokens, not the caller.
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
 

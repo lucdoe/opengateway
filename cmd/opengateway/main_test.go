@@ -181,8 +181,12 @@ Services:
 
 	token := func(issuer, scope string) string {
 		signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, auth.Claims{
-			RegisteredClaims: jwt.RegisteredClaims{Issuer: issuer, Audience: []string{"gateway"}},
-			Scope:            scope,
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    issuer,
+				Audience:  []string{"gateway"},
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+			},
+			Scope: scope,
 		}).SignedString([]byte("secret"))
 		require.NoError(t, err)
 		return signed
