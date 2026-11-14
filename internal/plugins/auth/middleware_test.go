@@ -15,67 +15,88 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/assert"
 )
 
-const (
-	validTokenStr = "valid-token"
-)
+// errAny marks a test case that expects some error other than ErrMissingScope.
+var errAny = errors.New("any error")
 
-type mockAuth struct{}
+type fakeValidator struct{}
 
-func (m *mockAuth) Validate(token string) (jwt.Claims, error) {
-	if token == validTokenStr {
-		claims := jwt.MapClaims{"user": "123", "role": "admin"}
-		return claims, nil
+func (fakeValidator) Validate(token string) (*Claims, error) {
+	switch token {
+	case "valid":
+		return &Claims{Scope: "read"}, nil
+	case "unscoped":
+		return nil, ErrMissingScope
 	}
-	return nil, errors.New("invalid token")
+	return nil, errors.New("bad signature")
 }
 
-func (m *mockAuth) ParseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
-	if tokenStr == validTokenStr {
-		return &jwt.RegisteredClaims{
-			Subject:  "123",
-			Issuer:   "test_issuer",
-			Audience: []string{"test_audience"},
-		}, nil
-	}
-	return nil, errors.New("invalid token")
-}
-
-func TestAuthMiddleware(t *testing.T) {
+func TestMiddleware(t *testing.T) {
 	tests := []struct {
-		name               string
-		token              string
-		expectedStatusCode int
+		name   string
+		header string
+		status int
 	}{
-		{"No Token", "", http.StatusUnauthorized},
-		{"Invalid Token", "invalid-token", http.StatusUnauthorized},
-		{"Valid Token", validTokenStr, http.StatusOK},
+		{"no header", "", http.StatusUnauthorized},
+		{"not a bearer token", "Basic abc", http.StatusUnauthorized},
+		{"invalid token", "Bearer nope", http.StatusUnauthorized},
+		{"token without the required scope", "Bearer unscoped", http.StatusForbidden},
+		{"valid token", "Bearer valid", http.StatusOK},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "http://example.com", nil)
-			if tt.token != "" {
-				req.Header.Set("Authorization", "Bearer "+tt.token)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var seen *Claims
+			handler := NewMiddleware(fakeValidator{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seen = claimsFrom(r.Context())
+			}))
+			req := httptest.NewRequest("GET", "/", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
 			}
 			rec := httptest.NewRecorder()
-			mockAuthService := &mockAuth{}
-			middleware := NewMiddleware(mockAuthService)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			}))
 
-			middleware.ServeHTTP(rec, req)
+			handler.ServeHTTP(rec, req)
 
-			if rec.Code != tt.expectedStatusCode {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatusCode, rec.Code)
+			assert.Equal(t, tc.status, rec.Code)
+			if tc.status == http.StatusOK {
+				assert.Equal(t, "read", seen.Scope, "claims reach the next handler")
 			}
+		})
+	}
+}
+
+func TestRequireScope(t *testing.T) {
+	tests := []struct {
+		name   string
+		claims *Claims
+		status int
+	}{
+		{"has every scope", &Claims{Scope: "read write"}, http.StatusOK},
+		{"lacks one", &Claims{Scope: "read"}, http.StatusForbidden},
+		{"auth did not run", nil, http.StatusForbidden},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := RequireScope("write read")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+			req := httptest.NewRequest("GET", "/", nil)
+			if tc.claims != nil {
+				req = req.WithContext(context.WithValue(req.Context(), claimsKey{}, tc.claims))
+			}
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			assert.Equal(t, tc.status, rec.Code)
 		})
 	}
 }

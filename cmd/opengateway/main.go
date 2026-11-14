@@ -24,6 +24,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/plugins/auth"
 	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/lucdoe/opengateway/internal/server"
 	"github.com/lucdoe/opengateway/internal/store"
@@ -66,7 +67,7 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 		return nil, err
 	}
 
-	s, err := server.NewServer(cfg, deps.router, deps.newProxy, plugins)
+	s, err := server.NewServer(cfg, deps.router, deps.newProxy, plugins, requireScope)
 	if err != nil {
 		for _, closer := range closers {
 			closer.Close()
@@ -92,6 +93,10 @@ func openStore(cfg config.StoreConfig) (store.Store, error) {
 	default:
 		return nil, fmt.Errorf("unknown store type %q", cfg.Type)
 	}
+}
+
+func requireScope(scope string) server.Middleware {
+	return auth.RequireScope(scope)
 }
 
 func main() {

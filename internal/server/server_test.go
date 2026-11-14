@@ -89,7 +89,7 @@ func TestSetupRoutes(t *testing.T) {
 	}
 
 	var calls []string
-	s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls))
+	s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls), nil)
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -152,7 +152,7 @@ func TestPluginsApplyOnlyToTheirOwnService(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls []string
-			s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls))
+			s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls), nil)
 			assert.NoError(t, err)
 
 			assert.Equal(t, http.StatusOK, serve(s, "GET", tc.path).Code)
@@ -188,7 +188,7 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls []string
-			s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls))
+			s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls), nil)
 			assert.NoError(t, err)
 
 			assert.Equal(t, http.StatusOK, serve(s, "GET", tc.path).Code)
@@ -200,7 +200,7 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 		var calls []string
 		mws := recordingMiddlewares(&calls)
 		mws["auth"] = (&recordingMiddleware{name: "auth", calls: &calls, reject: true}).Middleware
-		s, err := NewServer(cfg, mux.NewRouter(), okProxy, mws)
+		s, err := NewServer(cfg, mux.NewRouter(), okProxy, mws, nil)
 		assert.NoError(t, err)
 
 		assert.Equal(t, http.StatusUnauthorized, serve(s, "GET", "/private").Code)
@@ -210,6 +210,40 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 		assert.Equal(t, http.StatusOK, serve(s, "GET", "/open").Code)
 		assert.Equal(t, []string{"logger"}, calls)
 	})
+}
+
+// recordingScope stands in for auth.RequireScope and records "scope:<scope>".
+func recordingScope(calls *[]string) ScopeCheck {
+	return func(scope string) Middleware {
+		return (&recordingMiddleware{name: "scope:" + scope, calls: calls}).Middleware
+	}
+}
+
+func TestEndpointScopeRunsRightAfterAuth(t *testing.T) {
+	cfg := &config.Config{
+		Services: map[string]config.Service{
+			"api": {
+				Plugins: []string{"logger", "cache"},
+				Endpoints: []config.Endpoint{
+					{Name: "Admin", HTTPMethod: "GET", Path: "/admin", Auth: config.AuthConfig{ApplyAuth: true, Scope: "admin"}},
+					{Name: "Private", HTTPMethod: "GET", Path: "/private", Auth: config.AuthConfig{ApplyAuth: true}},
+				},
+			},
+		},
+	}
+	var calls []string
+	s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls), recordingScope(&calls))
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, serve(s, "GET", "/admin").Code)
+	assert.Equal(t, []string{"logger", "auth", "scope:admin", "cache"}, calls)
+
+	calls = nil
+	serve(s, "GET", "/private")
+	assert.Equal(t, []string{"logger", "auth", "cache"}, calls, "no scope, no check")
+
+	_, err = NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(new([]string)), nil)
+	assert.ErrorContains(t, err, `service "api", endpoint "Admin": Auth.Scope is set but no scope check is registered`)
 }
 
 func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
@@ -250,7 +284,7 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := &config.Config{Services: map[string]config.Service{"api": tc.service}}
 
-			s, err := NewServer(cfg, mux.NewRouter(), okProxy, tc.middlewares)
+			s, err := NewServer(cfg, mux.NewRouter(), okProxy, tc.middlewares, nil)
 
 			assert.Nil(t, s)
 			assert.ErrorContains(t, err, "unknown plugin")
@@ -262,7 +296,7 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 func TestNewServerListensOnTheConfiguredPort(t *testing.T) {
 	cfg := &config.Config{Server: config.ServerConfig{Port: 8443}}
 
-	s, err := NewServer(cfg, mux.NewRouter(), okProxy, map[string]Middleware{})
+	s, err := NewServer(cfg, mux.NewRouter(), okProxy, map[string]Middleware{}, nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, ":8443", s.Addr)
@@ -298,7 +332,7 @@ func TestSetupRoutesBuildsOneProxyPerService(t *testing.T) {
 		}), nil
 	}
 
-	s, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{})
+	s, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{}, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"http://localhost:3001", "https://swapi.dev"}, targets)
 
@@ -322,7 +356,7 @@ func TestSetupRoutesFailsWhenAProxyCannotBeBuilt(t *testing.T) {
 		return nil, errors.New("invalid upstream URL")
 	}
 
-	s, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{})
+	s, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{}, nil)
 
 	assert.Nil(t, s)
 	assert.ErrorContains(t, err, `service "broken": invalid upstream URL`)
@@ -350,7 +384,7 @@ func TestRoutesForwardPathParametersToTheUpstream(t *testing.T) {
 		},
 	}
 
-	s, err := NewServer(cfg, mux.NewRouter(), proxy.NewHandler, map[string]Middleware{})
+	s, err := NewServer(cfg, mux.NewRouter(), proxy.NewHandler, map[string]Middleware{}, nil)
 	assert.NoError(t, err)
 
 	for _, path := range []string{"/api/people/7", "/api/people?page=2"} {
@@ -376,7 +410,7 @@ func TestNewServerPassesTheUpstreamTimeoutToEveryProxy(t *testing.T) {
 		return http.NotFoundHandler(), nil
 	}
 
-	_, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{})
+	_, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{}, nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, []time.Duration{7 * time.Second, 7 * time.Second}, timeouts)
@@ -405,7 +439,7 @@ func TestEachServiceHasItsOwnCircuitBreaker(t *testing.T) {
 		}), nil
 	}
 	var calls []string
-	s, err := NewServer(cfg, mux.NewRouter(), newProxy, recordingMiddlewares(&calls))
+	s, err := NewServer(cfg, mux.NewRouter(), newProxy, recordingMiddlewares(&calls), nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusBadGateway, serve(s, "GET", "/down/a").Code)

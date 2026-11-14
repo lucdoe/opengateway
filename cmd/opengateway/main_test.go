@@ -18,14 +18,17 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/plugins/auth"
 	"github.com/lucdoe/opengateway/internal/store"
 	"github.com/lucdoe/opengateway/internal/store/memory"
 	"github.com/lucdoe/opengateway/internal/store/redisstore"
@@ -195,4 +198,69 @@ func TestOpenStoreOpensTheConfiguredType(t *testing.T) {
 		assert.Nil(t, s)
 		assert.ErrorContains(t, err, `unknown store type "memcached"`)
 	})
+}
+
+// The real auth plugin and scope check, wired the way main wires them.
+func TestInitializeServerEnforcesTokenClaims(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+Plugins:
+  JWTConfig:
+    SecretKey: secret
+    Issuer: issuer
+    Audience: gateway
+    Scope: read
+Services:
+  api:
+    URL: http://upstream.test
+    Endpoints:
+      - Name: Items
+        HTTPMethod: GET
+        Path: /items
+        Auth: {ApplyAuth: true}
+      - Name: Admin
+        HTTPMethod: GET
+        Path: /admin
+        Auth: {ApplyAuth: true, Scope: admin}
+`))
+	require.NoError(t, err)
+	loader := new(MockConfigLoader)
+	loader.On("LoadConfig", mock.Anything).Return(cfg, nil)
+	s, err := InitializeServer(ServerDependencies{
+		configLoader: loader,
+		router:       mux.NewRouter(),
+		newProxy: func(string, time.Duration) (http.Handler, error) {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), nil
+		},
+	})
+	require.NoError(t, err)
+
+	token := func(issuer, scope string) string {
+		signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, auth.Claims{
+			RegisteredClaims: jwt.RegisteredClaims{Issuer: issuer, Audience: []string{"gateway"}},
+			Scope:            scope,
+		}).SignedString([]byte("secret"))
+		require.NoError(t, err)
+		return signed
+	}
+	tests := []struct {
+		name, path, token string
+		status            int
+	}{
+		{"valid token", "/items", token("issuer", "read"), http.StatusOK},
+		{"wrong issuer", "/items", token("someone-else", "read"), http.StatusUnauthorized},
+		{"lacks the global scope", "/items", token("issuer", "admin"), http.StatusForbidden},
+		{"lacks the endpoint scope", "/admin", token("issuer", "read"), http.StatusForbidden},
+		{"has both scopes", "/admin", token("issuer", "read admin"), http.StatusOK},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tc.path, nil)
+			req.Header.Set("Authorization", "Bearer "+tc.token)
+			rec := httptest.NewRecorder()
+
+			s.Router.ServeHTTP(rec, req)
+
+			assert.Equal(t, tc.status, rec.Code)
+		})
+	}
 }
