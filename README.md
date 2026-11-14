@@ -1,95 +1,108 @@
-# OpenGateway - lightweight API Gateway
+# OpenGateway
 
 [![codecov](https://codecov.io/gh/lucdoe/opengateway/branch/main/graph/badge.svg?token=SDFO3CX9ZN)](https://codecov.io/gh/lucdoe/opengateway)
 [![Go Report Card](https://goreportcard.com/badge/github.com/lucdoe/opengateway)](https://goreportcard.com/report/github.com/lucdoe/opengateway)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![Build](https://github.com/lucdoe/opengateway/actions/workflows/ci.yml/badge.svg)
 
-Welcome to the OpenGateway repo, an lightweight API Gateway written in Go for small to mid-sized projects. Leveraging Go's performance and simplicity, this gateway ensures quick response times and reliable performance without the complexity of larger systems. It is open-source, avoiding vendor lock-in and allowing complete control over deployment and customization through simple YAMl config.
+A lightweight, open-source API gateway written in Go for small to mid-sized projects. You describe your services and the plugins they need in one YAML file; the gateway routes requests to them. No vendor lock-in, no control plane.
 
-You can easily extend its functionality with configurable plugins, and the setup is straightforward, with minimal configuration needed.
+See the [architecture overview](docs/README.md) for how it is built.
 
-Please also see the [architecture diagrams](https://github.com/lucdoe/opengateway/tree/main/docs) for an overview and better understanding of the architecture.
+## Quick start
 
-## Local setup
+```bash
+git clone https://github.com/lucdoe/opengateway.git
+cd opengateway
+```
 
-1. **Clone the repository:**
-   <br> SSH: `git clone git@github.com:lucdoe/opengateway.git`
-   <br>HTTPS: `git clone https://github.com/lucdoe/opengateway.git`
+Over SSH, clone `git@github.com:lucdoe/opengateway.git` instead.
 
-### Docker
+Edit [`cmd/opengateway/config.yaml`](cmd/opengateway/config.yaml) to describe your services, then start the gateway on port 4000 in one of two ways.
 
-Make sure you have Docker with Docker Compose installed on your machine. Docker recommends [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows and Mac users.
+**Docker** (needs Docker with Compose, for example [Docker Desktop](https://www.docker.com/products/docker-desktop/)). Starts the gateway and Redis:
 
-2. **Edit the `cmd/gateway/config.yaml` file to your needs**
-3. **Run Docker compose with `docker compose up`**
+```bash
+docker compose up --build
+```
 
-### Manual
+The config file is copied into the image, so rebuild after changing it.
 
-2. **Edit the `cmd/gateway/config.yaml` file to your needs**
-3. **Run the gateway with `go run cmd/gateway/main.go`**
+**Go** (needs Go 1.22 or newer, and Redis on `localhost:6379` if you use the `cache` or `rate-limit` plugin):
+
+```bash
+go run ./cmd/opengateway
+```
 
 ## Configuration
 
-The gateway is configured through `config.yaml`. The location of the file is taken from the `CONFIG_PATH` environment variable.
+Everything is configured in `config.yaml`. The gateway reads it from the path in `CONFIG_PATH`, or from `./cmd/opengateway/config.yaml` if that is not set. The file is validated at startup: an unknown key or an invalid value stops the gateway with a list of every problem.
 
-The following settings can also be set through the environment. A variable that is set takes precedence over the file, so secrets do not have to be written into it.
+### Services
 
-| Environment variable | Config key                    | Default     | Used for                                                        |
-| -------------------- | ----------------------------- | ----------- | --------------------------------------------------------------- |
-| `PORT`               | `Server.Port`                 | `4000`      | Port the gateway listens on                                     |
-| `REDIS_HOST`         | `Redis.Host`                  | `localhost` | Redis server, only needed for the `cache` and `rate-limit` plugins |
-| `REDIS_PORT`         | `Redis.Port`                  | `6379`      |                                                                 |
-| `REDIS_PASSWORD`     | `Redis.Password`              | empty       |                                                                 |
-| `JWT_SECRET`         | `Plugins.JWTConfig.SecretKey` | none        | Secret for validating tokens, only needed when auth is used     |
+Each service has an upstream `URL`, a list of `Endpoints`, and optionally a `Subpath` and `Plugins`.
 
-The gateway's own HTTP server has four timeouts, set under `Server` in the config file. Values are durations such as `500ms`, `10s` or `2m`.
+```yaml
+Services:
+  starwars:
+    URL: "https://swapi.dev"
+    Subpath: "/api"
+    Plugins: ["logger", "rate-limit"] # for every endpoint of this service
+    Endpoints:
+      - Name: "Get Person"
+        HTTPMethod: "GET"
+        Path: "/people/{id}"
+        Plugins: ["cache"] # in addition, for this endpoint only
+        Auth:
+          ApplyAuth: true # require a valid JWT
+```
 
-| Config key                 | Default | Meaning                                                                    |
-| -------------------------- | ------- | -------------------------------------------------------------------------- |
-| `Server.ReadHeaderTimeout` | `10s`   | Time a client has to send its request headers                              |
-| `Server.IdleTimeout`       | `120s`  | How long an idle keep-alive connection stays open                          |
-| `Server.ShutdownTimeout`   | `15s`   | Time requests in flight get to finish when the gateway is stopped          |
-| `Server.UpstreamTimeout`   | `30s`   | Time an upstream has to start answering before the gateway responds `504`  |
+With this config, `GET /api/people/7` on the gateway is forwarded to `https://swapi.dev/api/people/7`.
 
-On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets requests in flight finish and then exits.
+### Plugins
 
-The file is validated when the gateway starts. If it contains an unknown key or an invalid value, the gateway exits and lists every problem.
+Plugins run in the order of this table, whatever order you list them in. Their settings live under `Plugins` in the config file.
 
-## Metrics
+| Plugin       | What it does                                                                                                        | Settings          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `logger`     | Writes one line per request to a file.                                                                              | `LoggerConfig`    |
+| `cors`       | Rejects requests from origins that are not allowed and sets the CORS response headers.                              | `CORSConfig`      |
+| `rate-limit` | Allows each client IP `Limit` requests per `Window`, then answers `429`. Needs Redis.                               | `RateLimitConfig` |
+| `auth`       | Requires a `Bearer` JWT signed with HS256. Enabled per endpoint with `Auth.ApplyAuth: true`.                        | `JWTConfig`       |
+| `cache`      | Stores `200` responses to `GET` requests in Redis for 10 minutes and shares them between clients. Requests with an `Authorization` header are never cached. | none              |
 
-### Benchmark Results
+### Server and environment
 
-We conducted a performance benchmark using `hey` with the following parameters:
+These settings are optional. An environment variable, where one exists, overrides the config file, so secrets can stay out of it. Durations are written like `500ms`, `10s` or `2m`.
 
-- **Total Requests**: 50,000
-- **Concurrency Level**: 130
+| Config key                    | Environment variable | Default     | Meaning                                                         |
+| ----------------------------- | -------------------- | ----------- | --------------------------------------------------------------- |
+| `Server.Port`                 | `PORT`               | `4000`      | Port the gateway listens on                                     |
+| `Server.ReadHeaderTimeout`    |                      | `10s`       | Time a client has to send its request headers                   |
+| `Server.IdleTimeout`          |                      | `120s`      | How long an idle keep-alive connection stays open               |
+| `Server.ShutdownTimeout`      |                      | `15s`       | Time requests in flight get to finish when the gateway stops    |
+| `Server.UpstreamTimeout`      |                      | `30s`       | Time an upstream has to start answering before the gateway responds `504` |
+| `Redis.Host`                  | `REDIS_HOST`         | `localhost` | Redis server, only used by the `cache` and `rate-limit` plugins |
+| `Redis.Port`                  | `REDIS_PORT`         | `6379`      |                                                                 |
+| `Redis.Password`              | `REDIS_PASSWORD`     | empty       |                                                                 |
+| `Plugins.JWTConfig.SecretKey` | `JWT_SECRET`         | none        | Secret for validating tokens, only needed when auth is used     |
 
-#### Summary
+On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets requests in flight finish, and exits.
 
-- **Total Time**: 5.9502 seconds
-- **Requests per Second**: 8,389.5769
-- **Slowest Request**: 0.1654 seconds
-- **Average Request Time**: 0.0147 seconds
-- **Total Data Transferred**: 63,811,840 bytes
-- **Size per Request**: 1,278 bytes
+## Performance
 
-#### Status Code Distribution
+Benchmark with [`hey`](https://github.com/rakyll/hey), 50,000 requests at a concurrency of 130:
 
-- **200 OK**: 49,853 responses
+| Total time | Requests/s | Average | Slowest  | `200 OK` responses | Size per request | Total data       |
+| ---------- | ---------- | ------- | -------- | ------------------ | ---------------- | ---------------- |
+| 5.9502 s   | 8,389.5769 | 14.7 ms | 165.4 ms | 49,853             | 1,278 bytes      | 63,811,840 bytes |
 
-### Load testing (Locust)
+Load test with [Locust](https://locust.io/), 200 peak users, ramp of 50, 5 minutes, `GET /some-endpoint`:
 
-We have conducted load testing on our API Gateway using Locust (200 peaks, 50 ramps, 5m).
-
-| Type | Name           | Requests | Fails | Median (ms) | Average (ms) | Min (ms) | Max (ms) | Average size (bytes) | Current RPS | Current Failures/s |
-| ---- | -------------- | -------- | ----- | ----------- | ------------ | -------- | -------- | -------------------- | ----------- | ------------------ |
-| GET  | /some-endpoint | 15,532   | 0     | 4           | 4.93         | 1        | 76       | 1,280                | 66.8        | 0                  |
-
-The gateway performs well under the tested load, with no failures and consistent response times.
-
-These results clearly show the API Gateway's performance under load, highlighting its ability to handle many requests efficiently.
+| Requests | Fails | Median | Average | Min  | Max   | Average size | Requests/s | Failures/s |
+| -------- | ----- | ------ | ------- | ---- | ----- | ------------ | ---------- | ---------- |
+| 15,532   | 0     | 4 ms   | 4.93 ms | 1 ms | 76 ms | 1,280 bytes  | 66.8       | 0          |
 
 ## License
 
-The code of this repository is licensed under Apache v2.0. [Read License tldr](<https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)>) for a quick summary.
+Apache 2.0, see [LICENSE](LICENSE) or this [short summary](<https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)>). Licenses of the dependencies are in [LICENSES](LICENSES).

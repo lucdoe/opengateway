@@ -1,23 +1,15 @@
 # Security Policy
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-If you discover a vulnerability in our API Gateway project, please follow the guidelines below to report it:
+Please report vulnerabilities privately to the contributors, and do not disclose them publicly until they are fixed.
 
-1. **Contact Contributors**
+Include in your report:
 
-2. **What to Include in Your Report:**
-   - A detailed description of the vulnerability.
-   - Steps to reproduce the issue.
-   - Any potential impact of the vulnerability.
-   - Your contact information for follow-up.
+- a description of the vulnerability and its potential impact
+- steps to reproduce it
+- how we can contact you
 
-3. **Response:**
-   - We will provide an estimated timeline for addressing the vulnerability.
-   - You will be notified when the vulnerability has been fixed.
+We will reply with an estimated timeline for a fix and tell you when it is released. If you wish, we will credit you for the discovery.
 
-4. **Confidentiality:**
-   - Please do not publicly disclose the vulnerability until we have addressed it.
-   - We will credit you for the discovery of the vulnerability, if you wish.
-
-Thank you for helping to keep our project secure!
+Thank you for helping to keep the project secure.
