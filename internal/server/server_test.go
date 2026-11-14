@@ -15,32 +15,27 @@
 package server
 
 import (
+	"context"
 	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
 	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // okProxy stands in for a real upstream: it answers every request with 200.
-func okProxy(target string) (http.Handler, error) {
+func okProxy(target string, timeout time.Duration) (http.Handler, error) {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}), nil
-}
-
-type MockServerRunner struct {
-	mock.Mock
-}
-
-func (m *MockServerRunner) ListenAndServe(addr string, handler http.Handler) error {
-	args := m.Called(addr, handler)
-	return args.Error(0)
 }
 
 // recordingMiddleware appends its name to calls every time it runs. When
@@ -264,21 +259,6 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 	}
 }
 
-func TestServerRun(t *testing.T) {
-	mockRunner := new(MockServerRunner)
-	mockRunner.On("ListenAndServe", ":8080", mock.Anything).Return(nil)
-
-	s := Server{
-		Addr:   ":8080",
-		Router: mux.NewRouter(),
-		Runner: mockRunner,
-	}
-
-	err := s.Run()
-	assert.NoError(t, err)
-	mockRunner.AssertExpectations(t)
-}
-
 func TestNewServerListensOnTheConfiguredPort(t *testing.T) {
 	cfg := &config.Config{Server: config.ServerConfig{Port: 8443}}
 
@@ -311,7 +291,7 @@ func TestSetupRoutesBuildsOneProxyPerService(t *testing.T) {
 
 	var targets []string
 	served := map[string]string{}
-	newProxy := func(target string) (http.Handler, error) {
+	newProxy := func(target string, timeout time.Duration) (http.Handler, error) {
 		targets = append(targets, target)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			served[r.URL.Path] = target
@@ -338,7 +318,7 @@ func TestSetupRoutesFailsWhenAProxyCannotBeBuilt(t *testing.T) {
 			"broken": {URL: "not a url", Endpoints: []config.Endpoint{{Name: "Items", HTTPMethod: "GET", Path: "/items"}}},
 		},
 	}
-	newProxy := func(target string) (http.Handler, error) {
+	newProxy := func(target string, timeout time.Duration) (http.Handler, error) {
 		return nil, errors.New("invalid upstream URL")
 	}
 
@@ -379,4 +359,175 @@ func TestRoutesForwardPathParametersToTheUpstream(t *testing.T) {
 		assert.Equal(t, "from upstream", w.Body.String())
 	}
 	assert.Equal(t, []string{"/api/people/7", "/api/people?page=2"}, upstreamPaths)
+}
+
+func TestNewServerPassesTheUpstreamTimeoutToEveryProxy(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{UpstreamTimeout: 7 * time.Second},
+		Services: map[string]config.Service{
+			"a": {URL: "http://a.test", Endpoints: []config.Endpoint{{Name: "A", HTTPMethod: "GET", Path: "/a"}}},
+			"b": {URL: "http://b.test", Endpoints: []config.Endpoint{{Name: "B", HTTPMethod: "GET", Path: "/b"}}},
+		},
+	}
+
+	var timeouts []time.Duration
+	newProxy := func(target string, timeout time.Duration) (http.Handler, error) {
+		timeouts = append(timeouts, timeout)
+		return http.NotFoundHandler(), nil
+	}
+
+	_, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []time.Duration{7 * time.Second, 7 * time.Second}, timeouts)
+}
+
+// runningServer serves a single route, GET /slow, whose handler reports on
+// started and then blocks until release is closed.
+type runningServer struct {
+	url     string
+	started chan struct{}
+	release chan struct{}
+	stop    context.CancelFunc
+	result  chan error
+}
+
+func startServer(t *testing.T, settings config.ServerConfig) *runningServer {
+	t.Helper()
+	rs := &runningServer{
+		started: make(chan struct{}, 1),
+		release: make(chan struct{}),
+		result:  make(chan error, 1),
+	}
+
+	router := mux.NewRouter()
+	router.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {
+		rs.started <- struct{}{}
+		<-rs.release
+		w.Write([]byte("finished"))
+	})
+	router.HandleFunc("/fast", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	})
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	rs.url = "http://" + listener.Addr().String()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	rs.stop = cancel
+	t.Cleanup(cancel)
+
+	s := &Server{Settings: settings, Router: router}
+	go func() { rs.result <- s.Serve(ctx, listener) }()
+	return rs
+}
+
+func (rs *runningServer) waitForResult(t *testing.T) error {
+	t.Helper()
+	select {
+	case err := <-rs.result:
+		return err
+	case <-time.After(5 * time.Second):
+		t.Fatal("the server did not stop")
+		return nil
+	}
+}
+
+func TestServeAnswersRequestsUntilStopped(t *testing.T) {
+	rs := startServer(t, config.ServerConfig{ShutdownTimeout: time.Second})
+
+	res, err := http.Get(rs.url + "/fast")
+	require.NoError(t, err)
+	body, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	assert.Equal(t, "ok", string(body))
+
+	rs.stop()
+
+	assert.NoError(t, rs.waitForResult(t))
+	_, err = http.Get(rs.url + "/fast")
+	assert.Error(t, err, "the server must not accept requests after it stopped")
+}
+
+func TestServeLetsRequestsInFlightFinishOnShutdown(t *testing.T) {
+	rs := startServer(t, config.ServerConfig{ShutdownTimeout: 5 * time.Second})
+
+	type response struct {
+		body string
+		err  error
+	}
+	responses := make(chan response, 1)
+	go func() {
+		res, err := http.Get(rs.url + "/slow")
+		if err != nil {
+			responses <- response{err: err}
+			return
+		}
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
+		responses <- response{body: string(body), err: err}
+	}()
+
+	<-rs.started
+	rs.stop()
+
+	select {
+	case err := <-rs.result:
+		t.Fatalf("the server stopped while a request was in flight: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(rs.release)
+
+	got := <-responses
+	assert.NoError(t, got.err)
+	assert.Equal(t, "finished", got.body)
+	assert.NoError(t, rs.waitForResult(t))
+}
+
+func TestServeCutsOffRequestsAfterTheShutdownTimeout(t *testing.T) {
+	rs := startServer(t, config.ServerConfig{ShutdownTimeout: 50 * time.Millisecond})
+	defer close(rs.release)
+
+	go func() {
+		if res, err := http.Get(rs.url + "/slow"); err == nil {
+			res.Body.Close()
+		}
+	}()
+
+	<-rs.started
+	rs.stop()
+
+	err := rs.waitForResult(t)
+	assert.ErrorContains(t, err, "requests still in flight after 50ms were cut off")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestServeDropsClientsThatDoNotSendTheirHeaders(t *testing.T) {
+	rs := startServer(t, config.ServerConfig{ReadHeaderTimeout: 50 * time.Millisecond, ShutdownTimeout: time.Second})
+
+	conn, err := net.Dial("tcp", rs.url[len("http://"):])
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Start a request but never finish its headers.
+	_, err = conn.Write([]byte("GET /fast HTTP/1.1\r\nHost: gateway.test\r\n"))
+	require.NoError(t, err)
+
+	// The server must end the connection on its own; reading reaches the end
+	// of the stream well before this deadline.
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+	_, err = io.ReadAll(conn)
+	assert.NoError(t, err, "the connection was still open after the header timeout")
+}
+
+func TestRunFailsWhenTheAddressIsTaken(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	s := &Server{Addr: listener.Addr().String(), Router: mux.NewRouter()}
+
+	assert.ErrorContains(t, s.Run(context.Background()), "address already in use")
 }

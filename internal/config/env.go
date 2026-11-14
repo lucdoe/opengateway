@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 )
 
 // Environment variables that override the config file. A variable that is
@@ -35,6 +36,11 @@ const (
 	DefaultPort      = 4000
 	DefaultRedisHost = "localhost"
 	DefaultRedisPort = 6379
+
+	DefaultReadHeaderTimeout = 10 * time.Second
+	DefaultIdleTimeout       = 120 * time.Second
+	DefaultShutdownTimeout   = 15 * time.Second
+	DefaultUpstreamTimeout   = 30 * time.Second
 )
 
 func (c *Config) applyEnvironment() error {
@@ -53,6 +59,18 @@ func (c *Config) applyEnvironment() error {
 func (c *Config) applyDefaults() {
 	if c.Server.Port == 0 {
 		c.Server.Port = DefaultPort
+	}
+	if c.Server.ReadHeaderTimeout == 0 {
+		c.Server.ReadHeaderTimeout = DefaultReadHeaderTimeout
+	}
+	if c.Server.IdleTimeout == 0 {
+		c.Server.IdleTimeout = DefaultIdleTimeout
+	}
+	if c.Server.ShutdownTimeout == 0 {
+		c.Server.ShutdownTimeout = DefaultShutdownTimeout
+	}
+	if c.Server.UpstreamTimeout == 0 {
+		c.Server.UpstreamTimeout = DefaultUpstreamTimeout
 	}
 	if c.Redis.Host == "" {
 		c.Redis.Host = DefaultRedisHost

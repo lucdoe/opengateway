@@ -15,8 +15,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
@@ -88,8 +91,14 @@ func main() {
 		log.Fatalf("Failed to initialize the server: %v", err)
 	}
 
+	// SIGINT and SIGTERM ask the gateway to stop: it finishes the requests in
+	// flight and then exits.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	log.Printf("Listening on %s", server.Addr)
-	if err := server.Run(); err != nil {
+	if err := server.Run(ctx); err != nil {
 		log.Fatalf("Failed to run the server: %v", err)
 	}
+	log.Print("Stopped")
 }

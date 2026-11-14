@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func upstream(t *testing.T, status int, body string) (*httptest.Server, *http.Re
 
 func forward(t *testing.T, target string, req *http.Request) *http.Response {
 	t.Helper()
-	handler, err := proxy.NewHandler(target)
+	handler, err := proxy.NewHandler(target, time.Second)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -128,10 +129,54 @@ func TestHandlerAnswersBadGatewayWhenUpstreamIsDown(t *testing.T) {
 	assert.Equal(t, http.StatusBadGateway, res.StatusCode)
 }
 
+// slowUpstream starts a test server that only answers once release is closed.
+func slowUpstream(t *testing.T) (target string, release chan struct{}) {
+	t.Helper()
+	release = make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+		w.Write([]byte("late"))
+	}))
+	t.Cleanup(server.Close)
+	return server.URL, release
+}
+
+func TestHandlerAnswersGatewayTimeoutWhenUpstreamIsTooSlow(t *testing.T) {
+	target, release := slowUpstream(t)
+	defer close(release)
+
+	handler, err := proxy.NewHandler(target, 50*time.Millisecond)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	started := time.Now()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "http://gateway.test/api/people", nil))
+
+	assert.Equal(t, http.StatusGatewayTimeout, w.Code)
+	assert.Less(t, time.Since(started), 2*time.Second)
+}
+
+func TestHandlerWaitsWithinTheTimeout(t *testing.T) {
+	target, release := slowUpstream(t)
+	time.AfterFunc(50*time.Millisecond, func() { close(release) })
+
+	handler, err := proxy.NewHandler(target, 5*time.Second)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "http://gateway.test/api/people", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "late", w.Body.String())
+}
+
 func TestNewHandlerRejectsInvalidTargets(t *testing.T) {
 	for _, target := range []string{"", ":", "swapi.dev", "/api", "ftp://swapi.dev", "http://"} {
 		t.Run(target, func(t *testing.T) {
-			handler, err := proxy.NewHandler(target)
+			handler, err := proxy.NewHandler(target, time.Second)
 
 			assert.Nil(t, handler)
 			assert.ErrorContains(t, err, "invalid upstream URL")

@@ -24,11 +24,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func validServer() config.ServerConfig {
+	return config.ServerConfig{
+		Port:              4000,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		ShutdownTimeout:   15 * time.Second,
+		UpstreamTimeout:   30 * time.Second,
+	}
+}
+
 // validConfig returns a configuration that uses every plugin and passes
 // validation. Tests break one thing at a time.
 func validConfig() *config.Config {
 	return &config.Config{
-		Server: config.ServerConfig{Port: 4000},
+		Server: validServer(),
 		Redis:  config.RedisConfig{Host: "localhost", Port: 6379},
 		Plugins: config.PluginConfig{
 			LoggerConfig:    config.LoggerConfig{FilePath: "server.log"},
@@ -142,6 +152,10 @@ func TestValidateServerAndRedisSettings(t *testing.T) {
 		{"port of zero", func(c *config.Config) { c.Server.Port = 0 }, "Server.Port 0 must be between 1 and 65535"},
 		{"port too large", func(c *config.Config) { c.Server.Port = 70000 }, "Server.Port 70000 must be between 1 and 65535"},
 		{"negative port", func(c *config.Config) { c.Server.Port = -1 }, "Server.Port -1 must be between 1 and 65535"},
+		{"no read header timeout", func(c *config.Config) { c.Server.ReadHeaderTimeout = 0 }, "Server.ReadHeaderTimeout 0s must be greater than 0"},
+		{"negative idle timeout", func(c *config.Config) { c.Server.IdleTimeout = -time.Second }, "Server.IdleTimeout -1s must be greater than 0"},
+		{"no shutdown timeout", func(c *config.Config) { c.Server.ShutdownTimeout = 0 }, "Server.ShutdownTimeout 0s must be greater than 0"},
+		{"negative upstream timeout", func(c *config.Config) { c.Server.UpstreamTimeout = -time.Minute }, "Server.UpstreamTimeout -1m0s must be greater than 0"},
 		{"redis without host", func(c *config.Config) { c.Redis.Host = "" }, "Redis.Host is required"},
 		{"redis port too large", func(c *config.Config) { c.Redis.Port = 70000 }, "Redis.Port 70000 must be between 1 and 65535"},
 	}
@@ -204,7 +218,7 @@ func TestValidatePluginSettings(t *testing.T) {
 
 func TestValidateIgnoresSettingsOfUnusedPlugins(t *testing.T) {
 	cfg := &config.Config{
-		Server: config.ServerConfig{Port: 4000},
+		Server: validServer(),
 		Redis:  config.RedisConfig{Host: "localhost", Port: 6379},
 		Services: map[string]config.Service{
 			"api": {

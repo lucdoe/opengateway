@@ -72,7 +72,7 @@ func (m *MockCacheService) GenerateCacheKey(r *http.Request) string {
 func TestInitializeServerSuccess(t *testing.T) {
 	mockConfigLoader := new(MockConfigLoader)
 	mockRouter := NewMockRouter()
-	newProxy := func(target string) (http.Handler, error) {
+	newProxy := func(target string, timeout time.Duration) (http.Handler, error) {
 		return http.NotFoundHandler(), nil
 	}
 
@@ -162,7 +162,7 @@ func TestInitializeServerReturnsThePluginError(t *testing.T) {
 	server, err := InitializeServer(ServerDependencies{
 		configLoader: mockConfigLoader,
 		router:       mux.NewRouter(),
-		newProxy:     func(string) (http.Handler, error) { return http.NotFoundHandler(), nil },
+		newProxy:     func(string, time.Duration) (http.Handler, error) { return http.NotFoundHandler(), nil },
 		newStore:     func(config.RedisConfig) (cache.Cache, error) { return nil, errors.New("connection refused") },
 	})
 
