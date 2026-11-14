@@ -3,15 +3,33 @@ title: Lightweight API gateway in Go
 description: A lightweight API gateway in Go. One YAML file, no control plane.
 template: splash
 hero:
-  title: OpenGateway
-  tagline: A lightweight API gateway in Go. Describe your services in one YAML file and run one binary. No control plane, no database.
+  title: Your API, behind <mark>one YAML file.</mark>
+  tagline: OpenGateway routes, protects and caches requests to your services. You describe them in one file and run one binary. No control plane, no database.
+  image:
+    html: |
+      <div class="og-route">
+      <pre aria-label="config.yaml"><span class="k">Services</span>:
+        <span class="k">starwars</span>:
+          <span class="k">URL</span>: "https://swapi.dev"
+          <span class="k">Subpath</span>: "/api"
+          <span class="k">Plugins</span>: ["logger", "rate-limit"]
+          <span class="k">Endpoints</span>:
+            - <span class="k">HTTPMethod</span>: "GET"
+              <span class="k">Path</span>: "/people/{id}"
+              <span class="k">Plugins</span>: ["cache"] <span class="c"># this endpoint only</span></pre>
+      <div class="og-route-flow" role="group" aria-label="What happens to the request">
+      <div class="og-route-row"><span class="og-route-label">You send</span><span class="og-badge ink">GET</span><code>/api/people/7</code></div>
+      <div class="og-route-row plugins"><span class="og-route-label">Gateway runs</span><span class="og-badge">logger</span><span class="og-badge">rate-limit</span><span class="og-badge">cache</span></div>
+      <div class="og-route-row"><span class="og-route-label">Forwarded to</span><code>https://swapi.dev/api/people/7</code></div>
+      </div>
+      </div>
   actions:
     - text: Get started
       link: '#quick-start'
       icon: right-arrow
-    - text: Configuration
+    - text: Read the config
       link: configuration/
-      variant: minimal
+      variant: secondary
     - text: GitHub
       link: https://github.com/lucdoe/opengateway
       icon: external
@@ -67,4 +85,4 @@ Services:
 
 ## Fast
 
-With every plugin on and two CPU cores: **16,000 requests/s**, **+0.3 ms** median added latency, cache hits in **0.13 ms**. See the [benchmark](https://github.com/lucdoe/opengateway#performance).
+With every plugin on and two CPU cores: **16,000 requests/s**, **+0.3 ms** median added latency, cache hits in **0.13 ms**. See the [benchmark](benchmark/).
