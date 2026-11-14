@@ -43,6 +43,18 @@ const supportedSigningMethod = "HS256"
 func (c *Config) Validate() error {
 	v := &validation{}
 
+	if !validPort(c.Server.Port) {
+		v.addf("Server.Port %d must be between 1 and 65535", c.Server.Port)
+	}
+	if c.UsesPlugin(PluginCache) || c.UsesPlugin(PluginRateLimit) {
+		if c.Redis.Host == "" {
+			v.addf("Redis.Host is required because the cache or rate-limit plugin is used")
+		}
+		if !validPort(c.Redis.Port) {
+			v.addf("Redis.Port %d must be between 1 and 65535", c.Redis.Port)
+		}
+	}
+
 	if len(c.Services) == 0 {
 		v.addf("no services are configured")
 	}
@@ -83,6 +95,10 @@ func (c *Config) UsesPlugin(name string) bool {
 		}
 	}
 	return false
+}
+
+func validPort(port int) bool {
+	return port >= 1 && port <= 65535
 }
 
 type validation struct {
