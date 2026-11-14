@@ -1,3 +1,14 @@
+# Server and Redis can be left out; the values below are the defaults.
+# Environment variables override this file: PORT, REDIS_HOST, REDIS_PORT,
+# REDIS_PASSWORD and JWT_SECRET (for Plugins.JWTConfig.SecretKey).
+Server:
+  Port: 4000
+
+Redis:
+  Host: "localhost"
+  Port: 6379
+  Password: ""
+
 Plugins:
   LoggerConfig:
     FilePath: "server.log"

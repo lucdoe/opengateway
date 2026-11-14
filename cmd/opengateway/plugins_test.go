@@ -43,14 +43,14 @@ func configUsing(plugins ...string) *config.Config {
 
 // noStore fails the test if a plugin asks for the store.
 func noStore(t *testing.T) storeFactory {
-	return func() (cache.Cache, error) {
+	return func(config.RedisConfig) (cache.Cache, error) {
 		t.Error("the store must not be connected to")
 		return nil, errors.New("unexpected store connection")
 	}
 }
 
 func workingStore(connections *int) storeFactory {
-	return func() (cache.Cache, error) {
+	return func(config.RedisConfig) (cache.Cache, error) {
 		*connections++
 		return new(MockCacheService), nil
 	}
@@ -108,6 +108,21 @@ func TestBuildPluginsBuildsOnlyWhatIsUsed(t *testing.T) {
 	})
 }
 
+func TestBuildPluginsConnectsToTheConfiguredRedis(t *testing.T) {
+	cfg := configUsing("cache")
+	cfg.Redis = config.RedisConfig{Host: "redis.internal", Port: 6380, Password: "secret"}
+
+	var received config.RedisConfig
+	newStore := func(redis config.RedisConfig) (cache.Cache, error) {
+		received = redis
+		return new(MockCacheService), nil
+	}
+
+	builtPlugins(t, cfg, newStore)
+
+	assert.Equal(t, cfg.Redis, received)
+}
+
 // Before, the gateway refused to start without a JWT secret even when no
 // endpoint used auth.
 func TestBuildPluginsDoesNotNeedSettingsOfUnusedPlugins(t *testing.T) {
@@ -119,7 +134,7 @@ func TestBuildPluginsDoesNotNeedSettingsOfUnusedPlugins(t *testing.T) {
 }
 
 func TestBuildPluginsReturnsErrorsInsteadOfPanicking(t *testing.T) {
-	failingStore := func() (cache.Cache, error) { return nil, errors.New("connection refused") }
+	failingStore := func(config.RedisConfig) (cache.Cache, error) { return nil, errors.New("connection refused") }
 
 	tests := []struct {
 		name     string
