@@ -220,3 +220,19 @@ Services:
 		})
 	}
 }
+
+// main's own wiring must start the gateway from the shipped config.
+func TestDefaultDependenciesStartTheShippedConfig(t *testing.T) {
+	t.Setenv("CONFIG_PATH", "config.yaml")
+
+	s, err := InitializeServer(defaultDependencies())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		for _, closer := range s.Closers {
+			closer.Close()
+		}
+	})
+
+	assert.Equal(t, ":4000", s.Addr)
+	assert.NotEmpty(t, s.Closers, "the shipped config uses the logger")
+}

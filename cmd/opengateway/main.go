@@ -89,15 +89,18 @@ func requireScope(scope string) server.Middleware {
 	return auth.RequireScope(scope)
 }
 
-func main() {
-	deps := ServerDependencies{
+// defaultDependencies are the real ones main runs with.
+func defaultDependencies() ServerDependencies {
+	return ServerDependencies{
 		loadConfig: config.Load,
 		router:     mux.NewRouter(),
 		newProxy:   proxy.NewHandler,
 		newStore:   openStore,
 	}
+}
 
-	server, err := InitializeServer(deps)
+func main() {
+	server, err := InitializeServer(defaultDependencies())
 	if err != nil {
 		log.Fatalf("Failed to initialize the server: %v", err)
 	}
