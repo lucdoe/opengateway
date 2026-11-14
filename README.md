@@ -43,6 +43,17 @@ The following settings can also be set through the environment. A variable that 
 | `REDIS_PASSWORD`     | `Redis.Password`              | empty       |                                                                 |
 | `JWT_SECRET`         | `Plugins.JWTConfig.SecretKey` | none        | Secret for validating tokens, only needed when auth is used     |
 
+The gateway's own HTTP server has four timeouts, set under `Server` in the config file. Values are durations such as `500ms`, `10s` or `2m`.
+
+| Config key                 | Default | Meaning                                                                    |
+| -------------------------- | ------- | -------------------------------------------------------------------------- |
+| `Server.ReadHeaderTimeout` | `10s`   | Time a client has to send its request headers                              |
+| `Server.IdleTimeout`       | `120s`  | How long an idle keep-alive connection stays open                          |
+| `Server.ShutdownTimeout`   | `15s`   | Time requests in flight get to finish when the gateway is stopped          |
+| `Server.UpstreamTimeout`   | `30s`   | Time an upstream has to start answering before the gateway responds `504`  |
+
+On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets requests in flight finish and then exits.
+
 The file is validated when the gateway starts. If it contains an unknown key or an invalid value, the gateway exits and lists every problem.
 
 ## Metrics

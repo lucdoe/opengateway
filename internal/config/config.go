@@ -102,6 +102,16 @@ type PluginConfig struct {
 type ServerConfig struct {
 	// Port the gateway listens on. Defaults to DefaultPort.
 	Port int `yaml:"Port"`
+	// ReadHeaderTimeout is how long a client has to send its request headers.
+	ReadHeaderTimeout time.Duration `yaml:"ReadHeaderTimeout"`
+	// IdleTimeout is how long an idle keep-alive connection stays open.
+	IdleTimeout time.Duration `yaml:"IdleTimeout"`
+	// ShutdownTimeout is how long requests in flight get to finish when the
+	// gateway is asked to stop.
+	ShutdownTimeout time.Duration `yaml:"ShutdownTimeout"`
+	// UpstreamTimeout is how long the gateway waits for an upstream to start
+	// answering before it gives up with 504 Gateway Timeout.
+	UpstreamTimeout time.Duration `yaml:"UpstreamTimeout"`
 }
 
 // RedisConfig says where the store used by the cache and rate-limit plugins

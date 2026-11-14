@@ -3,6 +3,10 @@
 # REDIS_PASSWORD and JWT_SECRET (for Plugins.JWTConfig.SecretKey).
 Server:
   Port: 4000
+  ReadHeaderTimeout: 10s # time a client has to send its request headers
+  IdleTimeout: 120s # how long an idle keep-alive connection stays open
+  ShutdownTimeout: 15s # time requests in flight get to finish on shutdown
+  UpstreamTimeout: 30s # time an upstream has to start answering
 
 Redis:
   Host: "localhost"
