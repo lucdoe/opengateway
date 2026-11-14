@@ -215,6 +215,60 @@ Services:
 	}
 }
 
+// A response the upstream marks public is shared between callers of an
+// authenticated endpoint, but only after auth and the scope check let them
+// through: the cache runs after both.
+func TestInitializeServerOnlyServesCachedAuthorizedResponsesToAllowedCallers(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+Plugins: {JWTConfig: {SecretKey: secret}}
+Services:
+  api:
+    URL: http://upstream.test
+    Plugins: [cache]
+    Endpoints: [{HTTPMethod: GET, Path: /catalog, Auth: {ApplyAuth: true, Scope: read}}]
+`))
+	require.NoError(t, err)
+	calls := 0
+	s, err := InitializeServer(ServerDependencies{
+		loadConfig: loads(cfg, nil),
+		router:     mux.NewRouter(),
+		newProxy: func(string, time.Duration) (http.Handler, error) {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.Header().Set("Cache-Control", "public, max-age=60")
+				w.Write([]byte("catalog"))
+			}), nil
+		},
+		newStore: func(config.StoreConfig) (store.Store, error) { return memory.New(), nil },
+	}, "config.yaml")
+	require.NoError(t, err)
+
+	token := func(subject, scope string) string {
+		signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, auth.Claims{
+			RegisteredClaims: jwt.RegisteredClaims{Subject: subject, ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute))},
+			Scope:            scope,
+		}).SignedString([]byte("secret"))
+		require.NoError(t, err)
+		return signed
+	}
+	send := func(token string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", "/catalog", nil)
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		rec := httptest.NewRecorder()
+		s.Router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	assert.Equal(t, "MISS", send(token("alice", "read")).Header().Get("X-Cache"))
+	assert.Equal(t, "HIT", send(token("bob", "read")).Header().Get("X-Cache"), "another allowed caller shares it")
+	assert.Equal(t, http.StatusUnauthorized, send("").Code)
+	assert.Equal(t, http.StatusUnauthorized, send("not-a-token").Code)
+	assert.Equal(t, http.StatusForbidden, send(token("eve", "write")).Code)
+	assert.Equal(t, 1, calls)
+}
+
 // main's own wiring must start the gateway from the shipped config.
 func TestDefaultDependenciesStartTheShippedConfig(t *testing.T) {
 	t.Setenv("CONFIG_PATH", "config.yaml")

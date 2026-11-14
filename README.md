@@ -76,7 +76,7 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 | `cors`       | Answers preflights and sets the CORS headers; rejects origins that are not listed with `403`. Requests without an `Origin` header (curl, other servers) pass untouched. `Origins: "*"` allows every origin but without credentials (cookies); list origins to allow them. | `CORSConfig`      |
 | `rate-limit` | Allows each client IP (IPv6: each /64) `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
 | `auth`       | Requires a `Bearer` JWT signed with HS256 and carrying `exp` (`401` otherwise). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Auth.Scope`, in their space-separated `scope` claim (`403` otherwise). Enabled per endpoint with `Auth.ApplyAuth: true`. | `JWTConfig`       |
-| `cache`      | Stores `200` responses to `GET` requests in the store and shares them between clients, for the upstream's `s-maxage` or `max-age`, at most 10 minutes. Requests with an `Authorization` or `Cookie` header, streamed responses and bodies over 1 MB are never cached. | none              |
+| `cache`      | Stores `200` responses to `GET` requests in the store and shares them between clients, for the upstream's `s-maxage` or `max-age`, at most 10 minutes. Requests with an `Authorization` header are only cached when the upstream marks the response `public` or `s-maxage`; it then goes to every caller that auth lets through. Requests with a `Cookie` header, streamed responses and bodies over 1 MB are never cached. | none              |
 
 ### Store
 
