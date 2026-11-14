@@ -48,25 +48,23 @@ flowchart LR
 
 ## Request flow
 
-A request to an endpoint that uses every plugin. Each plugin can answer on its own and end the request early.
+A request to an endpoint that uses every plugin. Plugins always run in this order, whatever order the config lists them in.
 
 ```mermaid
-flowchart TB
-    client(["Client"]) --> router{"route for<br/>method and path?"}
-    router -->|no| notfound["404 or 405"]
-    router -->|yes| logger["logger<br/>writes a log line"]
-    logger --> cors{"cors<br/>origin allowed?"}
-    cors -->|no| forbidden["403"]
-    cors -->|yes| ratelimit{"rate-limit<br/>under the limit?"}
-    ratelimit -->|no| toomany["429"]
-    ratelimit -->|yes| auth{"auth<br/>valid JWT?"}
-    auth -->|no| unauthorized["401"]
-    auth -->|yes| cache{"cache<br/>stored response?"}
-    cache -->|hit| cached["stored response"]
-    cache -->|miss| proxy["proxy"]
-    proxy --> upstream[("Service")]
-    upstream -->|response| stored["response to client,<br/>stored if cacheable"]
-    proxy -.->|"unreachable or too slow"| gatewayerror["502 or 504"]
+flowchart LR
+    client(["Client"]) --> logger --> cors --> ratelimit["rate-limit"] --> auth --> cache --> proxy --> service[("Service")]
 ```
 
-Plugins always run in this order: `logger`, `cors`, `rate-limit`, `auth`, `cache`. Auth runs before the cache so a stored response is never served to a caller that has not been authenticated.
+Each step can answer on its own and end the request early:
+
+| Step         | Ends the request when                              | Response                    |
+| ------------ | -------------------------------------------------- | --------------------------- |
+| router       | no endpoint matches the path or the method         | `404` or `405`              |
+| `logger`     | never; it only writes a log line                   |                             |
+| `cors`       | the `Origin` is not allowed                        | `403`                       |
+| `rate-limit` | the client IP is over its limit                    | `429`                       |
+| `auth`       | the JWT is missing or invalid                      | `401`                       |
+| `cache`      | a stored response exists                           | the stored response         |
+| proxy        | the service is unreachable, or too slow to answer  | `502`, or `504`             |
+
+Auth runs before the cache so a stored response is never served to a caller that has not been authenticated.
