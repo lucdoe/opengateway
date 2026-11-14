@@ -82,10 +82,15 @@ These settings are optional. An environment variable, where one exists, override
 | `Server.IdleTimeout`          |                      | `120s`      | How long an idle keep-alive connection stays open               |
 | `Server.ShutdownTimeout`      |                      | `15s`       | Time requests in flight get to finish when the gateway stops    |
 | `Server.UpstreamTimeout`      |                      | `30s`       | Time an upstream has to start answering before the gateway responds `504` |
+| `Server.CircuitBreaker.ConsecutiveFailures` |        | `5`         | Failures in a row that open a service's circuit breaker         |
+| `Server.CircuitBreaker.OpenTimeout`         |        | `30s`       | How long it stays open before trial requests go through again   |
+| `Server.CircuitBreaker.HalfOpenRequests`    |        | `1`         | Trial requests allowed at once while it recovers                |
 | `Redis.Host`                  | `REDIS_HOST`         | `localhost` | Redis server, only used by the `cache` and `rate-limit` plugins |
 | `Redis.Port`                  | `REDIS_PORT`         | `6379`      |                                                                 |
 | `Redis.Password`              | `REDIS_PASSWORD`     | empty       |                                                                 |
 | `Plugins.JWTConfig.SecretKey` | `JWT_SECRET`         | none        | Secret for validating tokens, only needed when auth is used     |
+
+Every service has its own circuit breaker. A failure is an upstream that cannot be reached, times out, or answers `500`, `502`, `503` or `504`. While the breaker is open the gateway answers `503` with a `Retry-After` header straight away, without contacting the service.
 
 On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets requests in flight finish, and exits.
 

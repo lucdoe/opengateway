@@ -31,6 +31,7 @@ func validServer() config.ServerConfig {
 		IdleTimeout:       2 * time.Minute,
 		ShutdownTimeout:   15 * time.Second,
 		UpstreamTimeout:   30 * time.Second,
+		CircuitBreaker:    config.CircuitBreakerConfig{ConsecutiveFailures: 5, OpenTimeout: 30 * time.Second, HalfOpenRequests: 1},
 	}
 }
 
@@ -156,6 +157,9 @@ func TestValidateServerAndRedisSettings(t *testing.T) {
 		{"negative idle timeout", func(c *config.Config) { c.Server.IdleTimeout = -time.Second }, "Server.IdleTimeout -1s must be greater than 0"},
 		{"no shutdown timeout", func(c *config.Config) { c.Server.ShutdownTimeout = 0 }, "Server.ShutdownTimeout 0s must be greater than 0"},
 		{"negative upstream timeout", func(c *config.Config) { c.Server.UpstreamTimeout = -time.Minute }, "Server.UpstreamTimeout -1m0s must be greater than 0"},
+		{"no breaker failures", func(c *config.Config) { c.Server.CircuitBreaker.ConsecutiveFailures = 0 }, "Server.CircuitBreaker.ConsecutiveFailures 0 must be greater than 0"},
+		{"negative breaker open timeout", func(c *config.Config) { c.Server.CircuitBreaker.OpenTimeout = -time.Second }, "Server.CircuitBreaker.OpenTimeout -1s must be greater than 0"},
+		{"negative breaker half-open requests", func(c *config.Config) { c.Server.CircuitBreaker.HalfOpenRequests = -1 }, "Server.CircuitBreaker.HalfOpenRequests -1 must be greater than 0"},
 		{"redis without host", func(c *config.Config) { c.Redis.Host = "" }, "Redis.Host is required"},
 		{"redis port too large", func(c *config.Config) { c.Redis.Port = 70000 }, "Redis.Port 70000 must be between 1 and 65535"},
 	}

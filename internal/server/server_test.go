@@ -382,6 +382,40 @@ func TestNewServerPassesTheUpstreamTimeoutToEveryProxy(t *testing.T) {
 	assert.Equal(t, []time.Duration{7 * time.Second, 7 * time.Second}, timeouts)
 }
 
+func TestEachServiceHasItsOwnCircuitBreaker(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			CircuitBreaker: config.CircuitBreakerConfig{ConsecutiveFailures: 2, OpenTimeout: time.Minute, HalfOpenRequests: 1},
+		},
+		Services: map[string]config.Service{
+			"down": {URL: "http://down.test", Endpoints: []config.Endpoint{
+				{Name: "A", HTTPMethod: "GET", Path: "/down/a"},
+				{Name: "B", HTTPMethod: "GET", Path: "/down/b"},
+			}},
+			"up": {URL: "http://up.test", Endpoints: []config.Endpoint{{Name: "C", HTTPMethod: "GET", Path: "/up"}}},
+		},
+	}
+	newProxy := func(target string, timeout time.Duration) (http.Handler, error) {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if target == "http://down.test" {
+				w.WriteHeader(http.StatusBadGateway)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}), nil
+	}
+	var calls []string
+	s, err := NewServer(cfg, mux.NewRouter(), newProxy, recordingMiddlewares(&calls))
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadGateway, serve(s, "GET", "/down/a").Code)
+	assert.Equal(t, http.StatusBadGateway, serve(s, "GET", "/down/b").Code)
+
+	assert.Equal(t, http.StatusServiceUnavailable, serve(s, "GET", "/down/a").Code, "failures on both endpoints opened the service's breaker")
+	assert.Equal(t, http.StatusServiceUnavailable, serve(s, "GET", "/down/b").Code)
+	assert.Equal(t, http.StatusOK, serve(s, "GET", "/up").Code, "another service is not affected")
+}
+
 // runningServer serves a single route, GET /slow, whose handler reports on
 // started and then blocks until release is closed.
 type runningServer struct {

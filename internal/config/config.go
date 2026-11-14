@@ -112,6 +112,25 @@ type ServerConfig struct {
 	// UpstreamTimeout is how long the gateway waits for an upstream to start
 	// answering before it gives up with 504 Gateway Timeout.
 	UpstreamTimeout time.Duration `yaml:"UpstreamTimeout"`
+	// CircuitBreaker sets when the gateway stops sending requests to a
+	// failing upstream. Every service has its own breaker.
+	CircuitBreaker CircuitBreakerConfig `yaml:"CircuitBreaker"`
+}
+
+// CircuitBreakerConfig holds the thresholds of the breaker each service has.
+// A failure is an upstream that cannot be reached, times out or answers
+// 500, 502, 503 or 504.
+type CircuitBreakerConfig struct {
+	// ConsecutiveFailures is how many failures in a row open the breaker.
+	// While it is open the gateway answers 503 without contacting the upstream.
+	ConsecutiveFailures int `yaml:"ConsecutiveFailures"`
+	// OpenTimeout is how long the breaker stays open before it lets trial
+	// requests through again.
+	OpenTimeout time.Duration `yaml:"OpenTimeout"`
+	// HalfOpenRequests is how many trial requests may run at once after
+	// OpenTimeout. If they succeed the breaker closes; if one fails it opens
+	// again.
+	HalfOpenRequests int `yaml:"HalfOpenRequests"`
 }
 
 // RedisConfig says where the store used by the cache and rate-limit plugins

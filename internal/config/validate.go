@@ -55,9 +55,21 @@ func (c *Config) Validate() error {
 		{"IdleTimeout", c.Server.IdleTimeout},
 		{"ShutdownTimeout", c.Server.ShutdownTimeout},
 		{"UpstreamTimeout", c.Server.UpstreamTimeout},
+		{"CircuitBreaker.OpenTimeout", c.Server.CircuitBreaker.OpenTimeout},
 	} {
 		if timeout.value <= 0 {
 			v.addf("Server.%s %s must be greater than 0", timeout.name, timeout.value)
+		}
+	}
+	for _, count := range []struct {
+		name  string
+		value int
+	}{
+		{"ConsecutiveFailures", c.Server.CircuitBreaker.ConsecutiveFailures},
+		{"HalfOpenRequests", c.Server.CircuitBreaker.HalfOpenRequests},
+	} {
+		if count.value <= 0 {
+			v.addf("Server.CircuitBreaker.%s %d must be greater than 0", count.name, count.value)
 		}
 	}
 	if c.UsesPlugin(PluginCache) || c.UsesPlugin(PluginRateLimit) {

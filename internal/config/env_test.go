@@ -40,6 +40,10 @@ Server:
   IdleTimeout: 1m
   ShutdownTimeout: 20s
   UpstreamTimeout: 500ms
+  CircuitBreaker:
+    ConsecutiveFailures: 3
+    OpenTimeout: 10s
+    HalfOpenRequests: 2
 Redis:
   Host: "redis.internal"
   Port: 6380
@@ -70,6 +74,7 @@ func TestParseAppliesDefaults(t *testing.T) {
 		IdleTimeout:       120 * time.Second,
 		ShutdownTimeout:   15 * time.Second,
 		UpstreamTimeout:   30 * time.Second,
+		CircuitBreaker:    config.CircuitBreakerConfig{ConsecutiveFailures: 5, OpenTimeout: 30 * time.Second, HalfOpenRequests: 1},
 	}, cfg.Server)
 	assert.Equal(t, config.RedisConfig{Host: "localhost", Port: 6379}, cfg.Redis)
 	assert.Equal(t, ":4000", cfg.ListenAddr())
@@ -89,6 +94,7 @@ func TestParseUsesTheFileOverDefaults(t *testing.T) {
 		IdleTimeout:       time.Minute,
 		ShutdownTimeout:   20 * time.Second,
 		UpstreamTimeout:   500 * time.Millisecond,
+		CircuitBreaker:    config.CircuitBreakerConfig{ConsecutiveFailures: 3, OpenTimeout: 10 * time.Second, HalfOpenRequests: 2},
 	}, cfg.Server)
 	assert.Equal(t, ":8080", cfg.ListenAddr())
 	assert.Equal(t, "redis.internal:6380", cfg.Redis.Addr())
@@ -168,6 +174,7 @@ func TestParseRejectsInvalidTimeouts(t *testing.T) {
 	}{
 		{"negative timeout", "Server:\n  UpstreamTimeout: -5s\n", "Server.UpstreamTimeout -5s must be greater than 0"},
 		{"not a duration", "Server:\n  IdleTimeout: soon\n", "cannot unmarshal"},
+		{"negative breaker threshold", "Server:\n  CircuitBreaker:\n    ConsecutiveFailures: -1\n", "Server.CircuitBreaker.ConsecutiveFailures -1 must be greater than 0"},
 	}
 
 	for _, tc := range tests {
