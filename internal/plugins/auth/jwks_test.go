@@ -296,3 +296,90 @@ func TestJWKSRejectsAnOversizedSet(t *testing.T) {
 
 	assert.ErrorContains(t, jwks.fetch(), "over")
 }
+
+func TestJWKSTriesEveryFittingKeyForATokenWithoutKid(t *testing.T) {
+	first, second := ecSigner(t, "first"), ecSigner(t, "second")
+	a, _ := jwksAuth(t, newProvider(t, first.jwk, second.jwk))
+
+	_, err := a.Validate(second.token(t, jwt.SigningMethodES256, false))
+
+	assert.NoError(t, err, "both keys suit ES256, so both are tried")
+}
+
+func TestNewJWKSStartsWhenTheProviderCannotBeReached(t *testing.T) {
+	p := newProvider(t)
+	p.Close()
+
+	jwks := NewJWKS(p.URL)
+	defer jwks.Close()
+
+	assert.False(t, jwks.hasKeys())
+}
+
+func TestJWKSRefreshLoopKeepsTryingAfterFailures(t *testing.T) {
+	p := newProvider(t)
+	p.status = http.StatusServiceUnavailable
+	jwks := newJWKS(p.URL, p.Client())
+	go jwks.refreshLoop(time.Hour, time.Millisecond)
+
+	assert.Eventually(t, func() bool { return p.fetches.Load() >= 3 }, 2*time.Second, time.Millisecond)
+	jwks.Close()
+	assert.False(t, jwks.hasKeys())
+}
+
+func TestJWKSRejectsAnUnknownKidWhenTheRefetchFails(t *testing.T) {
+	known, rotated := ecSigner(t, "known"), ecSigner(t, "rotated")
+	p := newProvider(t, known.jwk)
+	a, jwks := jwksAuth(t, p)
+	jwks.unknownKeyRefetch = 0
+
+	p.mu.Lock()
+	p.status = http.StatusBadGateway
+	p.mu.Unlock()
+	_, err := a.Validate(rotated.token(t, jwt.SigningMethodES256, true))
+
+	assert.Error(t, err)
+	assert.Equal(t, int32(2), p.fetches.Load(), "it did try")
+}
+
+func TestJWKSFetchErrors(t *testing.T) {
+	truncated := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.Write([]byte(`{"keys": [`))
+	}))
+	t.Cleanup(truncated.Close)
+	noKeys := newProvider(t)
+
+	for name, tc := range map[string]struct {
+		url, want string
+	}{
+		"body cut off":  {truncated.URL, "unexpected EOF"},
+		"no usable key": {noKeys.URL, "no usable signature key"},
+		"not a URL":     {"://", "missing protocol scheme"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.ErrorContains(t, newJWKS(tc.url, http.DefaultClient).fetch(), tc.want)
+		})
+	}
+}
+
+func TestParseKeySetSkipsMalformedRSAKeys(t *testing.T) {
+	good := rsaSigner(t, "good")
+	for name, key := range map[string]map[string]string{
+		"modulus not base64url": {"kty": "RSA", "n": "!!", "e": "AQAB"},
+		"empty modulus":         {"kty": "RSA", "n": "", "e": "AQAB"},
+		"exponent not base64":   {"kty": "RSA", "n": good.jwk["n"], "e": "!!"},
+		"exponent of 1":         {"kty": "RSA", "n": good.jwk["n"], "e": "AQ"},
+		"exponent over 2^31":    {"kty": "RSA", "n": good.jwk["n"], "e": b64(new(big.Int).Lsh(big.NewInt(1), 40).Bytes())},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := rawKey{Kty: key["kty"], N: key["n"], E: key["e"]}.publicKey()
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestSuitsRejectsKeysOfOtherTypes(t *testing.T) {
+	assert.False(t, suits([]byte("secret"), "HS256"))
+	assert.False(t, suits(rsaSigner(t, "a").key.Public(), "ES256"))
+}
