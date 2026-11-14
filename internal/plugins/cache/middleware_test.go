@@ -248,6 +248,43 @@ func TestCacheKeepsHeadersFromEarlierPluginsFresh(t *testing.T) {
 	assert.Equal(t, "application/json", hit.Header().Get("Content-Type"))
 }
 
+// cors sets Vary: Origin before the cache runs. It re-sets its headers on
+// every request, so the cache must still store the response.
+func TestCacheIgnoresVaryFromEarlierPlugins(t *testing.T) {
+	upstream := jsonUpstream()
+	cached := NewMiddleware(newMemoryStore())(upstream)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Vary", "Origin")
+		cached.ServeHTTP(w, r)
+	})
+
+	get(handler, "/api/people")
+	hit := get(handler, "/api/people")
+
+	assert.Equal(t, 1, upstream.calls)
+	assert.Equal(t, "HIT", hit.Header().Get("X-Cache"))
+	assert.Equal(t, []string{"Origin"}, hit.Header().Values("Vary"), "stored once, not duplicated")
+}
+
+func TestCacheKeepsTheUpstreamsVaryNextToEarlierPlugins(t *testing.T) {
+	upstream := &countingUpstream{respond: func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Accept-Encoding")
+		w.Write([]byte("body"))
+	}}
+	cached := NewMiddleware(newMemoryStore())(upstream)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Vary", "Origin")
+		cached.ServeHTTP(w, r)
+	})
+
+	miss := get(handler, "/api/people")
+	hit := get(handler, "/api/people")
+
+	assert.Equal(t, "HIT", hit.Header().Get("X-Cache"))
+	assert.Equal(t, miss.Header().Values("Vary"), hit.Header().Values("Vary"))
+	assert.Equal(t, []string{"Origin", "Accept-Encoding"}, hit.Header().Values("Vary"))
+}
+
 func TestCacheFallsBackToTheUpstreamWhenTheStoreFails(t *testing.T) {
 	t.Run("read fails", func(t *testing.T) {
 		store := newMemoryStore()
