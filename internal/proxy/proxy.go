@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -45,9 +46,15 @@ func NewHandler(target string, timeout time.Duration) (http.Handler, error) {
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.ResponseHeaderTimeout = timeout
+	// The default keeps 2 idle connections per host, so under concurrent load
+	// almost every request dials anew and the closed connections exhaust the
+	// local ports. Each service has its own transport, so this is per service.
+	transport.MaxIdleConns = 0
+	transport.MaxIdleConnsPerHost = MaxIdleConnsPerUpstream
 
 	return &httputil.ReverseProxy{
-		Transport: transport,
+		Transport:  transport,
+		BufferPool: buffers,
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(upstream)
 			r.SetXForwarded()
@@ -61,6 +68,35 @@ func NewHandler(target string, timeout time.Duration) (http.Handler, error) {
 			http.Error(w, "Bad gateway", http.StatusBadGateway)
 		},
 	}, nil
+}
+
+// MaxIdleConnsPerUpstream is how many idle connections the gateway keeps open
+// to each upstream for reuse.
+const MaxIdleConnsPerUpstream = 256
+
+// copyBufferSize is the size of the buffers response bodies are copied
+// through, the same size the proxy would otherwise allocate per response.
+const copyBufferSize = 32 * 1024
+
+// bufferPool reuses copy buffers across responses and proxies, so copying a
+// body does not allocate 32 KB for every request.
+type bufferPool struct{ pool sync.Pool }
+
+var buffers = &bufferPool{pool: sync.Pool{New: func() any {
+	b := make([]byte, copyBufferSize)
+	return &b
+}}}
+
+func (p *bufferPool) Get() []byte {
+	return *p.pool.Get().(*[]byte)
+}
+
+func (p *bufferPool) Put(b []byte) {
+	if cap(b) < copyBufferSize {
+		return
+	}
+	b = b[:copyBufferSize]
+	p.pool.Put(&b)
 }
 
 func isTimeout(err error) bool {
