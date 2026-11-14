@@ -48,8 +48,8 @@ type shard struct {
 	lastSweep time.Time
 }
 
-// Store is an in-process store.Store. Expired keys are removed when they are
-// read and by a sweep each shard runs at most once a minute.
+// Store is an in-process store.Store. Expired keys are dropped on read and by
+// a per-shard sweep.
 type Store struct {
 	seed   maphash.Seed
 	shards [shardCount]shard

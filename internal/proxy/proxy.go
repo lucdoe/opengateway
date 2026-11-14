@@ -70,8 +70,7 @@ func NewHandler(target string, timeout time.Duration) (http.Handler, error) {
 	}, nil
 }
 
-// MaxIdleConnsPerUpstream is how many idle connections the gateway keeps open
-// to each upstream for reuse.
+// MaxIdleConnsPerUpstream is how many idle connections are kept per upstream.
 const MaxIdleConnsPerUpstream = 256
 
 // copyBufferSize is the size of the buffers response bodies are copied

@@ -27,7 +27,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Names a service or endpoint uses in its Plugins list.
+// Plugin names, as listed in a Plugins list.
 const (
 	PluginLogger    = "logger"
 	PluginCORS      = "cors"
@@ -70,7 +70,7 @@ type Service struct {
 type LoggerConfig struct {
 	// FilePath is the file request lines are appended to. Empty means stdout.
 	FilePath string `yaml:"FilePath"`
-	// ErrOutput is accepted so existing configs still load. It has no effect.
+	// ErrOutput has no effect; it is accepted so existing configs still load.
 	ErrOutput string `yaml:"ErrOutput"`
 }
 
@@ -102,7 +102,7 @@ type PluginConfig struct {
 
 // ServerConfig holds the settings of the gateway's own HTTP server.
 type ServerConfig struct {
-	// Port the gateway listens on. Defaults to DefaultPort.
+	// Port is where the gateway listens. Defaults to DefaultPort.
 	Port int `yaml:"Port"`
 	// ReadHeaderTimeout is how long a client has to send its request headers.
 	ReadHeaderTimeout time.Duration `yaml:"ReadHeaderTimeout"`
@@ -124,18 +124,16 @@ type ServerConfig struct {
 // 500, 502, 503 or 504.
 type CircuitBreakerConfig struct {
 	// ConsecutiveFailures is how many failures in a row open the breaker.
-	// While it is open the gateway answers 503 without contacting the upstream.
 	ConsecutiveFailures int `yaml:"ConsecutiveFailures"`
 	// OpenTimeout is how long the breaker stays open before it lets trial
 	// requests through again.
 	OpenTimeout time.Duration `yaml:"OpenTimeout"`
 	// HalfOpenRequests is how many trial requests may run at once after
-	// OpenTimeout. If they succeed the breaker closes; if one fails it opens
-	// again.
+	// OpenTimeout.
 	HalfOpenRequests int `yaml:"HalfOpenRequests"`
 }
 
-// Names a store can have in Store.Type.
+// Store types for StoreConfig.Type.
 const (
 	StoreMemory = "memory"
 	StoreRedis  = "redis"
@@ -144,15 +142,14 @@ const (
 // StoreConfig picks where the cache and rate-limit plugins keep their state.
 // It is only used when one of those plugins is in use.
 type StoreConfig struct {
-	// Type is StoreMemory (the default) or StoreRedis. memory needs no other
-	// service but is per gateway instance; redis is shared by every instance
-	// that points at the same server.
+	// Type is StoreMemory (the default) or StoreRedis. Memory is per gateway
+	// instance; Redis is shared by every instance using the same server.
 	Type string `yaml:"Type"`
-	// Redis says where the server is. It is only read when Type is redis.
+	// Redis is only read when Type is StoreRedis.
 	Redis RedisConfig `yaml:"Redis"`
 }
 
-// RedisConfig says where the Redis server of the redis store is.
+// RedisConfig locates the Redis server.
 type RedisConfig struct {
 	Host     string `yaml:"Host"`
 	Port     int    `yaml:"Port"`
@@ -176,9 +173,8 @@ func (c *Config) ListenAddr() string {
 	return ":" + strconv.Itoa(c.Server.Port)
 }
 
-// Load reads the YAML file at path and returns its configuration. It fails
-// if the file cannot be read, is not valid YAML, contains a key the gateway
-// does not know, or does not pass Validate.
+// Load reads the YAML file at path and returns its validated configuration.
+// See Parse.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -192,9 +188,8 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// Parse decodes YAML into a validated configuration. Settings that have an
-// environment variable (see env.go) are taken from the environment when it is
-// set, and settings left out get their default. See Load.
+// Parse decodes YAML into a validated configuration. Environment variables
+// (see env.go) override the document, and missing settings get defaults.
 func Parse(data []byte) (*Config, error) {
 	cfg := &Config{}
 

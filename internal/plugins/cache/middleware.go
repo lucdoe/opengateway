@@ -111,7 +111,6 @@ func cacheableResponse(recorder *internal.ResponseRecorder) bool {
 	return true
 }
 
-// headerTokens returns the lower-cased, comma-separated values of a header.
 func headerTokens(header http.Header, name string) []string {
 	var tokens []string
 	for _, value := range header.Values(name) {

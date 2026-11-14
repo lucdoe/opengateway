@@ -34,18 +34,15 @@ var (
 	errClientGone = errors.New("client went away")
 )
 
-// Wrap returns a handler that passes requests to next until next fails
-// settings.ConsecutiveFailures times in a row. A failure is a response of
-// 500, 502, 503 or 504; the proxy answers 502 and 504 itself when the
-// upstream cannot be reached or times out.
+// Wrap returns a handler that opens the breaker after
+// settings.ConsecutiveFailures failures in a row. A failure is a 500, 502, 503
+// or 504; the proxy itself answers 502 and 504 for an unreachable or slow
+// upstream.
 //
-// The breaker then opens: for settings.OpenTimeout every request gets
-// 503 Service Unavailable with a Retry-After header, without reaching next.
-// After that up to settings.HalfOpenRequests trial requests go through. If
-// they succeed the breaker closes again; if one fails it opens again.
-//
-// A request whose client goes away before it finishes is not counted. name
-// identifies the breaker in the log, which notes every change of state.
+// While open, requests get 503 with a Retry-After header for
+// settings.OpenTimeout. Then up to settings.HalfOpenRequests trial requests
+// decide whether the breaker closes or opens again. Requests the client
+// abandons are not counted. name labels the log line for each state change.
 func Wrap(name string, settings config.CircuitBreakerConfig, next http.Handler) http.Handler {
 	threshold := uint32(settings.ConsecutiveFailures)
 	cb := gobreaker.NewCircuitBreaker[struct{}](gobreaker.Settings{

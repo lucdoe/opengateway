@@ -41,14 +41,13 @@ func (d *DefaultConfigLoader) LoadConfig(path string) (*config.Config, error) {
 	return config.Load(path)
 }
 
-// ServerDependencies are the parts of the gateway that talk to the outside
-// world, so tests can replace them.
+// ServerDependencies holds what reaches outside the process, so tests can
+// replace it.
 type ServerDependencies struct {
 	configLoader configLoader
 	router       *mux.Router
 	newProxy     server.ProxyFactory
-	// newStore opens the store shared by the cache and rate-limit plugins.
-	// It is only called when one of them is in use.
+	// newStore is only called when the cache or rate-limit plugin is in use.
 	newStore storeFactory
 }
 
@@ -78,8 +77,8 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 	return s, nil
 }
 
-// openStore opens the store that cfg.Type names. The config is validated, so
-// the type is a known one.
+// openStore opens the store cfg names. Validation has already rejected
+// unknown types.
 func openStore(cfg config.StoreConfig) (store.Store, error) {
 	switch cfg.Type {
 	case config.StoreRedis:
@@ -108,8 +107,6 @@ func main() {
 		log.Fatalf("Failed to initialize the server: %v", err)
 	}
 
-	// SIGINT and SIGTERM ask the gateway to stop: it finishes the requests in
-	// flight and then exits.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
