@@ -28,7 +28,7 @@ docker compose up --build
 
 The config file is copied into the image, so rebuild after changing it.
 
-**Go** (needs Go 1.22 or newer, and Redis on `localhost:6379` if you use the `cache` or `rate-limit` plugin):
+**Go** (needs Go 1.22 or newer, and Redis 7.0 or newer on `localhost:6379` if you use the `cache` or `rate-limit` plugin):
 
 ```bash
 go run ./cmd/opengateway
@@ -67,7 +67,7 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 | ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | `logger`     | Writes one line per request to a file.                                                                              | `LoggerConfig`    |
 | `cors`       | Rejects requests from origins that are not allowed and sets the CORS response headers.                              | `CORSConfig`      |
-| `rate-limit` | Allows each client IP `Limit` requests per `Window`, then answers `429`. Needs Redis.                               | `RateLimitConfig` |
+| `rate-limit` | Allows each client IP `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If Redis is unavailable, requests pass without a limit. Needs Redis. | `RateLimitConfig` |
 | `auth`       | Requires a `Bearer` JWT signed with HS256. Enabled per endpoint with `Auth.ApplyAuth: true`.                        | `JWTConfig`       |
 | `cache`      | Stores `200` responses to `GET` requests in Redis for 10 minutes and shares them between clients. Requests with an `Authorization` header are never cached. | none              |
 

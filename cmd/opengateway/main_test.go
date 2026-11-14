@@ -49,9 +49,9 @@ type MockCacheService struct {
 	mock.Mock
 }
 
-func (m *MockCacheService) Increment(key string, window time.Duration) (int64, error) {
+func (m *MockCacheService) Increment(key string, window time.Duration) (int64, time.Duration, error) {
 	args := m.Called(key, window)
-	return args.Get(0).(int64), args.Error(1)
+	return args.Get(0).(int64), args.Get(1).(time.Duration), args.Error(2)
 }
 
 func (m *MockCacheService) Get(key string) (string, error) {

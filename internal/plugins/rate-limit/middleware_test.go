@@ -15,10 +15,14 @@
 package ratelimit_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,6 +65,8 @@ func TestRateLimitMiddlewareAllowed(t *testing.T) {
 		assert.Equal(t, http.StatusOK, recorder.Code)
 		assert.Equal(t, "10", recorder.Header().Get("X-RateLimit-Limit"))
 		assert.Equal(t, "9", recorder.Header().Get("X-RateLimit-Remaining"))
+		assert.Equal(t, "60", recorder.Header().Get("X-RateLimit-Reset"), "seconds until the reset")
+		assert.Empty(t, recorder.Header().Get("Retry-After"))
 	})
 
 }
@@ -73,7 +79,7 @@ func TestRateLimitMiddlewareRateLimitExceeded(t *testing.T) {
 	})
 
 	t.Run("rate limit exceeded", func(t *testing.T) {
-		mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(0), int64(0), time.Minute, ratelimit.ErrRateLimitExceeded)
+		mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(11), int64(0), 1500*time.Millisecond, ratelimit.ErrRateLimitExceeded)
 		mockRateLimiter.On("GetLimit").Return(int64(10))
 
 		recorder := httptest.NewRecorder()
@@ -84,6 +90,9 @@ func TestRateLimitMiddlewareRateLimitExceeded(t *testing.T) {
 		assert.Equal(t, http.StatusTooManyRequests, recorder.Code)
 		assert.Equal(t, "10", recorder.Header().Get("X-RateLimit-Limit"))
 		assert.Equal(t, "0", recorder.Header().Get("X-RateLimit-Remaining"))
+		assert.Equal(t, "2", recorder.Header().Get("X-RateLimit-Reset"), "rounded up to whole seconds")
+		assert.Equal(t, "2", recorder.Header().Get("Retry-After"))
+		assert.Equal(t, "Rate limit exceeded\n", recorder.Body.String())
 	})
 
 }
@@ -128,30 +137,42 @@ func TestRateLimitMiddlewareCountsPerClientIP(t *testing.T) {
 	}
 }
 
-func TestRateLimitMiddlewareErrors(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		expected int
-	}{
-		{"wrapped rate limit error", fmt.Errorf("checking limit: %w", ratelimit.ErrRateLimitExceeded), http.StatusTooManyRequests},
-		{"store failure", errors.New("connection refused"), http.StatusInternalServerError},
-		{"unrelated error with the same text", errors.New("rate limit exceeded"), http.StatusInternalServerError},
+func TestRateLimitMiddlewareRejectsWrappedLimitErrors(t *testing.T) {
+	reached := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached = true })
+	mockRateLimiter := new(MockRateLimiter)
+	mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(11), int64(0), time.Second, fmt.Errorf("checking limit: %w", ratelimit.ErrRateLimitExceeded))
+	mockRateLimiter.On("GetLimit").Return(int64(10))
+
+	recorder := httptest.NewRecorder()
+	ratelimit.NewMiddleware(mockRateLimiter)(next).ServeHTTP(recorder, httptest.NewRequest("GET", "/", nil))
+
+	assert.Equal(t, http.StatusTooManyRequests, recorder.Code)
+	assert.False(t, reached, "the request must not be forwarded")
+}
+
+// A store outage must not take down the services behind the plugin.
+func TestRateLimitMiddlewareLetsRequestsThroughWhenTheStoreFails(t *testing.T) {
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	reached := 0
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached++ })
+	mockRateLimiter := new(MockRateLimiter)
+	// Same text as the limit error, but not that error.
+	mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(0), int64(0), time.Duration(0), errors.New("rate limit exceeded"))
+	handler := ratelimit.NewMiddleware(mockRateLimiter)(next)
+
+	var last *httptest.ResponseRecorder
+	for i := 0; i < 3; i++ {
+		last = httptest.NewRecorder()
+		handler.ServeHTTP(last, httptest.NewRequest("GET", "/", nil))
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			reached := false
-			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached = true })
-			mockRateLimiter := new(MockRateLimiter)
-			mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(0), int64(0), time.Duration(0), tc.err)
-			mockRateLimiter.On("GetLimit").Return(int64(10))
-
-			recorder := httptest.NewRecorder()
-			ratelimit.NewMiddleware(mockRateLimiter)(next).ServeHTTP(recorder, httptest.NewRequest("GET", "/", nil))
-
-			assert.Equal(t, tc.expected, recorder.Code)
-			assert.False(t, reached, "the request must not be forwarded")
-		})
-	}
+	assert.Equal(t, 3, reached, "every request is forwarded")
+	assert.Equal(t, http.StatusOK, last.Code)
+	assert.Empty(t, last.Header().Get("X-RateLimit-Limit"), "no limit is claimed that was not checked")
+	assert.Equal(t, 1, strings.Count(logs.String(), "rate-limit: store failed"), "the outage is logged once, not per request")
+	assert.Contains(t, logs.String(), "rate limit exceeded")
 }
