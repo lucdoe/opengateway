@@ -63,7 +63,7 @@ func Wrap(name string, settings config.CircuitBreakerConfig, next http.Handler) 
 		})
 		if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
 			w.Header().Set("Retry-After", retryAfter)
-			http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+			httpx.Error(w, http.StatusServiceUnavailable, "Service unavailable")
 		}
 	})
 }

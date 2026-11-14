@@ -5,6 +5,7 @@
 package httpx
 
 import (
+	"encoding/json"
 	"math"
 	"net"
 	"net/http"
@@ -30,4 +31,25 @@ func ClientIP(r *http.Request) string {
 // client that waits that long is past the moment d ends.
 func Seconds(d time.Duration) string {
 	return strconv.Itoa(int(math.Ceil(d.Seconds())))
+}
+
+// errorBody is what every response the gateway answers itself carries, so
+// clients can parse errors the same way whichever part of the gateway
+// rejected the request.
+type errorBody struct {
+	Message string `json:"message"`
+}
+
+// Error answers the request with status and a JSON body
+// {"message": message}. It replaces http.Error, whose body is plain text.
+// Like http.Error, it drops a Content-Length set earlier and forbids content
+// sniffing; other headers already set, such as Retry-After, are kept.
+func Error(w http.ResponseWriter, status int, message string) {
+	body, _ := json.Marshal(errorBody{Message: message}) // a struct of one string always encodes
+	h := w.Header()
+	h.Del("Content-Length")
+	h.Set("Content-Type", "application/json; charset=utf-8")
+	h.Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(status)
+	w.Write(append(body, '\n'))
 }

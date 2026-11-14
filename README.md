@@ -111,6 +111,8 @@ These settings are optional. An environment variable, where one exists, override
 
 Every service has its own circuit breaker. A failure is an upstream that cannot be reached, times out, or answers `500`, `502`, `503` or `504`. While the breaker is open the gateway answers `503` with a `Retry-After` header straight away, without contacting the service.
 
+When the gateway answers a request itself, rather than passing on the upstream's response, the body is JSON with a `message`, for example `{"message":"Rate limit exceeded"}`. This covers unknown routes (`404`, `405`), plugin rejections (`401`, `403`, `429`) and upstream failures (`502`, `503`, `504`).
+
 On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets requests in flight finish, and exits.
 
 ## Performance

@@ -4,6 +4,7 @@
 package httpx
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -38,4 +39,19 @@ func TestSeconds(t *testing.T) {
 	assert.Equal(t, "1", Seconds(time.Millisecond))
 	assert.Equal(t, "2", Seconds(1500*time.Millisecond))
 	assert.Equal(t, "60", Seconds(time.Minute))
+}
+
+func TestErrorAnswersJSON(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rec.Header().Set("Content-Length", "999")
+	rec.Header().Set("Retry-After", "5")
+
+	Error(rec, http.StatusTooManyRequests, `Rate "limit" exceeded`)
+
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
+	assert.Empty(t, rec.Header().Get("Content-Length"), "a stale length would cut or stall the body")
+	assert.Equal(t, "5", rec.Header().Get("Retry-After"), "headers set before are kept")
+	assert.JSONEq(t, `{"message": "Rate \"limit\" exceeded"}`, rec.Body.String())
 }

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/lucdoe/opengateway/internal/httpx"
 )
 
 // Validator checks a bearer token and returns its claims.
@@ -30,23 +32,23 @@ func NewMiddleware(v Validator) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				http.Error(w, "Authorization header is required", http.StatusUnauthorized)
+				httpx.Error(w, http.StatusUnauthorized, "Authorization header is required")
 				return
 			}
 			scheme, token, _ := strings.Cut(authHeader, " ")
 			if !strings.EqualFold(scheme, "Bearer") || token == "" || strings.Contains(token, " ") {
-				http.Error(w, "Authorization header must be Bearer token", http.StatusUnauthorized)
+				httpx.Error(w, http.StatusUnauthorized, "Authorization header must be Bearer token")
 				return
 			}
 
 			claims, err := v.Validate(token)
 			switch {
 			case errors.Is(err, ErrMissingScope):
-				http.Error(w, "Token lacks a required scope", http.StatusForbidden)
+				httpx.Error(w, http.StatusForbidden, "Token lacks a required scope")
 				return
 			case err != nil:
 				// Why it failed would help someone forging tokens, not the caller.
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				httpx.Error(w, http.StatusUnauthorized, "Invalid token")
 				return
 			}
 
@@ -62,7 +64,7 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if claims := claimsFrom(r.Context()); claims == nil || !claims.HasScopes(required) {
-				http.Error(w, "Token lacks a required scope", http.StatusForbidden)
+				httpx.Error(w, http.StatusForbidden, "Token lacks a required scope")
 				return
 			}
 			next.ServeHTTP(w, r)

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+
+	"github.com/lucdoe/opengateway/internal/httpx"
 )
 
 // Config lists what the policy allows, comma-separated. An Origins entry of
@@ -79,14 +81,14 @@ func NewMiddleware(p *Policy) func(http.Handler) http.Handler {
 				return
 			}
 			if !p.AllowsOrigin(origin) {
-				http.Error(w, "CORS policy violation: Invalid Origin", http.StatusForbidden)
+				httpx.Error(w, http.StatusForbidden, "CORS policy violation: Invalid Origin")
 				return
 			}
 
 			preflight := r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != ""
 			if preflight && (!p.AllowsMethod(r.Header.Get("Access-Control-Request-Method")) ||
 				!p.AllowsHeaders(r.Header.Get("Access-Control-Request-Headers"))) {
-				http.Error(w, "CORS policy violation: Invalid Method or Header", http.StatusForbidden)
+				httpx.Error(w, http.StatusForbidden, "CORS policy violation: Invalid Method or Header")
 				return
 			}
 

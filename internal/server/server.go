@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/breaker"
 	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/httpx"
 )
 
 // Middleware wraps a handler with one plugin's behaviour.
@@ -57,6 +58,12 @@ func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mw
 	if err := server.SetupRoutes(cfg); err != nil {
 		return nil, err
 	}
+	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.Error(w, http.StatusNotFound, "Not found")
+	})
+	router.MethodNotAllowedHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.Error(w, http.StatusMethodNotAllowed, "Method not allowed")
+	})
 	return server, nil
 }
 
