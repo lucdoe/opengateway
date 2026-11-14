@@ -201,6 +201,39 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 	})
 }
 
+// Browsers send an OPTIONS preflight before cross-origin requests; it must
+// reach the cors plugin even though the endpoint only declares its own method.
+func TestPreflightsReachTheCorsPlugin(t *testing.T) {
+	cfg := &config.Config{
+		Services: map[string]config.Service{
+			"api": {
+				Subpath: "/api",
+				Endpoints: []config.Endpoint{
+					{Name: "List", HTTPMethod: "GET", Path: "/items", Plugins: []string{"cors"}},
+					{Name: "Create", HTTPMethod: "POST", Path: "/items", Plugins: []string{"cors", "logger"}},
+					{Name: "Plain", HTTPMethod: "GET", Path: "/plain"},
+					{Name: "Shared", HTTPMethod: "GET", Path: "/own", Plugins: []string{"cors"}},
+					{Name: "Own OPTIONS", HTTPMethod: "OPTIONS", Path: "/own", Plugins: []string{"logger"}},
+				},
+			},
+		},
+	}
+	var calls []string
+	s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls), nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, serve(s, "OPTIONS", "/api/items").Code)
+	assert.Equal(t, []string{"cors"}, calls, "the first cors endpoint's chain, once")
+
+	calls = nil
+	assert.Equal(t, http.StatusMethodNotAllowed, serve(s, "OPTIONS", "/api/plain").Code, "no cors, no OPTIONS route")
+	assert.Empty(t, calls)
+
+	calls = nil
+	assert.Equal(t, http.StatusOK, serve(s, "OPTIONS", "/api/own").Code)
+	assert.Equal(t, []string{"logger"}, calls, "a configured OPTIONS endpoint wins")
+}
+
 // recordingScope stands in for auth.RequireScope and records "scope:<scope>".
 func recordingScope(calls *[]string) ScopeCheck {
 	return func(scope string) Middleware {
