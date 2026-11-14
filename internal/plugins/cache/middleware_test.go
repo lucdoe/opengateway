@@ -64,6 +64,17 @@ func jsonUpstream() *countingUpstream {
 	}}
 }
 
+// respondWith answers with status, one header if header is set, and "body".
+func respondWith(status int, header, value string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if header != "" {
+			w.Header().Set(header, value)
+		}
+		w.WriteHeader(status)
+		w.Write([]byte("body"))
+	}
+}
+
 func get(handler http.Handler, target string, edit ...func(*http.Request)) *httptest.ResponseRecorder {
 	req := httptest.NewRequest("GET", target, nil)
 	for _, fn := range edit {
@@ -155,15 +166,6 @@ func TestCacheKeyDependsOnPathQueryAndEncoding(t *testing.T) {
 }
 
 func TestCacheSkipsRequestsAndResponsesThatMustNotBeShared(t *testing.T) {
-	respondWith := func(status int, header, value string) func(http.ResponseWriter, *http.Request) {
-		return func(w http.ResponseWriter, r *http.Request) {
-			if header != "" {
-				w.Header().Set(header, value)
-			}
-			w.WriteHeader(status)
-			w.Write([]byte("body"))
-		}
-	}
 	ok := respondWith(http.StatusOK, "", "")
 
 	tests := []struct {
@@ -176,6 +178,8 @@ func TestCacheSkipsRequestsAndResponsesThatMustNotBeShared(t *testing.T) {
 		{name: "HEAD request", method: "HEAD", respond: ok},
 		{name: "request with Authorization", method: "GET", respond: ok,
 			edit: func(r *http.Request) { r.Header.Set("Authorization", "Bearer token") }},
+		{name: "request with a cookie", method: "GET", respond: ok,
+			edit: func(r *http.Request) { r.AddCookie(&http.Cookie{Name: "session", Value: "alice"}) }},
 		{name: "404 response", method: "GET", respond: respondWith(http.StatusNotFound, "", "")},
 		{name: "500 response", method: "GET", respond: respondWith(http.StatusInternalServerError, "", "")},
 		{name: "response sets a cookie", method: "GET", respond: respondWith(http.StatusOK, "Set-Cookie", "session=abc")},
@@ -184,6 +188,16 @@ func TestCacheSkipsRequestsAndResponsesThatMustNotBeShared(t *testing.T) {
 		{name: "Cache-Control: no-cache", method: "GET", respond: respondWith(http.StatusOK, "Cache-Control", "no-cache")},
 		{name: "Vary: Cookie", method: "GET", respond: respondWith(http.StatusOK, "Vary", "Accept-Encoding, Cookie")},
 		{name: "Vary: *", method: "GET", respond: respondWith(http.StatusOK, "Vary", "*")},
+		{name: "Cache-Control: max-age=0", method: "GET", respond: respondWith(http.StatusOK, "Cache-Control", "max-age=0")},
+		{name: "Cache-Control: s-maxage=0", method: "GET", respond: respondWith(http.StatusOK, "Cache-Control", "max-age=60, s-maxage=0")},
+		{name: "body over the size limit", method: "GET", respond: func(w http.ResponseWriter, r *http.Request) {
+			w.Write(make([]byte, maxBodyBytes+1))
+		}},
+		{name: "streamed response", method: "GET", respond: func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Write([]byte("data: 1\n\n"))
+			http.NewResponseController(w).Flush()
+		}},
 	}
 
 	for _, tc := range tests {
@@ -283,6 +297,56 @@ func TestCacheKeepsTheUpstreamsVaryNextToEarlierPlugins(t *testing.T) {
 	assert.Equal(t, "HIT", hit.Header().Get("X-Cache"))
 	assert.Equal(t, miss.Header().Values("Vary"), hit.Header().Values("Vary"))
 	assert.Equal(t, []string{"Origin", "Accept-Encoding"}, hit.Header().Values("Vary"))
+}
+
+// A cache serving a response longer than the upstream allows serves stale data.
+func TestCacheKeepsResponsesNoLongerThanTheUpstreamAllows(t *testing.T) {
+	tests := []struct {
+		cacheControl string
+		ttl          time.Duration
+	}{
+		{"", cacheTTL},
+		{"public", cacheTTL},
+		{"max-age=5", 5 * time.Second},
+		{"public, max-age=60, s-maxage=20", 20 * time.Second},
+		{"max-age=86400", cacheTTL},
+		{"max-age=junk", cacheTTL},
+		{"max-age=99999999999999999", cacheTTL},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.cacheControl, func(t *testing.T) {
+			store := newMemoryStore()
+			upstream := &countingUpstream{respond: respondWith(http.StatusOK, "Cache-Control", tc.cacheControl)}
+
+			get(NewMiddleware(store)(upstream), "/api/people")
+
+			assert.Equal(t, tc.ttl, store.lastTTL)
+		})
+	}
+}
+
+func TestCacheDeliversBodiesOverTheLimitInFull(t *testing.T) {
+	body := make([]byte, maxBodyBytes+10)
+	upstream := &countingUpstream{respond: func(w http.ResponseWriter, r *http.Request) { w.Write(body) }}
+
+	res := get(NewMiddleware(newMemoryStore())(upstream), "/api/big")
+
+	assert.Equal(t, len(body), res.Body.Len())
+}
+
+func TestCacheLetsStreamedResponsesFlush(t *testing.T) {
+	var flushErr error
+	upstream := &countingUpstream{respond: func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("data: 1\n\n"))
+		flushErr = http.NewResponseController(w).Flush()
+	}}
+	res := httptest.NewRecorder()
+
+	NewMiddleware(newMemoryStore())(upstream).ServeHTTP(res, httptest.NewRequest("GET", "/api/events", nil))
+
+	assert.NoError(t, flushErr)
+	assert.True(t, res.Flushed)
 }
 
 func TestCacheFallsBackToTheUpstreamWhenTheStoreFails(t *testing.T) {
