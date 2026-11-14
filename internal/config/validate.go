@@ -94,16 +94,22 @@ func (c *Config) Validate() error {
 // plugin. Auth also counts as used when an endpoint sets ApplyAuth.
 func (c *Config) UsesPlugin(name string) bool {
 	for _, service := range c.Services {
-		if slices.Contains(service.Plugins, name) {
+		if service.UsesPlugin(name) {
 			return true
 		}
-		for _, endpoint := range service.Endpoints {
-			if slices.Contains(endpoint.Plugins, name) {
-				return true
-			}
-			if name == PluginAuth && endpoint.Auth.ApplyAuth {
-				return true
-			}
+	}
+	return false
+}
+
+// UsesPlugin reports whether the service or one of its endpoints enables the
+// named plugin, as Config.UsesPlugin does.
+func (s Service) UsesPlugin(name string) bool {
+	if slices.Contains(s.Plugins, name) {
+		return true
+	}
+	for _, endpoint := range s.Endpoints {
+		if slices.Contains(endpoint.Plugins, name) || (name == PluginAuth && endpoint.Auth.ApplyAuth) {
+			return true
 		}
 	}
 	return false

@@ -54,6 +54,9 @@ func InitializeServer(deps ServerDependencies, configPath string) (*server.Serve
 	if err != nil {
 		return nil, err
 	}
+	for _, warning := range cfg.Warnings() {
+		log.Printf("warning: %s", warning)
+	}
 
 	plugins, closers, err := buildPlugins(cfg, deps.newStore)
 	if err != nil {
@@ -148,6 +151,9 @@ func check(loadConfig func(string) (*config.Config, error), configPath string, s
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
+	}
+	for _, warning := range cfg.Warnings() {
+		fmt.Fprintln(stderr, "warning:", warning)
 	}
 	endpoints := 0
 	for _, service := range cfg.Services {
