@@ -1,4 +1,7 @@
-# Architecture
+---
+title: Architecture
+description: How OpenGateway is built, and how a request flows through it.
+---
 
 OpenGateway is a single Go binary. It reads one YAML file, builds a route for every configured endpoint, and reverse-proxies matching requests to the service behind it. Nothing else is required: the `cache` and `rate-limit` plugins keep their state in memory unless the config points them at Redis.
 

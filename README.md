@@ -53,6 +53,8 @@ go run ./cmd/opengateway check -c path/to/config.yaml
 
 ## Docs
 
+Read them at **[lucdoe.github.io/opengateway](https://lucdoe.github.io/opengateway/)**, with search, or here on GitHub:
+
 | Page | What's in it |
 | --- | --- |
 | [Configuration](docs/configuration.md) | services, prefix routes and path rewrites, settings per service and endpoint, `${VAR}` placeholders, server and store settings |

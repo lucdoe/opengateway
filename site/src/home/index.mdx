@@ -1,0 +1,70 @@
+---
+title: Lightweight API gateway in Go
+description: A lightweight API gateway in Go. One YAML file, no control plane.
+template: splash
+hero:
+  title: OpenGateway
+  tagline: A lightweight API gateway in Go. Describe your services in one YAML file and run one binary. No control plane, no database.
+  actions:
+    - text: Get started
+      link: '#quick-start'
+      icon: right-arrow
+    - text: Configuration
+      link: configuration/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/lucdoe/opengateway
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="One file" icon="document">
+    Services, routes and plugins in one YAML file, validated at startup and with `check` in CI. Every problem listed, with its line.
+  </Card>
+  <Card title="Routing" icon="random">
+    Exact and prefix routes, any-method routes, path rewrites. The most specific route wins.
+  </Card>
+  <Card title="Auth" icon="approve-check">
+    HS256 secrets, or RS, PS, ES and EdDSA tokens from any OpenID Connect provider through its JWKS.
+  </Card>
+  <Card title="Plugins" icon="puzzle">
+    JSON logs, CORS, rate limits per IP, header or user, and a shared response cache. Settings per service and endpoint.
+  </Card>
+  <Card title="Resilient" icon="warning">
+    A circuit breaker per service, upstream timeouts, graceful shutdown.
+  </Card>
+  <Card title="Observable" icon="information">
+    Request IDs, a health check and Prometheus metrics on their own port.
+  </Card>
+</CardGrid>
+
+## Quick start
+
+```bash
+git clone https://github.com/lucdoe/opengateway.git
+cd opengateway
+go run ./cmd/opengateway
+```
+
+Or `docker compose up --build`, which also starts Redis. Then describe your services in `cmd/opengateway/config.yaml`:
+
+```yaml
+Services:
+  starwars:
+    URL: "https://swapi.dev"
+    Subpath: "/api"
+    Plugins: ["logger", "rate-limit"]
+    Endpoints:
+      - HTTPMethod: "GET"
+        Path: "/people/{id}"
+        Plugins: ["cache"]
+```
+
+`GET /api/people/7` on port 4000 is forwarded to `https://swapi.dev/api/people/7`.
+
+## Fast
+
+With every plugin on and two CPU cores: **16,000 requests/s**, **+0.3 ms** median added latency, cache hits in **0.13 ms**. See the [benchmark](https://github.com/lucdoe/opengateway#performance).
