@@ -15,163 +15,315 @@
 package middleware
 
 import (
-	"io"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/lucdoe/opengateway/internal"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/assert"
 )
 
-const (
-	contentTypeHeader = "Content-Type"
-	JSONContentType   = "application/json"
-)
-
-type MockCache struct {
-	mock.Mock
+// memoryStore is an in-memory cache.Cache. It records the TTL of the last
+// Set and can be made to fail.
+type memoryStore struct {
+	values  map[string]string
+	lastTTL time.Duration
+	getErr  error
+	setErr  error
 }
 
-func (m *MockCache) Increment(key string, window time.Duration) (int64, error) {
-	args := m.Called(key, window)
-	return args.Get(0).(int64), args.Error(1)
+func newMemoryStore() *memoryStore {
+	return &memoryStore{values: map[string]string{}}
 }
 
-func (m *MockCache) Get(key string) (string, error) {
-	args := m.Called(key)
-	return args.String(0), args.Error(1)
+func (m *memoryStore) Get(key string) (string, error) {
+	if m.getErr != nil {
+		return "", m.getErr
+	}
+	value, ok := m.values[key]
+	if !ok {
+		return "", errors.New("redis: nil")
+	}
+	return value, nil
 }
 
-func (m *MockCache) Set(key string, value string, expiration time.Duration) error {
-	args := m.Called(key, value, expiration)
-	return args.Error(0)
+func (m *memoryStore) Set(key string, value string, expiration time.Duration) error {
+	if m.setErr != nil {
+		return m.setErr
+	}
+	m.values[key] = value
+	m.lastTTL = expiration
+	return nil
 }
 
-func (m *MockCache) GenerateCacheKey(r *http.Request) string {
-	args := m.Called(r)
-	return args.String(0)
+func (m *memoryStore) Increment(key string, window time.Duration) (int64, error) {
+	return 0, nil
 }
 
-type MockResponseUtil struct {
-	mock.Mock
+// countingUpstream answers every request with respond and counts the calls.
+type countingUpstream struct {
+	calls   int
+	respond func(w http.ResponseWriter, r *http.Request)
 }
 
-func (m *MockResponseUtil) CopyStatusAndHeader(src, dst http.ResponseWriter) {
-	m.Called(src, dst)
+func (u *countingUpstream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	u.calls++
+	u.respond(w, r)
 }
 
-func (m *MockResponseUtil) WriteResponse(w http.ResponseWriter, statusCode int, contentType string, content []byte) {
-	m.Called(w, statusCode, contentType, content)
+func jsonUpstream() *countingUpstream {
+	return &countingUpstream{respond: func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	}}
 }
 
-func TestCacheMiddleware(t *testing.T) {
-	mockCache := new(MockCache)
-	mockResponseUtil := new(MockResponseUtil)
-	middlewareInstance := NewCacheMiddleware(mockCache, mockResponseUtil)
+func get(handler http.Handler, target string, edit ...func(*http.Request)) *httptest.ResponseRecorder {
+	req := httptest.NewRequest("GET", target, nil)
+	for _, fn := range edit {
+		fn(req)
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	return w
+}
 
-	cacheKey := "cacheKey"
-	responseBody := `{"status":"ok"}`
-	mockCache.On("GenerateCacheKey", mock.Anything).Return(cacheKey)
-	mockCache.On("Get", cacheKey).Return("", nil)
-	mockCache.On("Set", cacheKey, responseBody, 10*time.Minute).Return(nil)
+func TestCacheServesTheStoredResponseOnAHit(t *testing.T) {
+	store := newMemoryStore()
+	upstream := &countingUpstream{respond: func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Upstream", "yes")
+		w.Write([]byte("hello"))
+	}}
+	handler := NewCacheMiddleware(store).Middleware(upstream)
 
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest("GET", "/", nil)
+	miss := get(handler, "/api/people")
+	hit := get(handler, "/api/people")
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(responseBody))
+	assert.Equal(t, 1, upstream.calls, "the second request must not reach the upstream")
+	assert.Equal(t, 10*time.Minute, store.lastTTL)
+
+	assert.Equal(t, "MISS", miss.Header().Get("X-Cache"))
+	assert.Equal(t, "HIT", hit.Header().Get("X-Cache"))
+	assert.NotEmpty(t, hit.Header().Get("Age"))
+	assert.Empty(t, miss.Header().Get("Age"))
+
+	for _, res := range []*httptest.ResponseRecorder{miss, hit} {
+		assert.Equal(t, http.StatusOK, res.Code)
+		assert.Equal(t, "hello", res.Body.String())
+		assert.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
+		assert.Equal(t, "yes", res.Header().Get("X-Upstream"))
+	}
+}
+
+func TestCacheIsSharedBetweenClients(t *testing.T) {
+	upstream := jsonUpstream()
+	handler := NewCacheMiddleware(newMemoryStore()).Middleware(upstream)
+
+	get(handler, "/api/people", func(r *http.Request) { r.RemoteAddr = "203.0.113.5:51000" })
+	sameClientNewConnection := get(handler, "/api/people", func(r *http.Request) { r.RemoteAddr = "203.0.113.5:51001" })
+	otherClient := get(handler, "/api/people", func(r *http.Request) { r.RemoteAddr = "198.51.100.7:40000" })
+
+	assert.Equal(t, 1, upstream.calls)
+	assert.Equal(t, "HIT", sameClientNewConnection.Header().Get("X-Cache"))
+	assert.Equal(t, "HIT", otherClient.Header().Get("X-Cache"))
+}
+
+func TestCacheKeyDependsOnPathQueryAndEncoding(t *testing.T) {
+	gzip := func(r *http.Request) { r.Header.Set("Accept-Encoding", "gzip") }
+
+	tests := []struct {
+		name      string
+		first     string
+		second    string
+		editFirst func(*http.Request)
+		sameEntry bool
+	}{
+		{name: "same request", first: "/people?page=1", second: "/people?page=1", sameEntry: true},
+		{name: "query parameter order", first: "/people?b=2&a=1", second: "/people?a=1&b=2", sameEntry: true},
+		{name: "different path", first: "/people", second: "/starships"},
+		{name: "different query value", first: "/people?page=1", second: "/people?page=2"},
+		{name: "repeated query parameter", first: "/people?tag=a", second: "/people?tag=a&tag=b"},
+		{name: "different Accept-Encoding", first: "/people", second: "/people", editFirst: gzip},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := jsonUpstream()
+			handler := NewCacheMiddleware(newMemoryStore()).Middleware(upstream)
+
+			if tc.editFirst != nil {
+				get(handler, tc.first, tc.editFirst)
+			} else {
+				get(handler, tc.first)
+			}
+			get(handler, tc.second)
+
+			if tc.sameEntry {
+				assert.Equal(t, 1, upstream.calls)
+			} else {
+				assert.Equal(t, 2, upstream.calls)
+			}
+		})
+	}
+}
+
+func TestCacheSkipsRequestsAndResponsesThatMustNotBeShared(t *testing.T) {
+	respondWith := func(status int, header, value string) func(http.ResponseWriter, *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if header != "" {
+				w.Header().Set(header, value)
+			}
+			w.WriteHeader(status)
+			w.Write([]byte("body"))
+		}
+	}
+	ok := respondWith(http.StatusOK, "", "")
+
+	tests := []struct {
+		name    string
+		method  string
+		edit    func(*http.Request)
+		respond func(http.ResponseWriter, *http.Request)
+	}{
+		{name: "POST request", method: "POST", respond: ok},
+		{name: "HEAD request", method: "HEAD", respond: ok},
+		{name: "request with Authorization", method: "GET", respond: ok,
+			edit: func(r *http.Request) { r.Header.Set("Authorization", "Bearer token") }},
+		{name: "404 response", method: "GET", respond: respondWith(http.StatusNotFound, "", "")},
+		{name: "500 response", method: "GET", respond: respondWith(http.StatusInternalServerError, "", "")},
+		{name: "response sets a cookie", method: "GET", respond: respondWith(http.StatusOK, "Set-Cookie", "session=abc")},
+		{name: "Cache-Control: no-store", method: "GET", respond: respondWith(http.StatusOK, "Cache-Control", "no-store")},
+		{name: "Cache-Control: private", method: "GET", respond: respondWith(http.StatusOK, "Cache-Control", "max-age=60, Private")},
+		{name: "Cache-Control: no-cache", method: "GET", respond: respondWith(http.StatusOK, "Cache-Control", "no-cache")},
+		{name: "Vary: Cookie", method: "GET", respond: respondWith(http.StatusOK, "Vary", "Accept-Encoding, Cookie")},
+		{name: "Vary: *", method: "GET", respond: respondWith(http.StatusOK, "Vary", "*")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newMemoryStore()
+			upstream := &countingUpstream{respond: tc.respond}
+			handler := NewCacheMiddleware(store).Middleware(upstream)
+
+			for i := 0; i < 2; i++ {
+				req := httptest.NewRequest(tc.method, "/api/people", nil)
+				if tc.edit != nil {
+					tc.edit(req)
+				}
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, req)
+				assert.NotEqual(t, "HIT", w.Header().Get("X-Cache"))
+			}
+
+			assert.Equal(t, 2, upstream.calls, "both requests must reach the upstream")
+			assert.Empty(t, store.values, "nothing may be stored")
+		})
+	}
+}
+
+func TestCacheStoresResponsesThatOnlyVaryOnAcceptEncoding(t *testing.T) {
+	upstream := &countingUpstream{respond: func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Vary", "Accept-Encoding")
+		w.Header().Set("Cache-Control", "public, max-age=60")
+		w.Write([]byte("body"))
+	}}
+	handler := NewCacheMiddleware(newMemoryStore()).Middleware(upstream)
+
+	get(handler, "/api/people")
+	hit := get(handler, "/api/people")
+
+	assert.Equal(t, 1, upstream.calls)
+	assert.Equal(t, "HIT", hit.Header().Get("X-Cache"))
+}
+
+// Plugins that run before the cache set headers for the current request.
+// A cache hit must show the current values, not the ones from the request
+// that filled the cache.
+func TestCacheKeepsHeadersFromEarlierPluginsFresh(t *testing.T) {
+	remaining := []string{"9", "8"}
+	origins := []string{"https://a.example", "https://b.example"}
+	request := 0
+
+	cached := NewCacheMiddleware(newMemoryStore()).Middleware(jsonUpstream())
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", remaining[request])
+		w.Header().Set("Access-Control-Allow-Origin", origins[request])
+		request++
+		cached.ServeHTTP(w, r)
 	})
 
-	middlewareInstance.Middleware(testHandler).ServeHTTP(recorder, request)
+	get(handler, "/api/people")
+	hit := get(handler, "/api/people")
 
-	if recorder.Code != http.StatusOK {
-		t.Errorf("Expected status code %d, got %d", http.StatusOK, recorder.Code)
-	}
-	if recorder.Body.String() != responseBody {
-		t.Errorf("Expected response body %s, got %s", responseBody, recorder.Body.String())
-	}
-	mockCache.AssertExpectations(t)
+	assert.Equal(t, "HIT", hit.Header().Get("X-Cache"))
+	assert.Equal(t, "8", hit.Header().Get("X-RateLimit-Remaining"))
+	assert.Equal(t, "https://b.example", hit.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "application/json", hit.Header().Get("Content-Type"))
 }
 
-func TestWriteResponse(t *testing.T) {
-	w := httptest.NewRecorder()
-	content := []byte("Hello, world!")
-	statusCode := http.StatusOK
-	contentType := "text/plain"
+func TestCacheFallsBackToTheUpstreamWhenTheStoreFails(t *testing.T) {
+	t.Run("read fails", func(t *testing.T) {
+		store := newMemoryStore()
+		upstream := jsonUpstream()
+		handler := NewCacheMiddleware(store).Middleware(upstream)
 
-	responseUtil := StandardResponseUtil{}
-	responseUtil.WriteResponse(w, statusCode, contentType, content)
+		get(handler, "/api/people")
+		store.getErr = errors.New("connection refused")
+		res := get(handler, "/api/people")
 
-	res := w.Result()
-	resBody, _ := io.ReadAll(res.Body)
+		assert.Equal(t, 2, upstream.calls)
+		assert.Equal(t, http.StatusOK, res.Code)
+		assert.Equal(t, `{"status":"ok"}`, res.Body.String())
+	})
 
-	if res.StatusCode != statusCode {
-		t.Errorf("Expected status code %d, got %d", statusCode, res.StatusCode)
-	}
-	if res.Header.Get(contentTypeHeader) != contentType {
-		t.Errorf("Expected content type %s, got %s", contentType, res.Header.Get(contentTypeHeader))
-	}
-	if string(resBody) != string(content) {
-		t.Errorf("Expected response body %s, got %s", string(content), string(resBody))
-	}
+	t.Run("write fails", func(t *testing.T) {
+		store := newMemoryStore()
+		store.setErr = errors.New("connection refused")
+		upstream := jsonUpstream()
+		handler := NewCacheMiddleware(store).Middleware(upstream)
+
+		res := get(handler, "/api/people")
+
+		assert.Equal(t, http.StatusOK, res.Code)
+		assert.Equal(t, `{"status":"ok"}`, res.Body.String())
+	})
+
+	t.Run("stored entry is unreadable", func(t *testing.T) {
+		store := newMemoryStore()
+		upstream := jsonUpstream()
+		handler := NewCacheMiddleware(store).Middleware(upstream)
+
+		get(handler, "/api/people")
+		for key := range store.values {
+			store.values[key] = "not json"
+		}
+		res := get(handler, "/api/people")
+
+		assert.Equal(t, 2, upstream.calls)
+		assert.Equal(t, "MISS", res.Header().Get("X-Cache"))
+	})
 }
 
-func TestCopyStatusAndHeader(t *testing.T) {
-	src := internal.NewResponseRecorder(httptest.NewRecorder())
-	dst := httptest.NewRecorder()
-
-	src.Header().Set(contentTypeHeader, JSONContentType)
-	src.WriteHeader(http.StatusNotFound)
-
-	responseUtil := StandardResponseUtil{}
-	responseUtil.CopyStatusAndHeader(src, dst)
-
-	if dst.Header().Get(contentTypeHeader) != JSONContentType {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", dst.Header().Get(contentTypeHeader))
+func TestClientIP(t *testing.T) {
+	tests := []struct {
+		remoteAddr string
+		expected   string
+	}{
+		{"203.0.113.5:51000", "203.0.113.5"},
+		{"[2001:db8::1]:51000", "2001:db8::1"},
+		{"203.0.113.5", "203.0.113.5"},
+		{"", ""},
 	}
 
-	if dst.Code != http.StatusNotFound {
-		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, dst.Code)
+	for _, tc := range tests {
+		t.Run(tc.remoteAddr, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.RemoteAddr = tc.remoteAddr
+			req.Header.Set("X-Forwarded-For", "10.0.0.1")
+
+			assert.Equal(t, tc.expected, clientIP(req))
+		})
 	}
-}
-
-func TestHandleCacheHit(t *testing.T) {
-	recorder := httptest.NewRecorder()
-	cachedResponse := `{"status":"ok"}`
-
-	if !handleCacheHit(recorder, cachedResponse, nil) {
-		t.Errorf("Expected cache hit to be handled")
-	}
-
-	res := recorder.Result()
-	resBody, _ := io.ReadAll(res.Body)
-
-	if res.StatusCode != http.StatusOK {
-		t.Errorf("Expected status code %d, got %d", http.StatusOK, res.StatusCode)
-	}
-	if res.Header.Get(contentTypeHeader) != JSONContentType {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", res.Header.Get(contentTypeHeader))
-	}
-	if string(resBody) != cachedResponse {
-		t.Errorf("Expected response body %s, got %s", cachedResponse, string(resBody))
-	}
-}
-
-func TestHandleCacheMiss(t *testing.T) {
-	mockCache := new(MockCache)
-	recorder := internal.NewResponseRecorder(httptest.NewRecorder())
-	responseBody := `{"status":"ok"}`
-	recorder.WriteHeader(http.StatusOK)
-	recorder.Write([]byte(responseBody))
-
-	cacheKey := "cacheKey"
-	mockCache.On("Set", cacheKey, responseBody, 10*time.Minute).Return(nil)
-
-	cm := &CacheMiddleware{Cache: mockCache}
-	handleCacheMiss(cm, cacheKey, recorder)
-
-	mockCache.AssertCalled(t, "Set", cacheKey, responseBody, 10*time.Minute)
 }

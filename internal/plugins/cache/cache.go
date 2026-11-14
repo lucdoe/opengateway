@@ -16,11 +16,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
-	"net/http"
-	"net/url"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -34,7 +29,6 @@ type CacheConfig struct {
 type Cache interface {
 	Get(key string) (string, error)
 	Set(key string, value string, expiration time.Duration) error
-	GenerateCacheKey(r *http.Request) string
 	Increment(key string, window time.Duration) (int64, error)
 }
 
@@ -79,23 +73,4 @@ func (r *RedisCache) Increment(key string, window time.Duration) (int64, error) 
 	}
 
 	return count, nil
-}
-
-func (r *RedisCache) GenerateCacheKey(rq *http.Request) string {
-	path := rq.URL.Path
-	address := rq.RemoteAddr
-	return fmt.Sprintf("%s:%s:%s:%s", rq.Method, path, r.sortQueryParams(rq.URL.Query()), address)
-}
-
-func (r *RedisCache) sortQueryParams(params url.Values) string {
-	keys := make([]string, 0, len(params))
-	for k := range params {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	var sortedParams []string
-	for _, k := range keys {
-		sortedParams = append(sortedParams, fmt.Sprintf("%s=%s", k, params.Get(k)))
-	}
-	return strings.Join(sortedParams, "&")
 }

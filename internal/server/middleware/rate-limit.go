@@ -15,12 +15,15 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
 )
+
+const rateLimitKeyPrefix = "ratelimit:"
 
 type RateLimitMiddleware struct {
 	RateLimiter ratelimit.RateLimiter
@@ -41,11 +44,11 @@ func (rlm *RateLimitMiddleware) setRateLimitHeaders(w http.ResponseWriter, remai
 
 func (rlm *RateLimitMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		key := req.RemoteAddr
+		key := rateLimitKeyPrefix + clientIP(req)
 		_, remaining, window, err := rlm.RateLimiter.RateLimit(key)
 		if err != nil {
 			rlm.setRateLimitHeaders(w, remaining, window)
-			if err.Error() == "rate limit exceeded" {
+			if errors.Is(err, ratelimit.ErrRateLimitExceeded) {
 				http.Error(w, err.Error(), http.StatusTooManyRequests)
 				return
 			}
