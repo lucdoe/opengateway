@@ -12,95 +12,75 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package logger is the logger plugin: one JSON line per request, written
+// after the request has been answered.
 package logger
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"time"
 )
 
-type FileWriter interface {
-	Write(p []byte) (n int, err error)
+const (
+	// queueLines is how many lines can wait for the output before new ones
+	// are dropped.
+	queueLines = 8192
+	// bufferBytes is how much is collected before a write to the output.
+	bufferBytes = 64 * 1024
+	// flushInterval is the longest a written line waits in the buffer.
+	flushInterval = time.Second
+)
+
+// Config says where the log goes.
+type Config struct {
+	// FilePath is the file lines are appended to. Empty means stdout.
+	FilePath string
 }
 
-type FileOpener interface {
-	OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error)
+// Logger writes request lines as JSON. Lines are queued and written by a
+// background goroutine; call Close to write out what is still queued.
+type Logger struct {
+	log  *slog.Logger
+	out  *asyncWriter
+	file io.Closer
 }
 
-type Logger interface {
-	Info(msg string, details string)
-}
-
-type TimeProvider interface {
-	Now() time.Time
-}
-
-type LoggerConfig struct {
-	FilePath     string
-	FileWriter   FileWriter
-	ErrOutput    io.Writer
-	TimeProvider TimeProvider
-	FileOpener   FileOpener
-}
-
-type OSLogger struct {
-	filePath     string
-	file         FileWriter
-	errOutput    io.Writer
-	timeProvider TimeProvider
-}
-
-// NewLogger opens the log file at cfg.FilePath for appending, creating it if
-// needed, and returns a logger that writes to it.
-func NewLogger(cfg LoggerConfig) (Logger, error) {
-	cfg.setDefaults()
-
-	var err error
-	cfg.FileWriter, err = cfg.FileOpener.OpenFile(cfg.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+// New opens the log output cfg names.
+func New(cfg Config) (*Logger, error) {
+	if cfg.FilePath == "" {
+		return newLogger(os.Stdout, nil), nil
+	}
+	file, err := os.OpenFile(cfg.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("opening log file %q: %w", cfg.FilePath, err)
 	}
-
-	return &OSLogger{
-		filePath:     cfg.FilePath,
-		file:         cfg.FileWriter,
-		errOutput:    cfg.ErrOutput,
-		timeProvider: cfg.TimeProvider,
-	}, nil
+	return newLogger(file, file), nil
 }
 
-func (l *OSLogger) Info(msg string, details string) {
-	logMessage := fmt.Sprintf("%s [%s]: %s %s\n", l.timeProvider.Now().Format("2006-01-02 15:04:05"), "INFO", msg, details)
+func newLogger(dest io.Writer, file io.Closer) *Logger {
+	out := newAsyncWriter(dest, writerOptions{queue: queueLines, bufferSize: bufferBytes, flushEvery: flushInterval})
+	return &Logger{
+		log:  slog.New(slog.NewJSONHandler(out, nil)),
+		out:  out,
+		file: file,
+	}
+}
+
+// Request logs one answered request.
+func (l *Logger) Request(ctx context.Context, attrs ...slog.Attr) {
+	l.log.LogAttrs(ctx, slog.LevelInfo, "request", attrs...)
+}
+
+// Close writes out the queued lines and closes the log file, if any.
+func (l *Logger) Close() error {
+	err := l.out.Close()
 	if l.file != nil {
-		_, err := l.file.Write([]byte(logMessage))
-		if err != nil {
-			fmt.Fprintf(l.errOutput, "Error writing to log file: %v\n", err)
-		}
+		err = errors.Join(err, l.file.Close())
 	}
-}
-
-type RealTime struct{}
-
-func (r RealTime) Now() time.Time {
-	return time.Now()
-}
-
-type DefaultFileOpener struct{}
-
-func (d DefaultFileOpener) OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error) {
-	return os.OpenFile(name, flag, perm)
-}
-
-func (cfg *LoggerConfig) setDefaults() {
-	if cfg.ErrOutput == nil {
-		cfg.ErrOutput = os.Stderr
-	}
-	if cfg.TimeProvider == nil {
-		cfg.TimeProvider = RealTime{}
-	}
-	if cfg.FileOpener == nil {
-		cfg.FileOpener = DefaultFileOpener{}
-	}
+	return err
 }

@@ -65,7 +65,7 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 
 | Plugin       | What it does                                                                                                        | Settings          |
 | ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `logger`     | Writes one line per request to a file.                                                                              | `LoggerConfig`    |
+| `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes and client IP (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `LoggerConfig`    |
 | `cors`       | Rejects requests from origins that are not allowed and sets the CORS response headers.                              | `CORSConfig`      |
 | `rate-limit` | Allows each client IP `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
 | `auth`       | Requires a `Bearer` JWT signed with HS256. Enabled per endpoint with `Auth.ApplyAuth: true`.                        | `JWTConfig`       |

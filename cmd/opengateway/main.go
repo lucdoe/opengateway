@@ -62,12 +62,20 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 		return nil, err
 	}
 
-	plugins, err := buildPlugins(cfg, deps.newStore)
+	plugins, closers, err := buildPlugins(cfg, deps.newStore)
 	if err != nil {
 		return nil, err
 	}
 
-	return server.NewServer(cfg, deps.router, deps.newProxy, plugins)
+	s, err := server.NewServer(cfg, deps.router, deps.newProxy, plugins)
+	if err != nil {
+		for _, closer := range closers {
+			closer.Close()
+		}
+		return nil, err
+	}
+	s.Closers = closers
+	return s, nil
 }
 
 // openStore opens the store that cfg.Type names. The config is validated, so
