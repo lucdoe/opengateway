@@ -46,7 +46,6 @@ Plugins:
 Services:
   service1:
     URL: "http://example.org"
-    Protocol: "HTTPS"
     Subpath: "/api"
     Plugins:
       - "logger"
@@ -57,17 +56,9 @@ Services:
       - Name: "Submit"
         HTTPMethod: "POST"
         Path: "/submit"
-        QueryParams:
-          - Key: "key"
-            Value: "value"
         Auth:
           ApplyAuth: true
-          Method: "Bearer"
-          Algorithm: "HS256"
           Scope: "read:write"
-          SecretKey: "secret"
-        Body:
-          key1: value1
         Plugins:
           - "logger"
 `
@@ -92,18 +83,15 @@ func TestLoadReadsEveryField(t *testing.T) {
 
 	require.Len(t, cfg.Services, 1)
 	assert.Equal(t, config.Service{
-		URL:      "http://example.org",
-		Protocol: "HTTPS",
-		Subpath:  "/api",
-		Plugins:  []string{"logger", "cors", "rate-limit", "cache"},
+		URL:     "http://example.org",
+		Subpath: "/api",
+		Plugins: []string{"logger", "cors", "rate-limit", "cache"},
 		Endpoints: []config.Endpoint{{
-			Name:        "Submit",
-			HTTPMethod:  "POST",
-			Path:        "/submit",
-			QueryParams: []config.QueryParam{{Key: "key", Value: "value"}},
-			Auth:        config.AuthConfig{ApplyAuth: true, Method: "Bearer", Algorithm: "HS256", Scope: "read:write", SecretKey: "secret"},
-			Body:        map[string]interface{}{"key1": "value1"},
-			Plugins:     []string{"logger"},
+			Name:       "Submit",
+			HTTPMethod: "POST",
+			Path:       "/submit",
+			Auth:       config.AuthConfig{ApplyAuth: true, Scope: "read:write"},
+			Plugins:    []string{"logger"},
 		}},
 	}, cfg.Services["service1"])
 }
@@ -182,5 +170,35 @@ Services:
 			assert.Nil(t, cfg)
 			assert.ErrorContains(t, err, tc.expected)
 		})
+	}
+}
+
+func TestParseExplainsRemovedSettings(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+Services:
+  a:
+    URL: http://example.com
+    Protocol: HTTP
+    Endpoints:
+      - HTTPMethod: GET
+        Path: /items
+        QueryParams: [{Key: page, Value: "1"}]
+        Body: {key: value}
+        Auth:
+          Method: Bearer
+          Algorithm: HS256
+          SecretKey: secret
+`))
+
+	assert.Nil(t, cfg)
+	for _, want := range []string{
+		"line 5: Protocol has been removed",
+		"line 9: QueryParams has been removed",
+		"line 10: Body has been removed",
+		"line 12: Auth.Method has been removed",
+		"line 13: Auth.Algorithm has been removed",
+		"line 14: Auth.SecretKey has been removed",
+	} {
+		assert.ErrorContains(t, err, want)
 	}
 }

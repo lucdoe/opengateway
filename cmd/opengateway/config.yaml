@@ -37,7 +37,6 @@ Services:
   starwars:
     URL: "https://swapi.dev"
     Subpath: "/api"
-    Protocol: "HTTP"
     Plugins:
       - "logger"
       - "cors"
@@ -47,60 +46,33 @@ Services:
       - Name: "List People"
         HTTPMethod: "GET"
         Path: "/people"
-        QueryParams:
-          - Key: "page"
-            Value: "1"
-        Auth:
-          ApplyAuth: false
 
       - Name: "Get Person"
         HTTPMethod: "GET"
         Path: "/people/{id}"
-        Auth:
-          ApplyAuth: false
 
       - Name: "List Starships"
         HTTPMethod: "GET"
         Path: "/starships"
-        QueryParams:
-          - Key: "page"
-            Value: "1"
-        Auth:
-          ApplyAuth: false
 
       - Name: "Get Starship"
         HTTPMethod: "GET"
         Path: "/starships/{id}"
-        Auth:
-          ApplyAuth: false
 
   someotherserver:
     URL: "http://localhost:3001"
     Subpath: "/api"
-    Protocol: "HTTP"
     Plugins:
       - "logger"
     Endpoints:
-      - Name: "List People"
+      - Name: "List Worlds"
         HTTPMethod: "GET"
         Path: "/worlds"
-        QueryParams:
-          - Key: "page"
-            Value: "1"
-        Auth:
-          ApplyAuth: false
 
-      - Name: "List People"
+      - Name: "Create World"
         HTTPMethod: "POST"
         Path: "/worlds"
-        QueryParams:
-          - Key: "page"
-            Value: "1"
-        Auth:
-          ApplyAuth: false
 
-      - Name: "Get Person"
+      - Name: "Get World"
         HTTPMethod: "GET"
         Path: "/worlds/{id}"
-        Auth:
-          ApplyAuth: false

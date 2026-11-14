@@ -13,15 +13,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/opengateway
 
 FROM alpine:3
 
-ENV GO_ENV=production
 ENV CONFIG_PATH=/app/config.yaml
 
 WORKDIR /app
 
 COPY --from=builder /app/main /app/main
 COPY --from=builder /app/cmd/opengateway/config.yaml /app/config.yaml
-
-RUN chmod +x /app/main
 
 EXPOSE 4000
 
