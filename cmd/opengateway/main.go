@@ -43,7 +43,7 @@ func (d *DefaultConfigLoader) LoadConfig(path string) (*config.Config, error) {
 type ServerDependencies struct {
 	configLoader configLoader
 	router       *mux.Router
-	proxyService proxy.ProxyService
+	newProxy     server.ProxyFactory
 	cacheService cache.Cache
 }
 
@@ -102,7 +102,7 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 		return nil, err
 	}
 
-	return server.NewServer(cfg, deps.router, deps.proxyService, middlewares)
+	return server.NewServer(cfg, deps.router, deps.newProxy, middlewares)
 }
 
 func main() {
@@ -115,7 +115,7 @@ func main() {
 	deps := ServerDependencies{
 		configLoader: &DefaultConfigLoader{},
 		router:       mux.NewRouter(),
-		proxyService: proxy.NewProxyService(),
+		newProxy:     proxy.NewHandler,
 		cacheService: cache.NewRedisCache(cache.CacheConfig{
 			Addr:     redisHost + ":" + redisPort,
 			Password: "",

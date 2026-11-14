@@ -15,117 +15,126 @@
 package proxy_test
 
 import (
-	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	exampleURL = "http://example.com"
-)
-
-func TestProxyReverseProxy(t *testing.T) {
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("hello world"))
+// upstream starts a test server that records the last request it received
+// and answers with the given status and body.
+func upstream(t *testing.T, status int, body string) (*httptest.Server, *http.Request) {
+	t.Helper()
+	received := new(http.Request)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqBody, _ := io.ReadAll(r.Body)
+		*received = *r
+		received.Body = io.NopCloser(strings.NewReader(string(reqBody)))
+		w.Header().Set("X-Upstream", "yes")
+		w.WriteHeader(status)
+		w.Write([]byte(body))
 	}))
-	defer testServer.Close()
-
-	proxyService := proxy.NewProxyService()
-
-	req := httptest.NewRequest("GET", exampleURL, nil)
-	w := httptest.NewRecorder()
-
-	err := proxyService.ReverseProxy(testServer.URL, w, req)
-	assert.NoError(t, err)
-
-	res := w.Result()
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-	responseBody, _ := io.ReadAll(res.Body)
-	assert.Equal(t, "hello world", string(responseBody))
+	t.Cleanup(server.Close)
+	return server, received
 }
 
-func TestProxyReverseProxyWithPost(t *testing.T) {
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "POST", r.Method)
-		body, _ := io.ReadAll(r.Body)
-		assert.Equal(t, "post body", string(body))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("post response"))
-	}))
-	defer testServer.Close()
-
-	proxyService := proxy.NewProxyService()
-
-	req := httptest.NewRequest("POST", exampleURL, io.NopCloser(io.MultiReader(bytes.NewReader([]byte("post body")))))
+func forward(t *testing.T, target string, req *http.Request) *http.Response {
+	t.Helper()
+	handler, err := proxy.NewHandler(target)
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	return w.Result()
+}
 
-	err := proxyService.ReverseProxy(testServer.URL, w, req)
-	assert.NoError(t, err)
+func TestHandlerForwardsTheRequestPath(t *testing.T) {
+	tests := []struct {
+		name         string
+		targetPath   string
+		requestPath  string
+		expectedPath string
+	}{
+		{"static path", "", "/api/people", "/api/people"},
+		{"path parameter value", "", "/api/people/7", "/api/people/7"},
+		{"upstream base path is prepended", "/v1", "/api/people/7", "/v1/api/people/7"},
+		{"base path with trailing slash", "/v1/", "/api/people", "/v1/api/people"},
+	}
 
-	res := w.Result()
-	assert.Equal(t, http.StatusOK, res.StatusCode)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server, received := upstream(t, http.StatusOK, "ok")
+
+			res := forward(t, server.URL+tc.targetPath, httptest.NewRequest("GET", "http://gateway.test"+tc.requestPath, nil))
+
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+			assert.Equal(t, tc.expectedPath, received.URL.Path)
+		})
+	}
+}
+
+func TestHandlerForwardsQueryMethodAndBody(t *testing.T) {
+	server, received := upstream(t, http.StatusOK, "post response")
+
+	req := httptest.NewRequest("POST", "http://gateway.test/api/worlds?page=2&sort=name", strings.NewReader("post body"))
+	res := forward(t, server.URL, req)
+
+	assert.Equal(t, "POST", received.Method)
+	assert.Equal(t, "2", received.URL.Query().Get("page"))
+	assert.Equal(t, "name", received.URL.Query().Get("sort"))
+	body, _ := io.ReadAll(received.Body)
+	assert.Equal(t, "post body", string(body))
+
 	responseBody, _ := io.ReadAll(res.Body)
 	assert.Equal(t, "post response", string(responseBody))
 }
 
-func TestProxyReverseProxyWithQueryParams(t *testing.T) {
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "value", r.URL.Query().Get("param"))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("query response"))
-	}))
-	defer testServer.Close()
+func TestHandlerAddressesTheUpstreamHost(t *testing.T) {
+	server, received := upstream(t, http.StatusOK, "ok")
+	upstreamURL, _ := url.Parse(server.URL)
 
-	proxyService := proxy.NewProxyService()
+	req := httptest.NewRequest("GET", "http://gateway.test/api/people", nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+	forward(t, server.URL, req)
 
-	req := httptest.NewRequest("GET", "http://example.com?param=value", nil)
-	w := httptest.NewRecorder()
-
-	err := proxyService.ReverseProxy(testServer.URL, w, req)
-	assert.NoError(t, err)
-
-	res := w.Result()
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-	responseBody, _ := io.ReadAll(res.Body)
-	assert.Equal(t, "query response", string(responseBody))
+	assert.Equal(t, upstreamURL.Host, received.Host)
+	assert.Equal(t, "gateway.test", received.Header.Get("X-Forwarded-Host"))
+	assert.Equal(t, "192.0.2.1", received.Header.Get("X-Forwarded-For"), "client-supplied value must be replaced by the real peer address")
 }
 
-func TestProxyReverseProxyHandlesInvalidURL(t *testing.T) {
-	proxyService := proxy.NewProxyService()
+func TestHandlerReturnsTheUpstreamResponse(t *testing.T) {
+	server, _ := upstream(t, http.StatusInternalServerError, "server error")
 
-	req := httptest.NewRequest("GET", exampleURL, nil)
-	w := httptest.NewRecorder()
+	res := forward(t, server.URL, httptest.NewRequest("GET", "http://gateway.test/api/people", nil))
 
-	err := proxyService.ReverseProxy(":", w, req)
-	assert.Error(t, err)
-
-	res := w.Result()
 	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+	assert.Equal(t, "yes", res.Header.Get("X-Upstream"))
+	body, _ := io.ReadAll(res.Body)
+	assert.Equal(t, "server error", string(body))
 }
 
-func TestProxyReverseProxyHandlesServerError(t *testing.T) {
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("server error"))
-	}))
-	defer testServer.Close()
+func TestHandlerAnswersBadGatewayWhenUpstreamIsDown(t *testing.T) {
+	server, _ := upstream(t, http.StatusOK, "ok")
+	target := server.URL
+	server.Close()
 
-	proxyService := proxy.NewProxyService()
+	res := forward(t, target, httptest.NewRequest("GET", "http://gateway.test/api/people", nil))
 
-	req := httptest.NewRequest("GET", exampleURL, nil)
-	w := httptest.NewRecorder()
+	assert.Equal(t, http.StatusBadGateway, res.StatusCode)
+}
 
-	err := proxyService.ReverseProxy(testServer.URL, w, req)
-	assert.NoError(t, err)
+func TestNewHandlerRejectsInvalidTargets(t *testing.T) {
+	for _, target := range []string{"", ":", "swapi.dev", "/api", "ftp://swapi.dev", "http://"} {
+		t.Run(target, func(t *testing.T) {
+			handler, err := proxy.NewHandler(target)
 
-	res := w.Result()
-	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
-	responseBody, _ := io.ReadAll(res.Body)
-	assert.Equal(t, "server error", string(responseBody))
+			assert.Nil(t, handler)
+			assert.ErrorContains(t, err, "invalid upstream URL")
+		})
+	}
 }

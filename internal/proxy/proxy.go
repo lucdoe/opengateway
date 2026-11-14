@@ -15,41 +15,38 @@
 package proxy
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 )
 
-type ProxyService interface {
-	ReverseProxy(target string, w http.ResponseWriter, r *http.Request) error
-}
-
-type Proxy struct{}
-
-func NewProxyService() ProxyService {
-	return &Proxy{}
-}
-
-func (p *Proxy) ReverseProxy(target string, w http.ResponseWriter, r *http.Request) error {
-	parsedURL, err := url.Parse(target)
+// NewHandler returns a handler that forwards every request it receives to
+// the upstream at target. The incoming path and query are kept and appended
+// to target's own path, so a request for /api/people/7 sent to
+// https://example.com goes to https://example.com/api/people/7.
+//
+// The handler is safe for concurrent use and meant to be built once per
+// upstream and reused. If the upstream cannot be reached it answers
+// 502 Bad Gateway.
+func NewHandler(target string) (http.Handler, error) {
+	upstream, err := url.Parse(target)
 	if err != nil {
-		http.Error(w, "Failed to parse target URL", http.StatusInternalServerError)
-		return err
+		return nil, fmt.Errorf("invalid upstream URL %q: %w", target, err)
+	}
+	if (upstream.Scheme != "http" && upstream.Scheme != "https") || upstream.Host == "" {
+		return nil, fmt.Errorf("invalid upstream URL %q: must be an absolute http or https URL", target)
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(parsedURL)
-
-	proxy.Director = func(req *http.Request) {
-		req.URL.Scheme = parsedURL.Scheme
-		req.URL.Host = parsedURL.Host
-		req.URL.Path = parsedURL.Path
-		req.Host = parsedURL.Host
-	}
-
-	proxy.ModifyResponse = func(response *http.Response) error {
-		return nil
-	}
-
-	proxy.ServeHTTP(w, r)
-	return nil
+	return &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(upstream)
+			r.SetXForwarded()
+		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			log.Printf("proxy: %s %s to %s failed: %v", r.Method, r.URL.Path, upstream.Host, err)
+			http.Error(w, "Bad gateway", http.StatusBadGateway)
+		},
+	}, nil
 }

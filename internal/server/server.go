@@ -24,9 +24,9 @@ import (
 	"github.com/lucdoe/opengateway/internal/config"
 )
 
-type ProxyService interface {
-	ReverseProxy(targetURL string, w http.ResponseWriter, r *http.Request) error
-}
+// ProxyFactory builds the handler that forwards requests to the upstream at
+// target. It is called once per service when routes are set up.
+type ProxyFactory func(target string) (http.Handler, error)
 
 type ServerRunner interface {
 	ListenAndServe(addr string, handler http.Handler) error
@@ -41,7 +41,7 @@ func (dsr *DefaultServerRunner) ListenAndServe(addr string, handler http.Handler
 type Server struct {
 	Router      *mux.Router
 	Middlewares map[string]Middleware
-	Proxy       ProxyService
+	NewProxy    ProxyFactory
 	Runner      ServerRunner
 }
 
@@ -52,11 +52,11 @@ var pluginOrder = []string{"logger", "cors", "rate-limit", authPlugin, "cache"}
 
 const authPlugin = "auth"
 
-func NewServer(cfg *config.Config, router *mux.Router, proxy ProxyService, mws map[string]Middleware) (*Server, error) {
+func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware) (*Server, error) {
 	server := &Server{
 		Router:      router,
 		Middlewares: mws,
-		Proxy:       proxy,
+		NewProxy:    newProxy,
 		Runner:      &DefaultServerRunner{},
 	}
 	if err := server.SetupRoutes(cfg); err != nil {
@@ -65,9 +65,10 @@ func NewServer(cfg *config.Config, router *mux.Router, proxy ProxyService, mws m
 	return server, nil
 }
 
-// SetupRoutes registers one route per configured endpoint. Each route gets
-// its own plugin chain, so a plugin only runs for the services and endpoints
-// that ask for it.
+// SetupRoutes registers one route per configured endpoint. Each service gets
+// one proxy to its upstream, shared by its endpoints, and each route gets its
+// own plugin chain, so a plugin only runs for the services and endpoints that
+// ask for it.
 func (s *Server) SetupRoutes(cfg *config.Config) error {
 	names := make([]string, 0, len(cfg.Services))
 	for name := range cfg.Services {
@@ -78,26 +79,22 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 	for _, name := range names {
 		service := cfg.Services[name]
 
+		upstream, err := s.NewProxy(service.URL)
+		if err != nil {
+			return fmt.Errorf("service %q: %w", name, err)
+		}
+
 		for _, endpoint := range service.Endpoints {
 			plugins, err := s.endpointPlugins(service, endpoint)
 			if err != nil {
 				return fmt.Errorf("service %q, endpoint %q: %w", name, endpoint.Name, err)
 			}
 
-			targetURL := service.URL + service.Subpath + endpoint.Path
-			handler := s.chain(plugins, MakeHandler(s.Proxy, targetURL))
+			handler := s.chain(plugins, upstream)
 			s.Router.Handle(service.Subpath+endpoint.Path, handler).Methods(endpoint.HTTPMethod)
 		}
 	}
 	return nil
-}
-
-func MakeHandler(proxy ProxyService, targetURL string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := proxy.ReverseProxy(targetURL, w, r); err != nil {
-			http.Error(w, "Proxy error", http.StatusInternalServerError)
-		}
-	}
 }
 
 // endpointPlugins returns the plugins enabled for an endpoint in the order
