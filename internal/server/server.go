@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/lucdoe/opengateway/internal/breaker"
 	"github.com/lucdoe/opengateway/internal/config"
 )
 
@@ -71,9 +72,9 @@ func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mw
 }
 
 // SetupRoutes registers one route per configured endpoint. Each service gets
-// one proxy to its upstream, shared by its endpoints, and each route gets its
-// own plugin chain, so a plugin only runs for the services and endpoints that
-// ask for it.
+// one proxy to its upstream behind one circuit breaker, both shared by its
+// endpoints, and each route gets its own plugin chain, so a plugin only runs
+// for the services and endpoints that ask for it.
 func (s *Server) SetupRoutes(cfg *config.Config) error {
 	names := make([]string, 0, len(cfg.Services))
 	for name := range cfg.Services {
@@ -88,6 +89,7 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 		if err != nil {
 			return fmt.Errorf("service %q: %w", name, err)
 		}
+		upstream = breaker.Wrap(name, cfg.Server.CircuitBreaker, upstream)
 
 		for _, endpoint := range service.Endpoints {
 			plugins, err := s.endpointPlugins(service, endpoint)

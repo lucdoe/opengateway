@@ -41,6 +41,10 @@ const (
 	DefaultIdleTimeout       = 120 * time.Second
 	DefaultShutdownTimeout   = 15 * time.Second
 	DefaultUpstreamTimeout   = 30 * time.Second
+
+	DefaultCircuitBreakerConsecutiveFailures = 5
+	DefaultCircuitBreakerOpenTimeout         = 30 * time.Second
+	DefaultCircuitBreakerHalfOpenRequests    = 1
 )
 
 func (c *Config) applyEnvironment() error {
@@ -71,6 +75,16 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Server.UpstreamTimeout == 0 {
 		c.Server.UpstreamTimeout = DefaultUpstreamTimeout
+	}
+	breaker := &c.Server.CircuitBreaker
+	if breaker.ConsecutiveFailures == 0 {
+		breaker.ConsecutiveFailures = DefaultCircuitBreakerConsecutiveFailures
+	}
+	if breaker.OpenTimeout == 0 {
+		breaker.OpenTimeout = DefaultCircuitBreakerOpenTimeout
+	}
+	if breaker.HalfOpenRequests == 0 {
+		breaker.HalfOpenRequests = DefaultCircuitBreakerHalfOpenRequests
 	}
 	if c.Redis.Host == "" {
 		c.Redis.Host = DefaultRedisHost

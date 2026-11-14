@@ -25,6 +25,7 @@ flowchart LR
     main["cmd/opengateway<br/>wires everything, handles signals"]
     config["internal/config<br/>load, environment, defaults, validation"]
     server["internal/server<br/>routes, plugin chains, HTTP server"]
+    breaker["internal/breaker<br/>one circuit breaker per service"]
     proxy["internal/proxy<br/>one reverse proxy per service"]
     plugins["internal/plugins<br/>logger, cors, rate-limit, auth, cache"]
     yaml[("config.yaml")]
@@ -36,13 +37,15 @@ flowchart LR
     main --> server
     main --> proxy
     server --> config
+    server --> breaker
     plugins -.->|"cache, rate-limit"| redis
     proxy --> upstream
 ```
 
 - **`cmd/opengateway`** loads the config, builds only the plugins that some endpoint uses, and starts the server.
 - **`internal/config`** owns the config file format. Nothing else reads files or environment variables.
-- **`internal/server`** registers one route per endpoint and wraps it in that endpoint's plugins.
+- **`internal/server`** registers one route per endpoint and wraps it in that endpoint's plugins and its service's circuit breaker.
+- **`internal/breaker`** answers `503` for a service that keeps failing, without calling it, until it has had time to recover.
 - **`internal/plugins/<name>`** holds one plugin each: its logic and its HTTP middleware.
 - **`internal/proxy`** forwards a request to a service and maps failures to `502` and `504`.
 
@@ -52,7 +55,7 @@ A request to an endpoint that uses every plugin. Plugins always run in this orde
 
 ```mermaid
 flowchart LR
-    client(["Client"]) --> logger --> cors --> ratelimit["rate-limit"] --> auth --> cache --> proxy --> service[("Service")]
+    client(["Client"]) --> logger --> cors --> ratelimit["rate-limit"] --> auth --> cache --> breaker["circuit breaker"] --> proxy --> service[("Service")]
 ```
 
 Each step can answer on its own and end the request early:
@@ -65,6 +68,7 @@ Each step can answer on its own and end the request early:
 | `rate-limit` | the client IP is over its limit                    | `429`                       |
 | `auth`       | the JWT is missing or invalid                      | `401`                       |
 | `cache`      | a stored response exists                           | the stored response         |
+| breaker      | the service failed too often in a row              | `503` with `Retry-After`    |
 | proxy        | the service is unreachable, or too slow to answer  | `502`, or `504`             |
 
 Auth runs before the cache so a stored response is never served to a caller that has not been authenticated.
