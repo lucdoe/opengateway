@@ -74,6 +74,30 @@ Services:
 
 With this config, `GET /api/people/7` on the gateway is forwarded to `https://swapi.dev/api/people/7`.
 
+### Settings per service and endpoint
+
+A service or an endpoint can change the rate limit, the CORS policy and, for a service, the upstream timeout, in a `Settings` block. Only the fields it sets change. An endpoint's settings go over its service's, which go over `Plugins` and `Server`:
+
+```yaml
+Plugins:
+  RateLimitConfig: {Limit: 1000, Window: 1m, Key: "jwt:sub"} # the default
+Services:
+  accounts:
+    URL: "https://accounts.internal"
+    Plugins: ["rate-limit"]
+    Settings:
+      UpstreamTimeout: 5s
+      RateLimitConfig: {Limit: 100} # 100 a minute per user, for every endpoint of the service
+    Endpoints:
+      - Name: "Login"
+        HTTPMethod: "POST"
+        Path: "/login"
+        Settings:
+          RateLimitConfig: {Limit: 5, Key: "ip"} # 5 a minute per IP, for this endpoint only
+```
+
+Each `Settings` block that changes the rate limit has its own count: the 5 logins above don't use up the 100 of the other accounts endpoints, or the global 1000. Endpoints that inherit a service's limit share one count. `UpstreamTimeout` can only be set for a service.
+
 ### Plugins
 
 Plugins run in the order of this table, whatever order you list them in. Their settings live under `Plugins` in the config file.

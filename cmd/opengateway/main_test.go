@@ -379,6 +379,73 @@ Services:
 	assert.Equal(t, http.StatusTooManyRequests, send("/news", ""))
 }
 
+// A service's and an endpoint's Settings give their routes their own rate
+// limit, counted apart from the global one and from each other, and their
+// own cors policy.
+func TestInitializeServerAppliesSettingsPerServiceAndEndpoint(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+Plugins:
+  RateLimitConfig: {Limit: 2, Window: 1m}
+  CORSConfig: {Origins: "https://news.test", Methods: GET}
+Services:
+  accounts:
+    URL: http://accounts.test
+    Plugins: [rate-limit, cors]
+    Settings:
+      UpstreamTimeout: 3s
+      RateLimitConfig: {Limit: 1}
+      CORSConfig: {Origins: "https://app.test"}
+    Endpoints:
+      - {HTTPMethod: GET, Path: /me}
+      - {HTTPMethod: GET, Path: /profile}
+      - {HTTPMethod: POST, Path: /login, Settings: {RateLimitConfig: {Limit: 3}}}
+  news:
+    URL: http://news.test
+    Plugins: [rate-limit, cors]
+    Endpoints: [{HTTPMethod: GET, Path: /news}]
+`))
+	require.NoError(t, err)
+	timeouts := map[string]time.Duration{}
+	s, err := InitializeServer(ServerDependencies{
+		loadConfig: loads(cfg, nil),
+		router:     mux.NewRouter(),
+		newProxy: func(target string, timeout time.Duration) (http.Handler, error) {
+			timeouts[target] = timeout
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), nil
+		},
+		newStore: func(config.StoreConfig) (store.Store, error) { return memory.New(), nil },
+	}, "config.yaml")
+	require.NoError(t, err)
+
+	send := func(method, path, origin string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, nil)
+		req.RemoteAddr = "203.0.113.5:1234"
+		req.Header.Set("Origin", origin)
+		rec := httptest.NewRecorder()
+		s.Router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	assert.Equal(t, map[string]time.Duration{"http://accounts.test": 3 * time.Second, "http://news.test": 30 * time.Second}, timeouts)
+
+	// accounts' limit of 1 is shared by its endpoints without their own.
+	assert.Equal(t, http.StatusOK, send("GET", "/me", "https://app.test").Code)
+	assert.Equal(t, http.StatusTooManyRequests, send("GET", "/profile", "https://app.test").Code)
+	// /login has its own limit of 3, counted apart.
+	for i := 0; i < 3; i++ {
+		assert.Equal(t, http.StatusOK, send("POST", "/login", "https://app.test").Code, "login %d", i+1)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, send("POST", "/login", "https://app.test").Code)
+	// news runs on the global limit of 2, untouched by the others.
+	news := send("GET", "/news", "https://news.test")
+	assert.Equal(t, http.StatusOK, news.Code)
+	assert.Equal(t, "1", news.Header().Get("X-RateLimit-Remaining"), "the six accounts requests did not count here")
+
+	// Each service answers to its own origins.
+	assert.Equal(t, http.StatusForbidden, send("GET", "/news", "https://app.test").Code)
+	assert.Equal(t, http.StatusForbidden, send("POST", "/login", "https://news.test").Code)
+}
+
 // main's own wiring must start the gateway from the shipped config.
 func TestDefaultDependenciesStartTheShippedConfig(t *testing.T) {
 	t.Setenv("CONFIG_PATH", "config.yaml")

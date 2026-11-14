@@ -33,13 +33,28 @@ type ProxyFactory func(target string, timeout time.Duration) (http.Handler, erro
 // after the auth plugin, whose accepted token it inspects.
 type ScopeCheck func(scope string) Middleware
 
+// Plugins hands out the plugins routes run.
+type Plugins interface {
+	// Middleware returns the named plugin as a route with the given
+	// settings needs it, or false if there is no such plugin.
+	Middleware(name string, route config.RouteSettings) (Middleware, bool)
+}
+
+// Middlewares is a fixed set of plugins, the same for every route.
+type Middlewares map[string]Middleware
+
+func (m Middlewares) Middleware(name string, _ config.RouteSettings) (Middleware, bool) {
+	mw, ok := m[name]
+	return mw, ok
+}
+
 type Server struct {
 	// Addr is the address Run listens on, for example ":4000".
 	Addr string
 	// Settings holds the timeouts of the HTTP server and its shutdown.
 	Settings    config.ServerConfig
 	Router      *mux.Router
-	Middlewares map[string]Middleware
+	Middlewares Plugins
 	NewProxy    ProxyFactory
 	ScopeCheck  ScopeCheck
 	// Closers are closed when Serve returns, after the requests in flight
@@ -57,7 +72,7 @@ func (s *Server) Handler() http.Handler {
 // and container health checks. It runs no plugins and calls no upstream.
 const HealthPath = config.ReservedPathPrefix + "health"
 
-func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware, scopeCheck ScopeCheck) (*Server, error) {
+func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws Plugins, scopeCheck ScopeCheck) (*Server, error) {
 	server := &Server{
 		Addr:        cfg.ListenAddr(),
 		Settings:    cfg.Server,
@@ -98,18 +113,18 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 		}
 	}
 
-	order := cfg.PluginsInOrder()
 	for _, name := range cfg.ServiceNames() {
 		service := cfg.Services[name]
 
-		upstream, err := s.NewProxy(service.URL, cfg.Server.UpstreamTimeout)
+		upstream, err := s.NewProxy(service.URL, cfg.UpstreamTimeout(name))
 		if err != nil {
 			return fmt.Errorf("service %q: %w", name, err)
 		}
 		upstream = breaker.Wrap(name, cfg.Server.CircuitBreaker, upstream)
 
 		for _, endpoint := range service.Endpoints {
-			plugins, err := s.endpointPlugins(order, service, endpoint)
+			route := cfg.RouteSettings(name, endpoint)
+			plugins, err := s.endpointPlugins(config.PluginOrderFor(route.RateLimit.Key), service, endpoint)
 			if err != nil {
 				return fmt.Errorf("service %q, endpoint %q: %w", name, endpoint.Name, err)
 			}
@@ -121,7 +136,7 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 				afterAuth = s.ScopeCheck(scope)
 			}
 
-			handler := s.chain(plugins, upstream, afterAuth)
+			handler := s.chain(plugins, route, upstream, afterAuth)
 			path := service.Subpath + endpoint.Path
 			s.Router.Handle(path, handler).Methods(endpoint.HTTPMethod)
 			if slices.Contains(plugins, config.PluginCORS) && !hasOptions[path] {
@@ -149,7 +164,7 @@ func (s *Server) endpointPlugins(order []string, service config.Service, endpoin
 	}
 
 	for _, name := range requested {
-		if _, ok := s.Middlewares[name]; !ok {
+		if _, ok := s.Middlewares.Middleware(name, config.RouteSettings{}); !ok {
 			return nil, fmt.Errorf("unknown plugin %q", name)
 		}
 	}
@@ -163,14 +178,16 @@ func (s *Server) endpointPlugins(order []string, service config.Service, endpoin
 	return enabled, nil
 }
 
-// chain wraps handler in the named plugins so the first name runs first.
-// afterAuth, if set, runs right after the auth plugin.
-func (s *Server) chain(plugins []string, handler http.Handler, afterAuth Middleware) http.Handler {
+// chain wraps handler in the named plugins, as a route with the given
+// settings needs them, so the first name runs first. afterAuth, if set, runs
+// right after the auth plugin.
+func (s *Server) chain(plugins []string, route config.RouteSettings, handler http.Handler, afterAuth Middleware) http.Handler {
 	for i := len(plugins) - 1; i >= 0; i-- {
 		if plugins[i] == config.PluginAuth && afterAuth != nil {
 			handler = afterAuth(handler)
 		}
-		handler = s.Middlewares[plugins[i]](handler)
+		mw, _ := s.Middlewares.Middleware(plugins[i], route) // endpointPlugins checked it exists
+		handler = mw(handler)
 	}
 	return handler
 }
