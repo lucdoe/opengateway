@@ -20,7 +20,7 @@ Over SSH, clone `git@github.com:lucdoe/opengateway.git` instead.
 
 Edit [`cmd/opengateway/config.yaml`](cmd/opengateway/config.yaml) to describe your services, then start the gateway on port 4000 in one of two ways.
 
-**Docker** (needs Docker with Compose, for example [Docker Desktop](https://www.docker.com/products/docker-desktop/)). Starts the gateway and Redis:
+**Docker** (needs Docker with Compose, for example [Docker Desktop](https://www.docker.com/products/docker-desktop/)). Starts the gateway and Redis, and sets `STORE_TYPE=redis`:
 
 ```bash
 docker compose up --build
@@ -28,7 +28,7 @@ docker compose up --build
 
 The config file is copied into the image, so rebuild after changing it.
 
-**Go** (needs Go 1.22 or newer, and Redis 7.0 or newer on `localhost:6379` if you use the `cache` or `rate-limit` plugin):
+**Go** (needs Go 1.22 or newer; nothing else unless you choose the `redis` store):
 
 ```bash
 go run ./cmd/opengateway
@@ -67,9 +67,20 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 | ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | `logger`     | Writes one line per request to a file.                                                                              | `LoggerConfig`    |
 | `cors`       | Rejects requests from origins that are not allowed and sets the CORS response headers.                              | `CORSConfig`      |
-| `rate-limit` | Allows each client IP `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If Redis is unavailable, requests pass without a limit. Needs Redis. | `RateLimitConfig` |
+| `rate-limit` | Allows each client IP `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
 | `auth`       | Requires a `Bearer` JWT signed with HS256. Enabled per endpoint with `Auth.ApplyAuth: true`.                        | `JWTConfig`       |
-| `cache`      | Stores `200` responses to `GET` requests in Redis for 10 minutes and shares them between clients. Requests with an `Authorization` header are never cached. | none              |
+| `cache`      | Stores `200` responses to `GET` requests in the store for 10 minutes and shares them between clients. Requests with an `Authorization` header are never cached. | none              |
+
+### Store
+
+The `cache` and `rate-limit` plugins keep their state in a store. Pick one with `Store.Type`:
+
+| `Store.Type`       | Where state lives          | Use it when                                                                 |
+| ------------------ | -------------------------- | --------------------------------------------------------------------------- |
+| `memory` (default) | in the gateway process     | you run one instance. Nothing to set up; state is lost on restart.          |
+| `redis`            | a Redis server, 7.0 or newer | you run several instances that should share limits and cache. Valkey, KeyDB and Dragonfly work too. |
+
+With `memory`, every instance counts its own limits: three instances with `Limit: 100` let a client through 300 times per window. The memory store holds at most 100,000 keys; once full, new responses are not cached until old ones expire.
 
 ### Server and environment
 
@@ -85,9 +96,10 @@ These settings are optional. An environment variable, where one exists, override
 | `Server.CircuitBreaker.ConsecutiveFailures` |        | `5`         | Failures in a row that open a service's circuit breaker         |
 | `Server.CircuitBreaker.OpenTimeout`         |        | `30s`       | How long it stays open before trial requests go through again   |
 | `Server.CircuitBreaker.HalfOpenRequests`    |        | `1`         | Trial requests allowed at once while it recovers                |
-| `Redis.Host`                  | `REDIS_HOST`         | `localhost` | Redis server, only used by the `cache` and `rate-limit` plugins |
-| `Redis.Port`                  | `REDIS_PORT`         | `6379`      |                                                                 |
-| `Redis.Password`              | `REDIS_PASSWORD`     | empty       |                                                                 |
+| `Store.Type`                  | `STORE_TYPE`         | `memory`    | Store of the `cache` and `rate-limit` plugins: `memory` or `redis` |
+| `Store.Redis.Host`            | `REDIS_HOST`         | `localhost` | Redis server, only used when `Store.Type` is `redis`            |
+| `Store.Redis.Port`            | `REDIS_PORT`         | `6379`      |                                                                 |
+| `Store.Redis.Password`        | `REDIS_PASSWORD`     | empty       |                                                                 |
 | `Plugins.JWTConfig.SecretKey` | `JWT_SECRET`         | none        | Secret for validating tokens, only needed when auth is used     |
 
 Every service has its own circuit breaker. A failure is an upstream that cannot be reached, times out, or answers `500`, `502`, `503` or `504`. While the breaker is open the gateway answers `503` with a `Retry-After` header straight away, without contacting the service.

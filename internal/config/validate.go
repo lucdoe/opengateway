@@ -72,13 +72,19 @@ func (c *Config) Validate() error {
 			v.addf("Server.CircuitBreaker.%s %d must be greater than 0", count.name, count.value)
 		}
 	}
-	if c.UsesPlugin(PluginCache) || c.UsesPlugin(PluginRateLimit) {
-		if c.Redis.Host == "" {
-			v.addf("Redis.Host is required because the cache or rate-limit plugin is used")
+	switch c.Store.Type {
+	case StoreMemory:
+	case StoreRedis:
+		if c.UsesPlugin(PluginCache) || c.UsesPlugin(PluginRateLimit) {
+			if c.Store.Redis.Host == "" {
+				v.addf("Store.Redis.Host is required because Store.Type is redis")
+			}
+			if !validPort(c.Store.Redis.Port) {
+				v.addf("Store.Redis.Port %d must be between 1 and 65535", c.Store.Redis.Port)
+			}
 		}
-		if !validPort(c.Redis.Port) {
-			v.addf("Redis.Port %d must be between 1 and 65535", c.Redis.Port)
-		}
+	default:
+		v.addf("Store.Type %q is not one of %s, %s", c.Store.Type, StoreMemory, StoreRedis)
 	}
 
 	if len(c.Services) == 0 {

@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/lucdoe/opengateway/internal/config"
-	"github.com/lucdoe/opengateway/internal/plugins/cache"
+	"github.com/lucdoe/opengateway/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,14 +43,14 @@ func configUsing(plugins ...string) *config.Config {
 
 // noStore fails the test if a plugin asks for the store.
 func noStore(t *testing.T) storeFactory {
-	return func(config.RedisConfig) (cache.Cache, error) {
+	return func(config.StoreConfig) (store.Store, error) {
 		t.Error("the store must not be connected to")
 		return nil, errors.New("unexpected store connection")
 	}
 }
 
 func workingStore(connections *int) storeFactory {
-	return func(config.RedisConfig) (cache.Cache, error) {
+	return func(config.StoreConfig) (store.Store, error) {
 		*connections++
 		return new(MockCacheService), nil
 	}
@@ -108,19 +108,19 @@ func TestBuildPluginsBuildsOnlyWhatIsUsed(t *testing.T) {
 	})
 }
 
-func TestBuildPluginsConnectsToTheConfiguredRedis(t *testing.T) {
+func TestBuildPluginsOpensTheConfiguredStore(t *testing.T) {
 	cfg := configUsing("cache")
-	cfg.Redis = config.RedisConfig{Host: "redis.internal", Port: 6380, Password: "secret"}
+	cfg.Store = config.StoreConfig{Type: "redis", Redis: config.RedisConfig{Host: "redis.internal", Port: 6380, Password: "secret"}}
 
-	var received config.RedisConfig
-	newStore := func(redis config.RedisConfig) (cache.Cache, error) {
-		received = redis
+	var received config.StoreConfig
+	newStore := func(s config.StoreConfig) (store.Store, error) {
+		received = s
 		return new(MockCacheService), nil
 	}
 
 	builtPlugins(t, cfg, newStore)
 
-	assert.Equal(t, cfg.Redis, received)
+	assert.Equal(t, cfg.Store, received)
 }
 
 // Before, the gateway refused to start without a JWT secret even when no
@@ -134,7 +134,7 @@ func TestBuildPluginsDoesNotNeedSettingsOfUnusedPlugins(t *testing.T) {
 }
 
 func TestBuildPluginsReturnsErrorsInsteadOfPanicking(t *testing.T) {
-	failingStore := func(config.RedisConfig) (cache.Cache, error) { return nil, errors.New("connection refused") }
+	failingStore := func(config.StoreConfig) (store.Store, error) { return nil, errors.New("connection refused") }
 
 	tests := []struct {
 		name     string

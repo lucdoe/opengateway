@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,7 @@ import (
 // unset or empty leaves the value from the file in place.
 const (
 	EnvPort          = "PORT"
+	EnvStoreType     = "STORE_TYPE"
 	EnvRedisHost     = "REDIS_HOST"
 	EnvRedisPort     = "REDIS_PORT"
 	EnvRedisPassword = "REDIS_PASSWORD"
@@ -34,6 +36,7 @@ const (
 // Values used when neither the config file nor the environment sets one.
 const (
 	DefaultPort      = 4000
+	DefaultStoreType = StoreMemory
 	DefaultRedisHost = "localhost"
 	DefaultRedisPort = 6379
 
@@ -51,11 +54,12 @@ func (c *Config) applyEnvironment() error {
 	if err := envInt(EnvPort, &c.Server.Port); err != nil {
 		return err
 	}
-	if err := envInt(EnvRedisPort, &c.Redis.Port); err != nil {
+	if err := envInt(EnvRedisPort, &c.Store.Redis.Port); err != nil {
 		return err
 	}
-	envString(EnvRedisHost, &c.Redis.Host)
-	envString(EnvRedisPassword, &c.Redis.Password)
+	envString(EnvStoreType, &c.Store.Type)
+	envString(EnvRedisHost, &c.Store.Redis.Host)
+	envString(EnvRedisPassword, &c.Store.Redis.Password)
 	envString(EnvJWTSecret, &c.Plugins.JWTConfig.SecretKey)
 	return nil
 }
@@ -86,11 +90,15 @@ func (c *Config) applyDefaults() {
 	if breaker.HalfOpenRequests == 0 {
 		breaker.HalfOpenRequests = DefaultCircuitBreakerHalfOpenRequests
 	}
-	if c.Redis.Host == "" {
-		c.Redis.Host = DefaultRedisHost
+	c.Store.Type = strings.ToLower(strings.TrimSpace(c.Store.Type))
+	if c.Store.Type == "" {
+		c.Store.Type = DefaultStoreType
 	}
-	if c.Redis.Port == 0 {
-		c.Redis.Port = DefaultRedisPort
+	if c.Store.Redis.Host == "" {
+		c.Store.Redis.Host = DefaultRedisHost
+	}
+	if c.Store.Redis.Port == 0 {
+		c.Store.Redis.Port = DefaultRedisPort
 	}
 }
 

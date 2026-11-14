@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -23,9 +24,11 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
-	"github.com/lucdoe/opengateway/internal/plugins/cache"
 	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/lucdoe/opengateway/internal/server"
+	"github.com/lucdoe/opengateway/internal/store"
+	"github.com/lucdoe/opengateway/internal/store/memory"
+	"github.com/lucdoe/opengateway/internal/store/redisstore"
 )
 
 type configLoader interface {
@@ -44,8 +47,8 @@ type ServerDependencies struct {
 	configLoader configLoader
 	router       *mux.Router
 	newProxy     server.ProxyFactory
-	// newStore connects to the store shared by the cache and rate-limit
-	// plugins. It is only called when one of them is in use.
+	// newStore opens the store shared by the cache and rate-limit plugins.
+	// It is only called when one of them is in use.
 	newStore storeFactory
 }
 
@@ -67,15 +70,21 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 	return server.NewServer(cfg, deps.router, deps.newProxy, plugins)
 }
 
-func connectRedis(cfg config.RedisConfig) (cache.Cache, error) {
-	store, err := cache.NewRedisCache(cache.CacheConfig{
-		Addr:     cfg.Addr(),
-		Password: cfg.Password,
-	})
-	if err != nil {
-		return nil, err
+// openStore opens the store that cfg.Type names. The config is validated, so
+// the type is a known one.
+func openStore(cfg config.StoreConfig) (store.Store, error) {
+	switch cfg.Type {
+	case config.StoreRedis:
+		s, err := redisstore.New(redisstore.Config{Addr: cfg.Redis.Addr(), Password: cfg.Redis.Password})
+		if err != nil {
+			return nil, err
+		}
+		return s, nil
+	case config.StoreMemory:
+		return memory.New(), nil
+	default:
+		return nil, fmt.Errorf("unknown store type %q", cfg.Type)
 	}
-	return store, nil
 }
 
 func main() {
@@ -83,7 +92,7 @@ func main() {
 		configLoader: &DefaultConfigLoader{},
 		router:       mux.NewRouter(),
 		newProxy:     proxy.NewHandler,
-		newStore:     connectRedis,
+		newStore:     openStore,
 	}
 
 	server, err := InitializeServer(deps)

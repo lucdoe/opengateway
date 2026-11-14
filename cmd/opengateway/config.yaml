@@ -1,6 +1,6 @@
-# Server and Redis can be left out; the values below are the defaults.
-# Environment variables override this file: PORT, REDIS_HOST, REDIS_PORT,
-# REDIS_PASSWORD and JWT_SECRET (for Plugins.JWTConfig.SecretKey).
+# Server and Store can be left out; the values below are the defaults.
+# Environment variables override this file: PORT, STORE_TYPE, REDIS_HOST,
+# REDIS_PORT, REDIS_PASSWORD and JWT_SECRET (for Plugins.JWTConfig.SecretKey).
 Server:
   Port: 4000
   ReadHeaderTimeout: 10s # time a client has to send its request headers
@@ -8,10 +8,13 @@ Server:
   ShutdownTimeout: 15s # time requests in flight get to finish on shutdown
   UpstreamTimeout: 30s # time an upstream has to start answering
 
-Redis:
-  Host: "localhost"
-  Port: 6379
-  Password: ""
+# Where the cache and rate-limit plugins keep their state.
+Store:
+  Type: "memory" # memory: in the gateway, per instance. redis: shared by all instances
+  Redis: # only read when Type is redis; needs Redis 7.0+ or a compatible server
+    Host: "localhost"
+    Port: 6379
+    Password: ""
 
 Plugins:
   LoggerConfig:

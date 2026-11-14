@@ -133,8 +133,24 @@ type CircuitBreakerConfig struct {
 	HalfOpenRequests int `yaml:"HalfOpenRequests"`
 }
 
-// RedisConfig says where the store used by the cache and rate-limit plugins
-// is. It is only connected to when one of those plugins is in use.
+// Names a store can have in Store.Type.
+const (
+	StoreMemory = "memory"
+	StoreRedis  = "redis"
+)
+
+// StoreConfig picks where the cache and rate-limit plugins keep their state.
+// It is only used when one of those plugins is in use.
+type StoreConfig struct {
+	// Type is StoreMemory (the default) or StoreRedis. memory needs no other
+	// service but is per gateway instance; redis is shared by every instance
+	// that points at the same server.
+	Type string `yaml:"Type"`
+	// Redis says where the server is. It is only read when Type is redis.
+	Redis RedisConfig `yaml:"Redis"`
+}
+
+// RedisConfig says where the Redis server of the redis store is.
 type RedisConfig struct {
 	Host     string `yaml:"Host"`
 	Port     int    `yaml:"Port"`
@@ -148,7 +164,7 @@ func (r RedisConfig) Addr() string {
 
 type Config struct {
 	Server   ServerConfig       `yaml:"Server"`
-	Redis    RedisConfig        `yaml:"Redis"`
+	Store    StoreConfig        `yaml:"Store"`
 	Plugins  PluginConfig       `yaml:"Plugins"`
 	Services map[string]Service `yaml:"Services"`
 }
@@ -180,6 +196,10 @@ func Load(path string) (*Config, error) {
 func Parse(data []byte) (*Config, error) {
 	cfg := &Config{}
 
+	if err := rejectMovedKeys(data); err != nil {
+		return nil, err
+	}
+
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	// An empty document decodes to io.EOF; Validate reports what is missing.
@@ -196,4 +216,23 @@ func Parse(data []byte) (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// rejectMovedKeys names the new place of a key that has moved, which the
+// strict decoder would only report as unknown.
+func rejectMovedKeys(data []byte) error {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil || len(doc.Content) == 0 {
+		return nil // the strict decode reports it
+	}
+	top := doc.Content[0]
+	if top.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(top.Content); i += 2 {
+		if key := top.Content[i]; key.Value == "Redis" {
+			return fmt.Errorf("line %d: the top-level Redis section has moved: set Store.Type: redis and put its settings under Store.Redis", key.Line)
+		}
+	}
+	return nil
 }

@@ -57,10 +57,6 @@ func (m *memoryStore) Set(key string, value string, expiration time.Duration) er
 	return nil
 }
 
-func (m *memoryStore) Increment(key string, window time.Duration) (int64, time.Duration, error) {
-	return 0, 0, nil
-}
-
 // countingUpstream answers every request with respond and counts the calls.
 type countingUpstream struct {
 	calls   int

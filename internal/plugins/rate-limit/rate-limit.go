@@ -21,7 +21,7 @@ import (
 
 var ErrRateLimitExceeded = errors.New("rate limit exceeded")
 
-// Cache is the store the counters live in.
+// Cache is the part of a store.Store the counters live in.
 type Cache interface {
 	// Increment adds one to the counter at key and returns the new count and
 	// the time left until it resets. A counter lives for window from its

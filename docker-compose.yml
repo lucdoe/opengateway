@@ -23,6 +23,7 @@ services:
       redis:
         condition: service_healthy
     environment:
+      - STORE_TYPE=redis
       - REDIS_HOST=redis
       - REDIS_PORT=6379
 

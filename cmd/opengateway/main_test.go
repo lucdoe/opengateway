@@ -16,16 +16,22 @@ package main
 
 import (
 	"errors"
+	"net"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
-	"github.com/lucdoe/opengateway/internal/plugins/cache"
+	"github.com/lucdoe/opengateway/internal/store"
+	"github.com/lucdoe/opengateway/internal/store/memory"
+	"github.com/lucdoe/opengateway/internal/store/redisstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 type MockConfigLoader struct {
@@ -78,7 +84,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 
 	mockCacheService := new(MockCacheService)
 	storeConnections := 0
-	newStore := func(config.RedisConfig) (cache.Cache, error) {
+	newStore := func(config.StoreConfig) (store.Store, error) {
 		storeConnections++
 		return mockCacheService, nil
 	}
@@ -163,9 +169,39 @@ func TestInitializeServerReturnsThePluginError(t *testing.T) {
 		configLoader: mockConfigLoader,
 		router:       mux.NewRouter(),
 		newProxy:     func(string, time.Duration) (http.Handler, error) { return http.NotFoundHandler(), nil },
-		newStore:     func(config.RedisConfig) (cache.Cache, error) { return nil, errors.New("connection refused") },
+		newStore:     func(config.StoreConfig) (store.Store, error) { return nil, errors.New("connection refused") },
 	})
 
 	assert.Nil(t, server)
 	assert.ErrorContains(t, err, "cache plugin: connection refused")
+}
+
+func TestOpenStoreOpensTheConfiguredType(t *testing.T) {
+	t.Run("memory", func(t *testing.T) {
+		s, err := openStore(config.StoreConfig{Type: config.StoreMemory})
+		require.NoError(t, err)
+		assert.IsType(t, &memory.Store{}, s)
+	})
+
+	t.Run("redis", func(t *testing.T) {
+		mr := miniredis.RunT(t)
+		host, port, _ := net.SplitHostPort(mr.Addr())
+		portNumber, _ := strconv.Atoi(port)
+
+		s, err := openStore(config.StoreConfig{Type: config.StoreRedis, Redis: config.RedisConfig{Host: host, Port: portNumber}})
+		require.NoError(t, err)
+		assert.IsType(t, &redisstore.Store{}, s)
+	})
+
+	t.Run("redis that is not reachable", func(t *testing.T) {
+		s, err := openStore(config.StoreConfig{Type: config.StoreRedis, Redis: config.RedisConfig{Host: "127.0.0.1", Port: 1}})
+		assert.Nil(t, s)
+		assert.ErrorContains(t, err, "connecting to redis at 127.0.0.1:1")
+	})
+
+	t.Run("unknown", func(t *testing.T) {
+		s, err := openStore(config.StoreConfig{Type: "memcached"})
+		assert.Nil(t, s)
+		assert.ErrorContains(t, err, `unknown store type "memcached"`)
+	})
 }
