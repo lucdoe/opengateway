@@ -21,6 +21,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 )
 
 var knownPlugins = []string{PluginLogger, PluginCORS, PluginRateLimit, PluginAuth, PluginCache}
@@ -45,6 +46,19 @@ func (c *Config) Validate() error {
 
 	if !validPort(c.Server.Port) {
 		v.addf("Server.Port %d must be between 1 and 65535", c.Server.Port)
+	}
+	for _, timeout := range []struct {
+		name  string
+		value time.Duration
+	}{
+		{"ReadHeaderTimeout", c.Server.ReadHeaderTimeout},
+		{"IdleTimeout", c.Server.IdleTimeout},
+		{"ShutdownTimeout", c.Server.ShutdownTimeout},
+		{"UpstreamTimeout", c.Server.UpstreamTimeout},
+	} {
+		if timeout.value <= 0 {
+			v.addf("Server.%s %s must be greater than 0", timeout.name, timeout.value)
+		}
 	}
 	if c.UsesPlugin(PluginCache) || c.UsesPlugin(PluginRateLimit) {
 		if c.Redis.Host == "" {

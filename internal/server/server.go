@@ -15,10 +15,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"slices"
 	"sort"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
@@ -28,26 +31,18 @@ import (
 type Middleware func(next http.Handler) http.Handler
 
 // ProxyFactory builds the handler that forwards requests to the upstream at
-// target. It is called once per service when routes are set up.
-type ProxyFactory func(target string) (http.Handler, error)
-
-type ServerRunner interface {
-	ListenAndServe(addr string, handler http.Handler) error
-}
-
-type DefaultServerRunner struct{}
-
-func (dsr *DefaultServerRunner) ListenAndServe(addr string, handler http.Handler) error {
-	return http.ListenAndServe(addr, handler)
-}
+// target and gives up when the upstream has not started answering within
+// timeout. It is called once per service when routes are set up.
+type ProxyFactory func(target string, timeout time.Duration) (http.Handler, error)
 
 type Server struct {
 	// Addr is the address Run listens on, for example ":4000".
-	Addr        string
+	Addr string
+	// Settings holds the timeouts of the HTTP server and its shutdown.
+	Settings    config.ServerConfig
 	Router      *mux.Router
 	Middlewares map[string]Middleware
 	NewProxy    ProxyFactory
-	Runner      ServerRunner
 }
 
 // pluginOrder is the order plugins run in for a request, outermost first.
@@ -64,10 +59,10 @@ var pluginOrder = []string{
 func NewServer(cfg *config.Config, router *mux.Router, newProxy ProxyFactory, mws map[string]Middleware) (*Server, error) {
 	server := &Server{
 		Addr:        cfg.ListenAddr(),
+		Settings:    cfg.Server,
 		Router:      router,
 		Middlewares: mws,
 		NewProxy:    newProxy,
-		Runner:      &DefaultServerRunner{},
 	}
 	if err := server.SetupRoutes(cfg); err != nil {
 		return nil, err
@@ -89,7 +84,7 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 	for _, name := range names {
 		service := cfg.Services[name]
 
-		upstream, err := s.NewProxy(service.URL)
+		upstream, err := s.NewProxy(service.URL, cfg.Server.UpstreamTimeout)
 		if err != nil {
 			return fmt.Errorf("service %q: %w", name, err)
 		}
@@ -139,6 +134,41 @@ func (s *Server) chain(plugins []string, handler http.Handler) http.Handler {
 	return handler
 }
 
-func (s *Server) Run() error {
-	return s.Runner.ListenAndServe(s.Addr, s.Router)
+// Run listens on Addr and serves requests until ctx is cancelled. It then
+// shuts down gracefully, see Serve.
+func (s *Server) Run(ctx context.Context) error {
+	listener, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		return err
+	}
+	return s.Serve(ctx, listener)
+}
+
+// Serve serves requests on listener until ctx is cancelled. It then stops
+// accepting new connections and waits for the requests in flight to finish.
+// If they have not finished within Settings.ShutdownTimeout, the remaining
+// connections are closed and an error is returned.
+func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
+	httpServer := &http.Server{
+		Handler:           s.Router,
+		ReadHeaderTimeout: s.Settings.ReadHeaderTimeout,
+		IdleTimeout:       s.Settings.IdleTimeout,
+	}
+
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- httpServer.Serve(listener) }()
+
+	select {
+	case err := <-serveErr:
+		return err
+	case <-ctx.Done():
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.Settings.ShutdownTimeout)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		httpServer.Close()
+		return fmt.Errorf("requests still in flight after %s were cut off: %w", s.Settings.ShutdownTimeout, err)
+	}
+	return nil
 }
