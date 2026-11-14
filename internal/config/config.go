@@ -15,10 +15,23 @@
 package config
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"gopkg.in/yaml.v3"
+)
+
+// Names a service or endpoint uses in its Plugins list.
+const (
+	PluginLogger    = "logger"
+	PluginCORS      = "cors"
+	PluginRateLimit = "rate-limit"
+	PluginAuth      = "auth"
+	PluginCache     = "cache"
 )
 
 type QueryParam struct {
@@ -88,41 +101,35 @@ type Config struct {
 	Services map[string]Service `yaml:"Services"`
 }
 
-type Parser interface {
-	ReadFile() ([]byte, error)
-	Unmarshal(in []byte, out interface{}) error
-	Parse() (*Config, error)
-}
-
-type YAMLParser struct {
-	path string
-}
-
-func NewParser(path string) Parser {
-	return &YAMLParser{
-		path: path,
-	}
-}
-
-func (p *YAMLParser) ReadFile() ([]byte, error) {
-	return os.ReadFile(p.path)
-}
-
-func (p *YAMLParser) Unmarshal(in []byte, out interface{}) error {
-	return yaml.Unmarshal(in, out)
-}
-
-func (p *YAMLParser) Parse() (*Config, error) {
-	data, err := p.ReadFile()
+// Load reads the YAML file at path and returns its configuration. It fails
+// if the file cannot be read, is not valid YAML, contains a key the gateway
+// does not know, or does not pass Validate.
+func Load(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
+		return nil, fmt.Errorf("reading config: %w", err)
+	}
+
+	cfg, err := Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("config %s: %w", path, err)
+	}
+	return cfg, nil
+}
+
+// Parse decodes YAML into a validated configuration. See Load.
+func Parse(data []byte) (*Config, error) {
+	cfg := &Config{}
+
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	// An empty document decodes to io.EOF; Validate reports what is missing.
+	if err := decoder.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
-	config := &Config{}
-	err = p.Unmarshal(data, config)
-	if err != nil {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-
-	return config, nil
+	return cfg, nil
 }

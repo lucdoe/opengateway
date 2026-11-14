@@ -1,0 +1,216 @@
+// Copyright 2024 lucdoe
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package config_test
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// validConfig returns a configuration that uses every plugin and passes
+// validation. Tests break one thing at a time.
+func validConfig() *config.Config {
+	return &config.Config{
+		Plugins: config.PluginConfig{
+			LoggerConfig:    config.LoggerConfig{FilePath: "server.log"},
+			JWTConfig:       config.JWTConfig{SecretKey: "secret", SigningMethod: "HS256"},
+			RateLimitConfig: config.RateLimitConfig{Limit: 100, Window: time.Minute},
+			CORSConfig:      config.CORSConfig{Origins: "*", Methods: "GET, POST"},
+		},
+		Services: map[string]config.Service{
+			"api": {
+				URL:     "https://example.com",
+				Subpath: "/api",
+				Plugins: []string{"logger", "cors", "rate-limit", "cache"},
+				Endpoints: []config.Endpoint{
+					{Name: "List", HTTPMethod: "GET", Path: "/items"},
+					{Name: "Create", HTTPMethod: "POST", Path: "/items", Auth: config.AuthConfig{ApplyAuth: true}},
+				},
+			},
+		},
+	}
+}
+
+func TestValidateAcceptsAValidConfig(t *testing.T) {
+	assert.NoError(t, validConfig().Validate())
+}
+
+func TestValidateServicesAndEndpoints(t *testing.T) {
+	// edit changes the "api" service of a valid config.
+	tests := []struct {
+		name     string
+		edit     func(s *config.Service)
+		expected string
+	}{
+		{"missing URL", func(s *config.Service) { s.URL = "" },
+			`service "api": URL is required`},
+		{"URL without scheme", func(s *config.Service) { s.URL = "example.com" },
+			`service "api": URL "example.com" must be an absolute http or https URL`},
+		{"URL with unsupported scheme", func(s *config.Service) { s.URL = "ftp://example.com" },
+			`must be an absolute http or https URL`},
+		{"URL that does not parse", func(s *config.Service) { s.URL = "http://exa mple.com" },
+			`must be an absolute http or https URL`},
+		{"Subpath without leading slash", func(s *config.Service) { s.Subpath = "api" },
+			`service "api": Subpath "api" must start with "/"`},
+		{"no endpoints", func(s *config.Service) { s.Endpoints = nil },
+			`service "api": at least one endpoint is required`},
+		{"unknown service plugin", func(s *config.Service) { s.Plugins = []string{"loger"} },
+			`service "api": unknown plugin "loger"`},
+		{"missing method", func(s *config.Service) { s.Endpoints[0].HTTPMethod = "" },
+			`service "api", endpoint "List": HTTPMethod is required`},
+		{"unknown method", func(s *config.Service) { s.Endpoints[0].HTTPMethod = "FETCH" },
+			`service "api", endpoint "List": HTTPMethod "FETCH" is not one of GET`},
+		{"missing path", func(s *config.Service) { s.Endpoints[0].Path = "" },
+			`service "api", endpoint "List": Path is required`},
+		{"path without leading slash", func(s *config.Service) { s.Endpoints[0].Path = "items" },
+			`service "api", endpoint "List": Path "items" must start with "/"`},
+		{"unknown endpoint plugin", func(s *config.Service) { s.Endpoints[1].Plugins = []string{"cash"} },
+			`service "api", endpoint "Create": unknown plugin "cash"`},
+		{"unnamed endpoint is identified by position", func(s *config.Service) { s.Endpoints[1].Name = ""; s.Endpoints[1].Path = "" },
+			`service "api", endpoint #2: Path is required`},
+		{"duplicate route in one service", func(s *config.Service) {
+			s.Endpoints = append(s.Endpoints, config.Endpoint{Name: "Again", HTTPMethod: "get", Path: "/items"})
+		}, `service "api", endpoint "Again": route GET /api/items is already used by service "api", endpoint "List"`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			service := cfg.Services["api"]
+			tc.edit(&service)
+			cfg.Services["api"] = service
+
+			err := cfg.Validate()
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "invalid configuration")
+			assert.ErrorContains(t, err, tc.expected)
+		})
+	}
+}
+
+func TestValidateAcceptsLowerCaseMethods(t *testing.T) {
+	cfg := validConfig()
+	cfg.Services["api"].Endpoints[0].HTTPMethod = "get"
+
+	assert.NoError(t, cfg.Validate())
+}
+
+func TestValidateRejectsTheSameRouteInTwoServices(t *testing.T) {
+	cfg := validConfig()
+	cfg.Services["other"] = config.Service{
+		URL:     "http://localhost:3001",
+		Subpath: "/api",
+		Endpoints: []config.Endpoint{
+			{Name: "Other List", HTTPMethod: "GET", Path: "/items"},
+			{Name: "Other Delete", HTTPMethod: "DELETE", Path: "/items"},
+		},
+	}
+
+	err := cfg.Validate()
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `service "other", endpoint "Other List": route GET /api/items is already used by service "api", endpoint "List"`)
+	assert.NotContains(t, err.Error(), "Other Delete")
+}
+
+func TestValidateRejectsAnEmptyConfig(t *testing.T) {
+	assert.ErrorContains(t, (&config.Config{}).Validate(), "no services are configured")
+}
+
+func TestValidatePluginSettings(t *testing.T) {
+	tests := []struct {
+		name     string
+		edit     func(p *config.PluginConfig)
+		expected string
+	}{
+		{"logger without file", func(p *config.PluginConfig) { p.LoggerConfig.FilePath = "" },
+			"Plugins.LoggerConfig.FilePath is required"},
+		{"cors without origins", func(p *config.PluginConfig) { p.CORSConfig.Origins = "" },
+			"Plugins.CORSConfig.Origins is required"},
+		{"cors without methods", func(p *config.PluginConfig) { p.CORSConfig.Methods = "" },
+			"Plugins.CORSConfig.Methods is required"},
+		{"rate limit of zero", func(p *config.PluginConfig) { p.RateLimitConfig.Limit = 0 },
+			"Plugins.RateLimitConfig.Limit must be greater than 0"},
+		{"negative rate limit window", func(p *config.PluginConfig) { p.RateLimitConfig.Window = -time.Second },
+			"Plugins.RateLimitConfig.Window must be greater than 0"},
+		{"auth without secret", func(p *config.PluginConfig) { p.JWTConfig.SecretKey = "" },
+			"Plugins.JWTConfig.SecretKey is required"},
+		{"unsupported signing method", func(p *config.PluginConfig) { p.JWTConfig.SigningMethod = "RS256" },
+			`Plugins.JWTConfig.SigningMethod "RS256" is not supported; only HS256 is`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			tc.edit(&cfg.Plugins)
+
+			assert.ErrorContains(t, cfg.Validate(), tc.expected)
+		})
+	}
+}
+
+func TestValidateIgnoresSettingsOfUnusedPlugins(t *testing.T) {
+	cfg := &config.Config{
+		Services: map[string]config.Service{
+			"api": {
+				URL:       "https://example.com",
+				Plugins:   []string{"cache"},
+				Endpoints: []config.Endpoint{{Name: "List", HTTPMethod: "GET", Path: "/items"}},
+			},
+		},
+	}
+
+	assert.NoError(t, cfg.Validate())
+}
+
+func TestValidateReportsEveryProblemAtOnce(t *testing.T) {
+	cfg := validConfig()
+	cfg.Plugins.RateLimitConfig.Limit = 0
+	service := cfg.Services["api"]
+	service.URL = ""
+	service.Endpoints[0].Path = "items"
+	cfg.Services["api"] = service
+
+	err := cfg.Validate()
+
+	require.Error(t, err)
+	assert.Equal(t, 3, strings.Count(err.Error(), "\n- "))
+	assert.ErrorContains(t, err, "URL is required")
+	assert.ErrorContains(t, err, `Path "items" must start with "/"`)
+	assert.ErrorContains(t, err, "Limit must be greater than 0")
+}
+
+func TestUsesPlugin(t *testing.T) {
+	cfg := &config.Config{
+		Services: map[string]config.Service{
+			"a": {Plugins: []string{"logger"}, Endpoints: []config.Endpoint{
+				{Name: "One", Plugins: []string{"cache"}},
+				{Name: "Two", Auth: config.AuthConfig{ApplyAuth: true}},
+			}},
+		},
+	}
+
+	assert.True(t, cfg.UsesPlugin(config.PluginLogger), "listed on a service")
+	assert.True(t, cfg.UsesPlugin(config.PluginCache), "listed on an endpoint")
+	assert.True(t, cfg.UsesPlugin(config.PluginAuth), "enabled through ApplyAuth")
+	assert.False(t, cfg.UsesPlugin(config.PluginCORS))
+	assert.False(t, cfg.UsesPlugin(config.PluginRateLimit))
+}
