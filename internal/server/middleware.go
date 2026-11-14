@@ -22,12 +22,10 @@ import (
 	"github.com/lucdoe/opengateway/internal/plugins/cors"
 	"github.com/lucdoe/opengateway/internal/plugins/logger"
 	ratelimit "github.com/lucdoe/opengateway/internal/plugins/rate-limit"
-	mw "github.com/lucdoe/opengateway/internal/server/middleware"
 )
 
-type Middleware interface {
-	Middleware(next http.Handler) http.Handler
-}
+// Middleware wraps a handler with one plugin's behaviour.
+type Middleware func(next http.Handler) http.Handler
 
 type MiddlewareConfig struct {
 	LoggerConfig    logger.LoggerConfig
@@ -47,11 +45,11 @@ func InitMiddleware(
 ) (map[string]Middleware, error) {
 
 	middlewares := map[string]Middleware{
-		"logger":     mw.NewLoggingMiddleware(log),
-		"auth":       mw.NewAuthMiddleware(authService),
-		"cache":      mw.NewCacheMiddleware(cacheService),
-		"rate-limit": mw.NewRateLimitMiddleware(rateLimiter),
-		"cors":       mw.NewCORSMiddleware(corsMiddleware),
+		"logger":     logger.NewMiddleware(log),
+		"auth":       auth.NewMiddleware(authService),
+		"cache":      cache.NewMiddleware(cacheService),
+		"rate-limit": ratelimit.NewMiddleware(rateLimiter),
+		"cors":       cors.NewMiddleware(corsMiddleware),
 	}
 
 	return middlewares, nil
