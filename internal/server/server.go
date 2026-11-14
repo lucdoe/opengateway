@@ -15,7 +15,10 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
+	"slices"
+	"sort"
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
@@ -42,27 +45,51 @@ type Server struct {
 	Runner      ServerRunner
 }
 
-func NewServer(cfg *config.Config, router *mux.Router, proxy ProxyService, mws map[string]Middleware) *Server {
+// pluginOrder is the order plugins run in for a request, outermost first.
+// Auth runs before cache so a cached response is never served to a caller
+// that has not been authenticated.
+var pluginOrder = []string{"logger", "cors", "rate-limit", authPlugin, "cache"}
+
+const authPlugin = "auth"
+
+func NewServer(cfg *config.Config, router *mux.Router, proxy ProxyService, mws map[string]Middleware) (*Server, error) {
 	server := &Server{
 		Router:      router,
 		Middlewares: mws,
 		Proxy:       proxy,
 		Runner:      &DefaultServerRunner{},
 	}
-	server.SetupRoutes(cfg)
-	return server
+	if err := server.SetupRoutes(cfg); err != nil {
+		return nil, err
+	}
+	return server, nil
 }
 
-func (s *Server) SetupRoutes(cfg *config.Config) {
-	for _, service := range cfg.Services {
-		applyServiceMiddlewares(s, service.Plugins)
+// SetupRoutes registers one route per configured endpoint. Each route gets
+// its own plugin chain, so a plugin only runs for the services and endpoints
+// that ask for it.
+func (s *Server) SetupRoutes(cfg *config.Config) error {
+	names := make([]string, 0, len(cfg.Services))
+	for name := range cfg.Services {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		service := cfg.Services[name]
 
 		for _, endpoint := range service.Endpoints {
-			fullPath := service.URL + service.Subpath + endpoint.Path
-			handler := MakeHandler(s.Proxy, fullPath)
-			s.Router.HandleFunc(service.Subpath+endpoint.Path, handler).Methods(endpoint.HTTPMethod)
+			plugins, err := s.endpointPlugins(service, endpoint)
+			if err != nil {
+				return fmt.Errorf("service %q, endpoint %q: %w", name, endpoint.Name, err)
+			}
+
+			targetURL := service.URL + service.Subpath + endpoint.Path
+			handler := s.chain(plugins, MakeHandler(s.Proxy, targetURL))
+			s.Router.Handle(service.Subpath+endpoint.Path, handler).Methods(endpoint.HTTPMethod)
 		}
 	}
+	return nil
 }
 
 func MakeHandler(proxy ProxyService, targetURL string) http.HandlerFunc {
@@ -73,23 +100,36 @@ func MakeHandler(proxy ProxyService, targetURL string) http.HandlerFunc {
 	}
 }
 
-func applyServiceMiddlewares(s *Server, plugins []string) {
-	orderedMiddlewareKeys := []string{"logger", "cors", "rate-limit", "cache"}
+// endpointPlugins returns the plugins enabled for an endpoint in the order
+// they run: the service's plugins, the endpoint's own plugins, and auth when
+// the endpoint sets ApplyAuth. A name with no registered plugin is an error.
+func (s *Server) endpointPlugins(service config.Service, endpoint config.Endpoint) ([]string, error) {
+	requested := append(append([]string{}, service.Plugins...), endpoint.Plugins...)
+	if endpoint.Auth.ApplyAuth {
+		requested = append(requested, authPlugin)
+	}
 
-	for _, key := range orderedMiddlewareKeys {
-		if _, ok := s.Middlewares[key]; ok && contains(plugins, key) {
-			s.Router.Use(s.Middlewares[key].Middleware)
+	for _, name := range requested {
+		if _, ok := s.Middlewares[name]; !ok || !slices.Contains(pluginOrder, name) {
+			return nil, fmt.Errorf("unknown plugin %q", name)
 		}
 	}
+
+	enabled := make([]string, 0, len(requested))
+	for _, name := range pluginOrder {
+		if slices.Contains(requested, name) {
+			enabled = append(enabled, name)
+		}
+	}
+	return enabled, nil
 }
 
-func contains(slice []string, item string) bool {
-	for _, sliceItem := range slice {
-		if sliceItem == item {
-			return true
-		}
+// chain wraps handler in the named plugins so the first name runs first.
+func (s *Server) chain(plugins []string, handler http.Handler) http.Handler {
+	for i := len(plugins) - 1; i >= 0; i-- {
+		handler = s.Middlewares[plugins[i]].Middleware(handler)
 	}
-	return false
+	return handler
 }
 
 func (s *Server) Run() error {
