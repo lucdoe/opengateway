@@ -16,8 +16,8 @@ import (
 const layeredConfig = `
 Server: {UpstreamTimeout: 30s}
 Plugins:
-  RateLimitConfig: {Limit: 100, Window: 1m}
-  CORSConfig: {Origins: "*", Methods: "GET"}
+  RateLimit: {Limit: 100, Window: 1m}
+  CORS: {Origins: "*", Methods: "GET"}
 Services:
   accounts:
     URL: http://accounts
@@ -25,15 +25,15 @@ Services:
     Plugins: [rate-limit, cors]
     Settings:
       UpstreamTimeout: 5s
-      RateLimitConfig: {Limit: 10}
+      RateLimit: {Limit: 10}
     Endpoints:
       - {Name: Profile, HTTPMethod: GET, Path: /me}
       - Name: Login
         HTTPMethod: post
         Path: /login
         Settings:
-          RateLimitConfig: {Window: 1h, Key: "header:X-Forwarded-User"}
-          CORSConfig: {Origins: "https://app.example.com", Methods: "POST"}
+          RateLimit: {Window: 1h, Key: "header:X-Forwarded-User"}
+          CORS: {Origins: "https://app.example.com", Methods: "POST"}
   news:
     URL: http://news
     Plugins: [rate-limit]
@@ -85,14 +85,14 @@ func TestRouteSettingsMergeTheEndpointOverItsService(t *testing.T) {
 func TestValidateChecksTheSettingsEveryRouteRunsWith(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
 Plugins:
-  CORSConfig: {Origins: "*"}
+  CORS: {Origins: "*"}
 Services:
   accounts:
     URL: http://accounts
     Plugins: [rate-limit]
     Settings:
       UpstreamTimeout: -1s
-      RateLimitConfig: {Limit: 5, Key: user}
+      RateLimit: {Limit: 5, Key: user}
     Endpoints:
       - Name: Login
         HTTPMethod: POST
@@ -100,7 +100,7 @@ Services:
         Plugins: [cors]
         Settings:
           UpstreamTimeout: 2s
-          CORSConfig: {Headers: "Content-Type"}
+          CORS: {Headers: "Content-Type"}
       - {Name: Logout, HTTPMethod: POST, Path: /logout}
   news:
     URL: http://news
@@ -112,11 +112,11 @@ Services:
 	for _, want := range []string{
 		`service "accounts": Settings.UpstreamTimeout -1s must be greater than 0`,
 		`service "accounts", endpoint "Login": Settings.UpstreamTimeout can only be set for the service`,
-		`service "accounts", endpoint "Login": RateLimitConfig.Window must be greater than 0 because the rate-limit plugin is used`,
-		`service "accounts", endpoint "Login": RateLimitConfig.Key "user" is not one of`,
-		`service "accounts", endpoint "Login": CORSConfig.Methods is required because the cors plugin is used`,
-		`service "accounts", endpoint "Logout": RateLimitConfig.Window must be greater than 0`,
-		`Plugins.RateLimitConfig.Limit must be greater than 0 because the rate-limit plugin is used`, // for news
+		`service "accounts", endpoint "Login": RateLimit.Window must be greater than 0 because the rate-limit plugin is used`,
+		`service "accounts", endpoint "Login": RateLimit.Key "user" is not one of`,
+		`service "accounts", endpoint "Login": CORS.Methods is required because the cors plugin is used`,
+		`service "accounts", endpoint "Logout": RateLimit.Window must be greater than 0`,
+		`Plugins.RateLimit.Limit must be greater than 0 because the rate-limit plugin is used`, // for news
 	} {
 		assert.ErrorContains(t, err, want)
 	}
@@ -129,7 +129,7 @@ Services:
     URL: http://accounts
     Plugins: [rate-limit]
     Settings:
-      RateLimitConfig: {Limit: 5, Window: 1m}
+      RateLimit: {Limit: 5, Window: 1m}
     Endpoints: [{HTTPMethod: POST, Path: /login}]
 `))
 
@@ -148,5 +148,5 @@ Services:
 `))
 
 	require.Error(t, err)
-	assert.Equal(t, 1, strings.Count(err.Error(), "Plugins.RateLimitConfig.Limit must be greater than 0"))
+	assert.Equal(t, 1, strings.Count(err.Error(), "Plugins.RateLimit.Limit must be greater than 0"))
 }

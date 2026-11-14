@@ -15,8 +15,8 @@ type Settings struct {
 	// UpstreamTimeout replaces Server.UpstreamTimeout. It can only be set for
 	// a service, since its endpoints share one connection pool.
 	UpstreamTimeout time.Duration   `yaml:"UpstreamTimeout"`
-	RateLimitConfig RateLimitConfig `yaml:"RateLimitConfig"`
-	CORSConfig      CORSConfig      `yaml:"CORSConfig"`
+	RateLimitConfig RateLimitConfig `yaml:"RateLimit"`
+	CORSConfig      CORSConfig      `yaml:"CORS"`
 }
 
 // RouteSettings are the plugin settings one endpoint runs with.

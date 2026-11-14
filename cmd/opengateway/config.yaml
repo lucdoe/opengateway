@@ -18,9 +18,9 @@ Store:
     Password: ""
 
 Plugins:
-  LoggerConfig:
+  Logger:
     FilePath: "" # empty: JSON lines to stdout; or a file to append to, such as "server.log"
-  JWTConfig:
+  JWT:
     SecretKey: "${JWT_SECRET:-your-256-bit-secret}"
     # Or, for tokens from an identity provider, its key set instead of SecretKey:
     # JWKSURL: "https://auth.example.com/.well-known/jwks.json"
@@ -28,11 +28,11 @@ Plugins:
     Issuer: "ExampleIssuer" # checked when set
     Audience: "ExampleAudience" # checked when set
     Scope: "" # scopes every token needs, space-separated; endpoints can add more with Scope
-  RateLimitConfig:
+  RateLimit:
     Limit: 100
     Window: 1m
     Key: "ip" # or header:CF-Connecting-IP behind a CDN, or jwt:sub per token subject
-  CORSConfig:
+  CORS:
     Origins: "*" # any origin, without credentials; list origins (comma-separated) to allow cookies
     Methods: "GET, POST, PUT, DELETE, OPTIONS"
     Headers: "Content-Type, Authorization"

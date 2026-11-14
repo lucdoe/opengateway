@@ -40,7 +40,7 @@ Store:
     Port: 6380
     Password: "from-file"
 Plugins:
-  JWTConfig:
+  JWT:
     SecretKey: "from-file"
 ` + minimalConfig
 
@@ -146,7 +146,7 @@ Services:
 	clearEnvironment(t)
 
 	_, err := config.Parse([]byte(withAuth))
-	assert.ErrorContains(t, err, "Plugins.JWTConfig needs SecretKey (for HS256 tokens) or JWKSURL")
+	assert.ErrorContains(t, err, "Plugins.JWT needs SecretKey (for HS256 tokens) or JWKSURL")
 
 	t.Setenv("JWT_SECRET", "from-env")
 	cfg, err := config.Parse([]byte(withAuth))

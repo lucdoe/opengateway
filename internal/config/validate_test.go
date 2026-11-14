@@ -237,33 +237,33 @@ func TestValidatePluginSettings(t *testing.T) {
 		expected string
 	}{
 		{"cors without origins", func(p *config.PluginConfig) { p.CORSConfig.Origins = "" },
-			"Plugins.CORSConfig.Origins is required"},
+			"Plugins.CORS.Origins is required"},
 		{"cors without methods", func(p *config.PluginConfig) { p.CORSConfig.Methods = "" },
-			"Plugins.CORSConfig.Methods is required"},
+			"Plugins.CORS.Methods is required"},
 		{"rate limit of zero", func(p *config.PluginConfig) { p.RateLimitConfig.Limit = 0 },
-			"Plugins.RateLimitConfig.Limit must be greater than 0"},
+			"Plugins.RateLimit.Limit must be greater than 0"},
 		{"negative rate limit window", func(p *config.PluginConfig) { p.RateLimitConfig.Window = -time.Second },
-			"Plugins.RateLimitConfig.Window must be greater than 0"},
+			"Plugins.RateLimit.Window must be greater than 0"},
 		{"unknown rate-limit key", func(p *config.PluginConfig) { p.RateLimitConfig.Key = "user" },
-			`Plugins.RateLimitConfig.Key "user" is not one of ip, header:Name-Of-Header or jwt:sub`},
+			`Plugins.RateLimit.Key "user" is not one of ip, header:Name-Of-Header or jwt:sub`},
 		{"rate-limit key with an empty header name", func(p *config.PluginConfig) { p.RateLimitConfig.Key = "header:" },
-			`Plugins.RateLimitConfig.Key "header:" is not one of`},
+			`Plugins.RateLimit.Key "header:" is not one of`},
 		{"rate-limit key with an invalid header name", func(p *config.PluginConfig) { p.RateLimitConfig.Key = "header:X Api Key" },
-			`Plugins.RateLimitConfig.Key "header:X Api Key" is not one of`},
+			`Plugins.RateLimit.Key "header:X Api Key" is not one of`},
 		{"auth without secret or JWKS", func(p *config.PluginConfig) { p.JWTConfig.SecretKey = "" },
-			"Plugins.JWTConfig needs SecretKey (for HS256 tokens) or JWKSURL"},
+			"Plugins.JWT needs SecretKey (for HS256 tokens) or JWKSURL"},
 		{"both secret and JWKS", func(p *config.PluginConfig) { p.JWTConfig.JWKSURL = "https://auth.example.com/jwks.json" },
-			"Plugins.JWTConfig sets both SecretKey and JWKSURL; set one (JWT_SECRET also sets SecretKey)"},
+			"Plugins.JWT sets both SecretKey and JWKSURL; set one (JWT_SECRET also sets SecretKey)"},
 		{"key algorithm with a secret", func(p *config.PluginConfig) { p.JWTConfig.SigningMethod = "RS256" },
-			`Plugins.JWTConfig.SigningMethod "RS256" is not one of HS256, HS384, HS512`},
+			`Plugins.JWT.SigningMethod "RS256" is not one of HS256, HS384, HS512`},
 		{"HMAC algorithm with JWKS", func(p *config.PluginConfig) {
 			p.JWTConfig.SecretKey, p.JWTConfig.JWKSURL, p.JWTConfig.SigningMethod = "", "https://auth.example.com/jwks.json", "HS256"
-		}, `Plugins.JWTConfig.SigningMethod "HS256" is not one of RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512, EdDSA`},
+		}, `Plugins.JWT.SigningMethod "HS256" is not one of RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512, EdDSA`},
 		{"JWKS that is not a URL", func(p *config.PluginConfig) { p.JWTConfig.SecretKey, p.JWTConfig.JWKSURL = "", "auth.example.com/jwks" },
-			`Plugins.JWTConfig.JWKSURL "auth.example.com/jwks" must be an absolute https URL`},
+			`Plugins.JWT.JWKSURL "auth.example.com/jwks" must be an absolute https URL`},
 		{"JWKS over plain http to an outside host", func(p *config.PluginConfig) {
 			p.JWTConfig.SecretKey, p.JWTConfig.JWKSURL = "", "http://auth.example.com/jwks.json"
-		}, `Plugins.JWTConfig.JWKSURL "http://auth.example.com/jwks.json" must use https: keys fetched over plain http can be swapped to forge tokens`},
+		}, `Plugins.JWT.JWKSURL "http://auth.example.com/jwks.json" must use https: keys fetched over plain http can be swapped to forge tokens`},
 	}
 
 	for _, tc := range tests {

@@ -35,7 +35,7 @@ func TestWarningsAreEmptyForASafeAuthConfig(t *testing.T) {
 
 func TestWarningsAreEmptyWithoutAuth(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
-Plugins: {JWTConfig: {SecretKey: your-256-bit-secret}}
+Plugins: {JWT: {SecretKey: your-256-bit-secret}}
 Services:
   api:
     URL: http://api.example.com
@@ -50,16 +50,16 @@ func TestWarningsFlagWeakOrExampleSecrets(t *testing.T) {
 	example := authConfig(t, "https://users.example.com", config.JWTConfig{SecretKey: "your-256-bit-secret", Issuer: "auth", Audience: "gateway"})
 	short := authConfig(t, "https://users.example.com", config.JWTConfig{SecretKey: "secret", Issuer: "auth", Audience: "gateway"})
 
-	assert.Equal(t, []string{"Plugins.JWTConfig.SecretKey is the example secret from the docs, so anyone can sign tokens with it; set your own, for example with JWT_SECRET"}, example.Warnings())
-	assert.Equal(t, []string{"Plugins.JWTConfig.SecretKey is 6 bytes; HS256 needs at least 32 (256 bits) to resist guessing"}, short.Warnings())
+	assert.Equal(t, []string{"Plugins.JWT.SecretKey is the example secret from the docs, so anyone can sign tokens with it; set your own, for example with JWT_SECRET"}, example.Warnings())
+	assert.Equal(t, []string{"Plugins.JWT.SecretKey is 6 bytes; HS256 needs at least 32 (256 bits) to resist guessing"}, short.Warnings())
 }
 
 func TestWarningsFlagMissingIssuerAndAudience(t *testing.T) {
 	cfg := authConfig(t, "https://users.example.com", config.JWTConfig{SecretKey: strongSecret})
 
 	assert.Equal(t, []string{
-		"Plugins.JWTConfig.Issuer is empty, so tokens from any issuer that has the secret are accepted",
-		"Plugins.JWTConfig.Audience is empty, so tokens meant for other services that share the secret are accepted",
+		"Plugins.JWT.Issuer is empty, so tokens from any issuer that has the secret are accepted",
+		"Plugins.JWT.Audience is empty, so tokens meant for other services that share the secret are accepted",
 	}, cfg.Warnings())
 }
 
@@ -69,8 +69,8 @@ func TestWarningsWithJWKSSkipTheSecretAndNameTheIdentityProvider(t *testing.T) {
 
 	assert.Empty(t, safe.Warnings(), "no secret is used, so its length does not matter")
 	assert.Equal(t, []string{
-		"Plugins.JWTConfig.Issuer is empty, so tokens from any issuer whose keys are in the key set are accepted",
-		"Plugins.JWTConfig.Audience is empty, so tokens meant for other apps of the same identity provider are accepted",
+		"Plugins.JWT.Issuer is empty, so tokens from any issuer whose keys are in the key set are accepted",
+		"Plugins.JWT.Audience is empty, so tokens meant for other apps of the same identity provider are accepted",
 	}, open.Warnings())
 }
 
