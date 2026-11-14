@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware_test
+package logger_test
 
 import (
 	"net/http"
@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	mw "github.com/lucdoe/opengateway/internal/server/middleware"
+	"github.com/lucdoe/opengateway/internal/plugins/logger"
 )
 
 type mockLogger struct {
@@ -37,7 +37,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	mockLog := &mockLogger{
 		Done: make(chan bool, 1),
 	}
-	middleware := mw.NewLoggingMiddleware(mockLog)
+	middleware := logger.NewMiddleware(mockLog)
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -64,7 +64,7 @@ func TestLoggingMiddleware(t *testing.T) {
 			req.RemoteAddr = tt.remoteAddr
 			rec := httptest.NewRecorder()
 
-			handler := middleware.Middleware(testHandler)
+			handler := middleware(testHandler)
 			handler.ServeHTTP(rec, req)
 
 			select {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package cache
 
 import (
 	"encoding/json"
@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/lucdoe/opengateway/internal"
-	"github.com/lucdoe/opengateway/internal/plugins/cache"
 )
 
 const (
@@ -34,16 +33,16 @@ const (
 	cacheMiss         = "MISS"
 )
 
-// CacheMiddleware is a shared response cache: one stored response is served
-// to every client that sends an equivalent request. To keep that safe it only
-// handles GET requests without an Authorization header and only stores
-// responses that are not specific to one caller.
-type CacheMiddleware struct {
-	Cache cache.Cache
+type middleware struct {
+	store Cache
 }
 
-func NewCacheMiddleware(c cache.Cache) *CacheMiddleware {
-	return &CacheMiddleware{Cache: c}
+// NewMiddleware returns the cache plugin. It is a shared response cache: one
+// stored response is served to every client that sends an equivalent request.
+// To keep that safe it only handles GET requests without an Authorization
+// header and only stores responses that are not specific to one caller.
+func NewMiddleware(store Cache) func(http.Handler) http.Handler {
+	return (&middleware{store: store}).wrap
 }
 
 // cachedResponse is what is kept in the store for one cache key.
@@ -53,7 +52,7 @@ type cachedResponse struct {
 	StoredAt time.Time   `json:"stored_at"`
 }
 
-func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
+func (cm *middleware) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !cacheableRequest(r) {
 			next.ServeHTTP(w, r)
@@ -76,7 +75,7 @@ func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(recorder, r)
 
 		if cacheableResponse(recorder) {
-			cm.store(key, recorder, ownHeaders)
+			cm.save(key, recorder, ownHeaders)
 		}
 	})
 }
@@ -125,9 +124,9 @@ func headerTokens(header http.Header, name string) []string {
 	return tokens
 }
 
-func (cm *CacheMiddleware) lookup(key string) (cachedResponse, bool) {
+func (cm *middleware) lookup(key string) (cachedResponse, bool) {
 	var cached cachedResponse
-	value, err := cm.Cache.Get(key)
+	value, err := cm.store.Get(key)
 	if err != nil || value == "" {
 		return cached, false
 	}
@@ -137,7 +136,7 @@ func (cm *CacheMiddleware) lookup(key string) (cachedResponse, bool) {
 	return cached, true
 }
 
-func (cm *CacheMiddleware) store(key string, recorder *internal.ResponseRecorder, exclude http.Header) {
+func (cm *middleware) save(key string, recorder *internal.ResponseRecorder, exclude http.Header) {
 	header := http.Header{}
 	for name, values := range recorder.Header() {
 		if _, excluded := exclude[name]; excluded || name == cacheStatusHeader {
@@ -155,7 +154,7 @@ func (cm *CacheMiddleware) store(key string, recorder *internal.ResponseRecorder
 		return
 	}
 	// A failed write only means the next request is a miss again.
-	_ = cm.Cache.Set(key, string(value), cacheTTL)
+	_ = cm.store.Set(key, string(value), cacheTTL)
 }
 
 func writeCached(w http.ResponseWriter, cached cachedResponse) {

@@ -65,7 +65,7 @@ func (m *recordingMiddleware) Middleware(next http.Handler) http.Handler {
 func recordingMiddlewares(calls *[]string) map[string]Middleware {
 	mws := map[string]Middleware{}
 	for _, name := range pluginOrder {
-		mws[name] = &recordingMiddleware{name: name, calls: calls}
+		mws[name] = (&recordingMiddleware{name: name, calls: calls}).Middleware
 	}
 	return mws
 }
@@ -204,7 +204,7 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 	t.Run("a rejecting auth plugin stops the request", func(t *testing.T) {
 		var calls []string
 		mws := recordingMiddlewares(&calls)
-		mws["auth"] = &recordingMiddleware{name: "auth", calls: &calls, reject: true}
+		mws["auth"] = (&recordingMiddleware{name: "auth", calls: &calls, reject: true}).Middleware
 		s, err := NewServer(cfg, mux.NewRouter(), okProxy, mws)
 		assert.NoError(t, err)
 

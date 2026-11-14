@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package cache
 
 import (
 	"errors"
@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// memoryStore is an in-memory cache.Cache. It records the TTL of the last
+// memoryStore is an in-memory Cache. It records the TTL of the last
 // Set and can be made to fail.
 type memoryStore struct {
 	values  map[string]string
@@ -96,7 +96,7 @@ func TestCacheServesTheStoredResponseOnAHit(t *testing.T) {
 		w.Header().Set("X-Upstream", "yes")
 		w.Write([]byte("hello"))
 	}}
-	handler := NewCacheMiddleware(store).Middleware(upstream)
+	handler := NewMiddleware(store)(upstream)
 
 	miss := get(handler, "/api/people")
 	hit := get(handler, "/api/people")
@@ -119,7 +119,7 @@ func TestCacheServesTheStoredResponseOnAHit(t *testing.T) {
 
 func TestCacheIsSharedBetweenClients(t *testing.T) {
 	upstream := jsonUpstream()
-	handler := NewCacheMiddleware(newMemoryStore()).Middleware(upstream)
+	handler := NewMiddleware(newMemoryStore())(upstream)
 
 	get(handler, "/api/people", func(r *http.Request) { r.RemoteAddr = "203.0.113.5:51000" })
 	sameClientNewConnection := get(handler, "/api/people", func(r *http.Request) { r.RemoteAddr = "203.0.113.5:51001" })
@@ -151,7 +151,7 @@ func TestCacheKeyDependsOnPathQueryAndEncoding(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			upstream := jsonUpstream()
-			handler := NewCacheMiddleware(newMemoryStore()).Middleware(upstream)
+			handler := NewMiddleware(newMemoryStore())(upstream)
 
 			if tc.editFirst != nil {
 				get(handler, tc.first, tc.editFirst)
@@ -205,7 +205,7 @@ func TestCacheSkipsRequestsAndResponsesThatMustNotBeShared(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newMemoryStore()
 			upstream := &countingUpstream{respond: tc.respond}
-			handler := NewCacheMiddleware(store).Middleware(upstream)
+			handler := NewMiddleware(store)(upstream)
 
 			for i := 0; i < 2; i++ {
 				req := httptest.NewRequest(tc.method, "/api/people", nil)
@@ -229,7 +229,7 @@ func TestCacheStoresResponsesThatOnlyVaryOnAcceptEncoding(t *testing.T) {
 		w.Header().Set("Cache-Control", "public, max-age=60")
 		w.Write([]byte("body"))
 	}}
-	handler := NewCacheMiddleware(newMemoryStore()).Middleware(upstream)
+	handler := NewMiddleware(newMemoryStore())(upstream)
 
 	get(handler, "/api/people")
 	hit := get(handler, "/api/people")
@@ -246,7 +246,7 @@ func TestCacheKeepsHeadersFromEarlierPluginsFresh(t *testing.T) {
 	origins := []string{"https://a.example", "https://b.example"}
 	request := 0
 
-	cached := NewCacheMiddleware(newMemoryStore()).Middleware(jsonUpstream())
+	cached := NewMiddleware(newMemoryStore())(jsonUpstream())
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-RateLimit-Remaining", remaining[request])
 		w.Header().Set("Access-Control-Allow-Origin", origins[request])
@@ -267,7 +267,7 @@ func TestCacheFallsBackToTheUpstreamWhenTheStoreFails(t *testing.T) {
 	t.Run("read fails", func(t *testing.T) {
 		store := newMemoryStore()
 		upstream := jsonUpstream()
-		handler := NewCacheMiddleware(store).Middleware(upstream)
+		handler := NewMiddleware(store)(upstream)
 
 		get(handler, "/api/people")
 		store.getErr = errors.New("connection refused")
@@ -282,7 +282,7 @@ func TestCacheFallsBackToTheUpstreamWhenTheStoreFails(t *testing.T) {
 		store := newMemoryStore()
 		store.setErr = errors.New("connection refused")
 		upstream := jsonUpstream()
-		handler := NewCacheMiddleware(store).Middleware(upstream)
+		handler := NewMiddleware(store)(upstream)
 
 		res := get(handler, "/api/people")
 
@@ -293,7 +293,7 @@ func TestCacheFallsBackToTheUpstreamWhenTheStoreFails(t *testing.T) {
 	t.Run("stored entry is unreadable", func(t *testing.T) {
 		store := newMemoryStore()
 		upstream := jsonUpstream()
-		handler := NewCacheMiddleware(store).Middleware(upstream)
+		handler := NewMiddleware(store)(upstream)
 
 		get(handler, "/api/people")
 		for key := range store.values {
@@ -304,26 +304,4 @@ func TestCacheFallsBackToTheUpstreamWhenTheStoreFails(t *testing.T) {
 		assert.Equal(t, 2, upstream.calls)
 		assert.Equal(t, "MISS", res.Header().Get("X-Cache"))
 	})
-}
-
-func TestClientIP(t *testing.T) {
-	tests := []struct {
-		remoteAddr string
-		expected   string
-	}{
-		{"203.0.113.5:51000", "203.0.113.5"},
-		{"[2001:db8::1]:51000", "2001:db8::1"},
-		{"203.0.113.5", "203.0.113.5"},
-		{"", ""},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.remoteAddr, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
-			req.RemoteAddr = tc.remoteAddr
-			req.Header.Set("X-Forwarded-For", "10.0.0.1")
-
-			assert.Equal(t, tc.expected, clientIP(req))
-		})
-	}
 }

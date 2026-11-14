@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware
+package auth
 
 import (
 	"errors"
@@ -67,7 +67,7 @@ func TestAuthMiddleware(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			mockAuthService := &mockAuth{}
-			middleware := NewAuthMiddleware(mockAuthService).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			middleware := NewMiddleware(mockAuthService)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
