@@ -72,7 +72,7 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 
 | Plugin       | What it does                                                                                                        | Settings          |
 | ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes and client IP (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `LoggerConfig`    |
+| `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes, client IP and request ID (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `LoggerConfig`    |
 | `cors`       | Answers preflights and sets the CORS headers; rejects origins that are not listed with `403`. Requests without an `Origin` header (curl, other servers) pass untouched. `Origins: "*"` allows every origin but without credentials (cookies); list origins to allow them. | `CORSConfig`      |
 | `rate-limit` | Allows each client IP (IPv6: each /64) `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
 | `auth`       | Requires a `Bearer` JWT signed with HS256 and carrying `exp` (`401` otherwise). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Auth.Scope`, in their space-separated `scope` claim (`403` otherwise). Enabled per endpoint with `Auth.ApplyAuth: true`. | `JWTConfig`       |
@@ -112,6 +112,10 @@ These settings are optional. An environment variable, where one exists, override
 Every service has its own circuit breaker. A failure is an upstream that cannot be reached, times out, or answers `500`, `502`, `503` or `504`. While the breaker is open the gateway answers `503` with a `Retry-After` header straight away, without contacting the service.
 
 When the gateway answers a request itself, rather than passing on the upstream's response, the body is JSON with a `message`, for example `{"message":"Rate limit exceeded"}`. This covers unknown routes (`404`, `405`), plugin rejections (`401`, `403`, `429`) and upstream failures (`502`, `503`, `504`).
+
+`GET /__health` answers `200 {"status":"ok"}` while the gateway runs, without plugins or contacting a service, for load balancers and container health checks. Paths starting with `/__` belong to the gateway, so services can't route them.
+
+Every request carries an `X-Request-ID`: the one the client sent, if it is 1 to 128 visible ASCII characters, or else a new random one. The gateway sends it to the service, writes it in the log line and returns it on the response, also on errors it answers itself.
 
 On `SIGINT` or `SIGTERM` the gateway stops accepting new connections, lets requests in flight finish, and exits.
 
