@@ -9,11 +9,10 @@ package breaker
 import (
 	"errors"
 	"log"
-	"math"
 	"net/http"
-	"strconv"
 
 	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/httpx"
 	"github.com/lucdoe/opengateway/internal/statuswriter"
 	"github.com/sony/gobreaker/v2"
 )
@@ -48,7 +47,7 @@ func Wrap(name string, settings config.CircuitBreakerConfig, next http.Handler) 
 			log.Printf("circuit breaker %q: %s -> %s", name, from, to)
 		},
 	})
-	retryAfter := strconv.Itoa(int(math.Ceil(settings.OpenTimeout.Seconds())))
+	retryAfter := httpx.Seconds(settings.OpenTimeout)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := cb.Execute(func() (struct{}, error) {

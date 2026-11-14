@@ -5,11 +5,11 @@ package logger
 
 import (
 	"log/slog"
-	"net"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/lucdoe/opengateway/internal/httpx"
 	"github.com/lucdoe/opengateway/internal/statuswriter"
 )
 
@@ -35,7 +35,7 @@ func NewMiddleware(l *Logger) func(http.Handler) http.Handler {
 				slog.Int("status", status),
 				slog.Float64("duration_ms", milliseconds(time.Since(start))),
 				slog.Int64("bytes", rec.Bytes()),
-				slog.String("client", clientIP(r)),
+				slog.String("client", httpx.ClientIP(r)),
 			)
 		})
 	}
@@ -55,12 +55,4 @@ func route(r *http.Request) string {
 // milliseconds is d in milliseconds, to the microsecond.
 func milliseconds(d time.Duration) float64 {
 	return float64(d.Microseconds()) / 1000
-}
-
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }

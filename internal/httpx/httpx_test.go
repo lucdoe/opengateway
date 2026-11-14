@@ -1,11 +1,12 @@
 // Copyright lucdoe
 // SPDX-License-Identifier: Apache-2.0
 
-package ratelimit
+package httpx
 
 import (
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -27,7 +28,14 @@ func TestClientIP(t *testing.T) {
 			req.RemoteAddr = tc.remoteAddr
 			req.Header.Set("X-Forwarded-For", "10.0.0.1")
 
-			assert.Equal(t, tc.expected, clientIP(req))
+			assert.Equal(t, tc.expected, ClientIP(req))
 		})
 	}
+}
+
+func TestSeconds(t *testing.T) {
+	assert.Equal(t, "0", Seconds(0))
+	assert.Equal(t, "1", Seconds(time.Millisecond))
+	assert.Equal(t, "2", Seconds(1500*time.Millisecond))
+	assert.Equal(t, "60", Seconds(time.Minute))
 }

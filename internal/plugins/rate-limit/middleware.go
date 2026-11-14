@@ -6,11 +6,12 @@ package ratelimit
 import (
 	"errors"
 	"log"
-	"math"
 	"net/http"
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	"github.com/lucdoe/opengateway/internal/httpx"
 )
 
 const rateLimitKeyPrefix = "ratelimit:"
@@ -36,10 +37,10 @@ func NewMiddleware(l *Limiter) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			remaining, resetIn, err := l.Take(rateLimitKeyPrefix + clientIP(req))
+			remaining, resetIn, err := l.Take(rateLimitKeyPrefix + httpx.ClientIP(req))
 			switch {
 			case errors.Is(err, errLimitExceeded):
-				reset := seconds(resetIn)
+				reset := httpx.Seconds(resetIn)
 				setHeaders(w, 0, reset)
 				w.Header().Set("Retry-After", reset)
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
@@ -50,15 +51,9 @@ func NewMiddleware(l *Limiter) func(http.Handler) http.Handler {
 					log.Printf("rate-limit: store failed, letting requests through without a limit: %v", err)
 				}
 			default:
-				setHeaders(w, remaining, seconds(resetIn))
+				setHeaders(w, remaining, httpx.Seconds(resetIn))
 			}
 			next.ServeHTTP(w, req)
 		})
 	}
-}
-
-// seconds rounds d up to whole seconds, so a client that waits that long is
-// past the reset.
-func seconds(d time.Duration) string {
-	return strconv.Itoa(int(math.Ceil(d.Seconds())))
 }

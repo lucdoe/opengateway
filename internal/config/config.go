@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -24,6 +25,11 @@ const (
 	PluginAuth      = "auth"
 	PluginCache     = "cache"
 )
+
+// PluginOrder lists every plugin in the order they run for a request,
+// outermost first. Auth runs before cache so a cached response is never
+// served to a caller that has not been authenticated.
+var PluginOrder = []string{PluginLogger, PluginCORS, PluginRateLimit, PluginAuth, PluginCache}
 
 type AuthConfig struct {
 	ApplyAuth bool   `yaml:"ApplyAuth"`
@@ -142,6 +148,17 @@ type Config struct {
 	Store    StoreConfig        `yaml:"Store"`
 	Plugins  PluginConfig       `yaml:"Plugins"`
 	Services map[string]Service `yaml:"Services"`
+}
+
+// ServiceNames returns the names of the services, sorted, so routes and
+// error messages come out in the same order every time.
+func (c *Config) ServiceNames() []string {
+	names := make([]string, 0, len(c.Services))
+	for name := range c.Services {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // ListenAddr returns the address the gateway's HTTP server listens on.

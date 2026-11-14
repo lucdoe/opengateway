@@ -8,12 +8,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 )
-
-var knownPlugins = []string{PluginLogger, PluginCORS, PluginRateLimit, PluginAuth, PluginCache}
 
 var knownMethods = []string{
 	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
@@ -76,14 +73,8 @@ func (c *Config) Validate() error {
 		v.addf("no services are configured")
 	}
 
-	names := make([]string, 0, len(c.Services))
-	for name := range c.Services {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
 	routes := map[string]string{}
-	for _, name := range names {
+	for _, name := range c.ServiceNames() {
 		v.service(name, c.Services[name], routes)
 	}
 
@@ -188,8 +179,8 @@ func (v *validation) service(name string, service Service, routes map[string]str
 
 func (v *validation) plugins(label string, plugins []string) {
 	for _, plugin := range plugins {
-		if !slices.Contains(knownPlugins, plugin) {
-			v.addf("%s: unknown plugin %q (known plugins: %s)", label, plugin, strings.Join(knownPlugins, ", "))
+		if !slices.Contains(PluginOrder, plugin) {
+			v.addf("%s: unknown plugin %q (known plugins: %s)", label, plugin, strings.Join(PluginOrder, ", "))
 		}
 	}
 }

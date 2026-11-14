@@ -53,40 +53,26 @@ func (c *Config) applyEnvironment() error {
 }
 
 func (c *Config) applyDefaults() {
-	if c.Server.Port == 0 {
-		c.Server.Port = DefaultPort
-	}
-	if c.Server.ReadHeaderTimeout == 0 {
-		c.Server.ReadHeaderTimeout = DefaultReadHeaderTimeout
-	}
-	if c.Server.IdleTimeout == 0 {
-		c.Server.IdleTimeout = DefaultIdleTimeout
-	}
-	if c.Server.ShutdownTimeout == 0 {
-		c.Server.ShutdownTimeout = DefaultShutdownTimeout
-	}
-	if c.Server.UpstreamTimeout == 0 {
-		c.Server.UpstreamTimeout = DefaultUpstreamTimeout
-	}
-	breaker := &c.Server.CircuitBreaker
-	if breaker.ConsecutiveFailures == 0 {
-		breaker.ConsecutiveFailures = DefaultCircuitBreakerConsecutiveFailures
-	}
-	if breaker.OpenTimeout == 0 {
-		breaker.OpenTimeout = DefaultCircuitBreakerOpenTimeout
-	}
-	if breaker.HalfOpenRequests == 0 {
-		breaker.HalfOpenRequests = DefaultCircuitBreakerHalfOpenRequests
-	}
+	orDefault(&c.Server.Port, DefaultPort)
+	orDefault(&c.Server.ReadHeaderTimeout, DefaultReadHeaderTimeout)
+	orDefault(&c.Server.IdleTimeout, DefaultIdleTimeout)
+	orDefault(&c.Server.ShutdownTimeout, DefaultShutdownTimeout)
+	orDefault(&c.Server.UpstreamTimeout, DefaultUpstreamTimeout)
+	orDefault(&c.Server.CircuitBreaker.ConsecutiveFailures, DefaultCircuitBreakerConsecutiveFailures)
+	orDefault(&c.Server.CircuitBreaker.OpenTimeout, DefaultCircuitBreakerOpenTimeout)
+	orDefault(&c.Server.CircuitBreaker.HalfOpenRequests, DefaultCircuitBreakerHalfOpenRequests)
 	c.Store.Type = strings.ToLower(strings.TrimSpace(c.Store.Type))
-	if c.Store.Type == "" {
-		c.Store.Type = DefaultStoreType
-	}
-	if c.Store.Redis.Host == "" {
-		c.Store.Redis.Host = DefaultRedisHost
-	}
-	if c.Store.Redis.Port == 0 {
-		c.Store.Redis.Port = DefaultRedisPort
+	orDefault(&c.Store.Type, DefaultStoreType)
+	orDefault(&c.Store.Redis.Host, DefaultRedisHost)
+	orDefault(&c.Store.Redis.Port, DefaultRedisPort)
+}
+
+// orDefault sets *field to value if it holds the zero value, which means the
+// config left it out.
+func orDefault[T comparable](field *T, value T) {
+	var zero T
+	if *field == zero {
+		*field = value
 	}
 }
 
