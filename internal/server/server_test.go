@@ -15,22 +15,23 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gorilla/mux"
 	"github.com/lucdoe/opengateway/internal/config"
+	"github.com/lucdoe/opengateway/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-type mockProxyService struct {
-	err error
-}
-
-func (m *mockProxyService) ReverseProxy(targetURL string, w http.ResponseWriter, r *http.Request) error {
-	return m.err
+// okProxy stands in for a real upstream: it answers every request with 200.
+func okProxy(target string) (http.Handler, error) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}), nil
 }
 
 type MockServerRunner struct {
@@ -40,33 +41,6 @@ type MockServerRunner struct {
 func (m *MockServerRunner) ListenAndServe(addr string, handler http.Handler) error {
 	args := m.Called(addr, handler)
 	return args.Error(0)
-}
-
-func TestMakeHandler(t *testing.T) {
-	tests := []struct {
-		name         string
-		proxyError   error
-		expectedCode int
-	}{
-		{"success", nil, http.StatusOK},
-		{"proxy error", http.ErrHandlerTimeout, http.StatusInternalServerError},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-			w := httptest.NewRecorder()
-			proxy := &mockProxyService{err: tt.proxyError}
-			handler := MakeHandler(proxy, "http://target.url")
-
-			handler.ServeHTTP(w, req)
-
-			resp := w.Result()
-			if resp.StatusCode != tt.expectedCode {
-				t.Errorf("expected status %d; got %d", tt.expectedCode, resp.StatusCode)
-			}
-		})
-	}
 }
 
 // recordingMiddleware appends its name to calls every time it runs. When
@@ -120,7 +94,7 @@ func TestSetupRoutes(t *testing.T) {
 	}
 
 	var calls []string
-	s, err := NewServer(cfg, mux.NewRouter(), &mockProxyService{}, recordingMiddlewares(&calls))
+	s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls))
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -183,7 +157,7 @@ func TestPluginsApplyOnlyToTheirOwnService(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls []string
-			s, err := NewServer(cfg, mux.NewRouter(), &mockProxyService{}, recordingMiddlewares(&calls))
+			s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls))
 			assert.NoError(t, err)
 
 			assert.Equal(t, http.StatusOK, serve(s, "GET", tc.path).Code)
@@ -219,7 +193,7 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls []string
-			s, err := NewServer(cfg, mux.NewRouter(), &mockProxyService{}, recordingMiddlewares(&calls))
+			s, err := NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(&calls))
 			assert.NoError(t, err)
 
 			assert.Equal(t, http.StatusOK, serve(s, "GET", tc.path).Code)
@@ -231,7 +205,7 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 		var calls []string
 		mws := recordingMiddlewares(&calls)
 		mws["auth"] = &recordingMiddleware{name: "auth", calls: &calls, reject: true}
-		s, err := NewServer(cfg, mux.NewRouter(), &mockProxyService{}, mws)
+		s, err := NewServer(cfg, mux.NewRouter(), okProxy, mws)
 		assert.NoError(t, err)
 
 		assert.Equal(t, http.StatusUnauthorized, serve(s, "GET", "/private").Code)
@@ -281,7 +255,7 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := &config.Config{Services: map[string]config.Service{"api": tc.service}}
 
-			s, err := NewServer(cfg, mux.NewRouter(), &mockProxyService{}, tc.middlewares)
+			s, err := NewServer(cfg, mux.NewRouter(), okProxy, tc.middlewares)
 
 			assert.Nil(t, s)
 			assert.ErrorContains(t, err, "unknown plugin")
@@ -302,4 +276,97 @@ func TestServerRun(t *testing.T) {
 	err := s.Run()
 	assert.NoError(t, err)
 	mockRunner.AssertExpectations(t)
+}
+
+func TestSetupRoutesBuildsOneProxyPerService(t *testing.T) {
+	cfg := &config.Config{
+		Services: map[string]config.Service{
+			"starwars": {
+				URL:     "https://swapi.dev",
+				Subpath: "/api",
+				Endpoints: []config.Endpoint{
+					{Name: "List People", HTTPMethod: "GET", Path: "/people"},
+					{Name: "Get Person", HTTPMethod: "GET", Path: "/people/{id}"},
+				},
+			},
+			"other": {
+				URL:     "http://localhost:3001",
+				Subpath: "/api",
+				Endpoints: []config.Endpoint{
+					{Name: "List Worlds", HTTPMethod: "GET", Path: "/worlds"},
+				},
+			},
+		},
+	}
+
+	var targets []string
+	served := map[string]string{}
+	newProxy := func(target string) (http.Handler, error) {
+		targets = append(targets, target)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			served[r.URL.Path] = target
+		}), nil
+	}
+
+	s, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{})
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"http://localhost:3001", "https://swapi.dev"}, targets)
+
+	for _, path := range []string{"/api/people", "/api/people/7", "/api/worlds"} {
+		assert.Equal(t, http.StatusOK, serve(s, "GET", path).Code)
+	}
+	assert.Equal(t, map[string]string{
+		"/api/people":   "https://swapi.dev",
+		"/api/people/7": "https://swapi.dev",
+		"/api/worlds":   "http://localhost:3001",
+	}, served)
+}
+
+func TestSetupRoutesFailsWhenAProxyCannotBeBuilt(t *testing.T) {
+	cfg := &config.Config{
+		Services: map[string]config.Service{
+			"broken": {URL: "not a url", Endpoints: []config.Endpoint{{Name: "Items", HTTPMethod: "GET", Path: "/items"}}},
+		},
+	}
+	newProxy := func(target string) (http.Handler, error) {
+		return nil, errors.New("invalid upstream URL")
+	}
+
+	s, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{})
+
+	assert.Nil(t, s)
+	assert.ErrorContains(t, err, `service "broken": invalid upstream URL`)
+}
+
+// The route pattern contains {id}; the upstream must receive the real value.
+func TestRoutesForwardPathParametersToTheUpstream(t *testing.T) {
+	var upstreamPaths []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPaths = append(upstreamPaths, r.URL.RequestURI())
+		w.Write([]byte("from upstream"))
+	}))
+	defer upstream.Close()
+
+	cfg := &config.Config{
+		Services: map[string]config.Service{
+			"starwars": {
+				URL:     upstream.URL,
+				Subpath: "/api",
+				Endpoints: []config.Endpoint{
+					{Name: "List People", HTTPMethod: "GET", Path: "/people"},
+					{Name: "Get Person", HTTPMethod: "GET", Path: "/people/{id}"},
+				},
+			},
+		},
+	}
+
+	s, err := NewServer(cfg, mux.NewRouter(), proxy.NewHandler, map[string]Middleware{})
+	assert.NoError(t, err)
+
+	for _, path := range []string{"/api/people/7", "/api/people?page=2"} {
+		w := serve(s, "GET", path)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "from upstream", w.Body.String())
+	}
+	assert.Equal(t, []string{"/api/people/7", "/api/people?page=2"}, upstreamPaths)
 }
