@@ -71,6 +71,8 @@ func TestValidateServicesAndEndpoints(t *testing.T) {
 			`must be an absolute http or https URL`},
 		{"Subpath without leading slash", func(s *config.Service) { s.Subpath = "api" },
 			`service "api": Subpath "api" must start with "/"`},
+		{"Subpath ending in a slash", func(s *config.Service) { s.Subpath = "/api/" },
+			`service "api": Subpath "/api/" must not end with "/"`},
 		{"no endpoints", func(s *config.Service) { s.Endpoints = nil },
 			`service "api": at least one endpoint is required`},
 		{"unknown service plugin", func(s *config.Service) { s.Plugins = []string{"loger"} },

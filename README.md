@@ -40,7 +40,7 @@ Everything is configured in `config.yaml`. The gateway reads it from the path in
 
 ### Services
 
-Each service has an upstream `URL`, a list of `Endpoints`, and optionally a `Subpath` and `Plugins`.
+Each service has an upstream `URL`, a list of `Endpoints`, and optionally a `Subpath` (starting with `/`, not ending with one) and `Plugins`.
 
 ```yaml
 Services:
@@ -68,7 +68,7 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 | ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes and client IP (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `LoggerConfig`    |
 | `cors`       | Answers preflights and sets the CORS headers; rejects origins that are not listed with `403`. Requests without an `Origin` header (curl, other servers) pass untouched. `Origins: "*"` allows every origin but without credentials (cookies); list origins to allow them. | `CORSConfig`      |
-| `rate-limit` | Allows each client IP `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
+| `rate-limit` | Allows each client IP (IPv6: each /64) `Limit` requests per `Window`, then answers `429` with `Retry-After`. Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
 | `auth`       | Requires a `Bearer` JWT signed with HS256 and carrying `exp` (`401` otherwise). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Auth.Scope`, in their space-separated `scope` claim (`403` otherwise). Enabled per endpoint with `Auth.ApplyAuth: true`. | `JWTConfig`       |
 | `cache`      | Stores `200` responses to `GET` requests in the store and shares them between clients, for the upstream's `s-maxage` or `max-age`, at most 10 minutes. Requests with an `Authorization` or `Cookie` header, streamed responses and bodies over 1 MB are never cached. | none              |
 
@@ -81,7 +81,7 @@ The `cache` and `rate-limit` plugins keep their state in a store. Pick one with 
 | `memory` (default) | in the gateway process     | you run one instance. Nothing to set up; state is lost on restart.          |
 | `redis`            | a Redis server, 7.0 or newer | you run several instances that should share limits and cache. Valkey, KeyDB and Dragonfly work too. |
 
-With `memory`, every instance counts its own limits: three instances with `Limit: 100` let a client through 300 times per window. The memory store holds at most 100,000 keys; once full, new responses are not cached until old ones expire.
+With `memory`, every instance counts its own limits: three instances with `Limit: 100` let a client through 300 times per window. The memory store holds at most 100,000 cached responses and 100,000 rate-limit counters; once either is full, new responses are not cached, or new clients pass without a limit, until old keys expire.
 
 ### Server and environment
 

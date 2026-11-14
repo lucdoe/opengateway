@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -37,7 +38,7 @@ func NewMiddleware(l *Limiter) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			remaining, resetIn, err := l.Take(rateLimitKeyPrefix + httpx.ClientIP(req))
+			remaining, resetIn, err := l.Take(rateLimitKeyPrefix + clientKey(httpx.ClientIP(req)))
 			switch {
 			case errors.Is(err, errLimitExceeded):
 				reset := httpx.Seconds(resetIn)
@@ -56,4 +57,14 @@ func NewMiddleware(l *Limiter) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, req)
 		})
 	}
+}
+
+// clientKey groups an IPv6 client by its /64, the block one subscriber
+// usually gets, so rotating addresses inside it does not reset the limit.
+func clientKey(ip string) string {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || !addr.Is6() || addr.Is4In6() {
+		return ip
+	}
+	return netip.PrefixFrom(addr, 64).Masked().String()
 }
