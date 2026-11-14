@@ -136,6 +136,15 @@ func (v *validation) addf(format string, args ...any) {
 
 // service checks one service and its endpoints. routes maps every route seen
 // so far to the endpoint that declared it, to find duplicates.
+// endpointLabel names the i-th endpoint of a service in error messages, by
+// its Name if it has one.
+func endpointLabel(service string, i int, endpoint Endpoint) string {
+	if endpoint.Name != "" {
+		return fmt.Sprintf("service %q, endpoint %q", service, endpoint.Name)
+	}
+	return fmt.Sprintf("service %q, endpoint #%d", service, i+1)
+}
+
 func (v *validation) service(name string, service Service, routes map[string]string) {
 	label := fmt.Sprintf("service %q", name)
 
@@ -160,10 +169,7 @@ func (v *validation) service(name string, service Service, routes map[string]str
 	}
 
 	for i, endpoint := range service.Endpoints {
-		endpointLabel := fmt.Sprintf("%s, endpoint #%d", label, i+1)
-		if endpoint.Name != "" {
-			endpointLabel = fmt.Sprintf("%s, endpoint %q", label, endpoint.Name)
-		}
+		endpointLabel := endpointLabel(name, i, endpoint)
 
 		method := strings.ToUpper(endpoint.HTTPMethod)
 		validMethod := slices.Contains(knownMethods, method)
@@ -208,26 +214,62 @@ func (v *validation) plugins(label string, plugins []string) {
 	}
 }
 
+// pluginSettings checks the settings every route runs with, after its
+// service's and its own Settings are merged in. A problem in the global
+// settings is reported once, under Plugins; one a Settings block caused,
+// under the endpoint.
 func (v *validation) pluginSettings(c *Config) {
-
-	if c.UsesPlugin(PluginCORS) {
-		if c.Plugins.CORSConfig.Origins == "" {
-			v.addf("Plugins.CORSConfig.Origins is required because the cors plugin is used")
-		}
-		if c.Plugins.CORSConfig.Methods == "" {
-			v.addf("Plugins.CORSConfig.Methods is required because the cors plugin is used")
+	reported := map[string]bool{}
+	once := func(format string, args ...any) {
+		if message := fmt.Sprintf(format, args...); !reported[message] {
+			reported[message] = true
+			v.addf("%s", message)
 		}
 	}
 
-	if c.UsesPlugin(PluginRateLimit) {
-		if c.Plugins.RateLimitConfig.Limit <= 0 {
-			v.addf("Plugins.RateLimitConfig.Limit must be greater than 0 because the rate-limit plugin is used")
+	for _, name := range c.ServiceNames() {
+		service := c.Services[name]
+		if service.Settings.UpstreamTimeout < 0 {
+			v.addf("service %q: Settings.UpstreamTimeout %s must be greater than 0", name, service.Settings.UpstreamTimeout)
 		}
-		if c.Plugins.RateLimitConfig.Window <= 0 {
-			v.addf("Plugins.RateLimitConfig.Window must be greater than 0 because the rate-limit plugin is used")
-		}
-		if key := c.Plugins.RateLimitConfig.Key; !validRateLimitKey(key) {
-			v.addf("Plugins.RateLimitConfig.Key %q is not one of %s, %sName-Of-Header or %s", key, RateLimitByIP, RateLimitByHeader, RateLimitBySubject)
+		for i, endpoint := range service.Endpoints {
+			label := endpointLabel(name, i, endpoint)
+			if endpoint.Settings.UpstreamTimeout != 0 {
+				v.addf("%s: Settings.UpstreamTimeout can only be set for the service, whose endpoints share one connection pool", label)
+			}
+			route := c.RouteSettings(name, endpoint)
+			uses := func(plugin string) bool {
+				return slices.Contains(service.Plugins, plugin) || slices.Contains(endpoint.Plugins, plugin)
+			}
+
+			if uses(PluginCORS) {
+				where := "Plugins.CORSConfig"
+				if route.CORSScope != "" {
+					where = label + ": CORSConfig"
+				}
+				if route.CORS.Origins == "" {
+					once("%s.Origins is required because the cors plugin is used", where)
+				}
+				if route.CORS.Methods == "" {
+					once("%s.Methods is required because the cors plugin is used", where)
+				}
+			}
+
+			if uses(PluginRateLimit) {
+				where := "Plugins.RateLimitConfig"
+				if route.RateLimitScope != "" {
+					where = label + ": RateLimitConfig"
+				}
+				if route.RateLimit.Limit <= 0 {
+					once("%s.Limit must be greater than 0 because the rate-limit plugin is used", where)
+				}
+				if route.RateLimit.Window <= 0 {
+					once("%s.Window must be greater than 0 because the rate-limit plugin is used", where)
+				}
+				if key := route.RateLimit.Key; !validRateLimitKey(key) {
+					once("%s.Key %q is not one of %s, %sName-Of-Header or %s", where, key, RateLimitByIP, RateLimitByHeader, RateLimitBySubject)
+				}
+			}
 		}
 	}
 

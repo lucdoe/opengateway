@@ -58,8 +58,8 @@ func builtPlugins(t *testing.T, cfg *config.Config, newStore storeFactory) []str
 		}
 	})
 
-	built := make([]string, 0, len(plugins))
-	for name, plugin := range plugins {
+	built := make([]string, 0, len(plugins.defaults))
+	for name, plugin := range plugins.defaults {
 		assert.NotNil(t, plugin, name)
 		built = append(built, name)
 	}

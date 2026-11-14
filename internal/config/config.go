@@ -28,15 +28,16 @@ const (
 
 // PluginOrder lists every plugin in the order they run for a request,
 // outermost first. Auth runs before cache so a cached response is never
-// served to a caller that has not been authenticated. See
-// Config.PluginsInOrder for the one exception.
+// served to a caller that has not been authenticated. See PluginOrderFor
+// for the one exception.
 var PluginOrder = []string{PluginLogger, PluginCORS, PluginRateLimit, PluginAuth, PluginCache}
 
-// PluginsInOrder is PluginOrder, except that rate-limit runs right after
-// auth when it counts per token subject, so it only ever reads claims auth
-// has verified.
-func (c *Config) PluginsInOrder() []string {
-	if c.Plugins.RateLimitConfig.Key != RateLimitBySubject {
+// PluginOrderFor is the order for a route whose rate limit counts by
+// rateLimitKey: PluginOrder, except that rate-limit runs right after auth
+// when it counts per token subject, so it only ever reads claims auth has
+// verified.
+func PluginOrderFor(rateLimitKey string) []string {
+	if rateLimitKey != RateLimitBySubject {
 		return PluginOrder
 	}
 	return []string{PluginLogger, PluginCORS, PluginAuth, PluginRateLimit, PluginCache}
@@ -61,6 +62,7 @@ type Endpoint struct {
 	Path       string     `yaml:"Path"`
 	Auth       AuthConfig `yaml:"Auth"`
 	Plugins    []string   `yaml:"Plugins"`
+	Settings   Settings   `yaml:"Settings"`
 }
 
 type Service struct {
@@ -68,6 +70,7 @@ type Service struct {
 	Endpoints []Endpoint `yaml:"Endpoints"`
 	Plugins   []string   `yaml:"Plugins"`
 	Subpath   string     `yaml:"Subpath"`
+	Settings  Settings   `yaml:"Settings"`
 }
 
 type LoggerConfig struct {

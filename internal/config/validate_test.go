@@ -283,15 +283,10 @@ func TestValidateAcceptsRateLimitKeys(t *testing.T) {
 	}
 }
 
-func TestPluginsInOrderRunsRateLimitAfterAuthOnlyForTokenSubjects(t *testing.T) {
-	cfg := validConfig()
-	assert.Equal(t, config.PluginOrder, cfg.PluginsInOrder())
-
-	cfg.Plugins.RateLimitConfig.Key = "header:X-API-Key"
-	assert.Equal(t, config.PluginOrder, cfg.PluginsInOrder())
-
-	cfg.Plugins.RateLimitConfig.Key = "jwt:sub"
-	assert.Equal(t, []string{"logger", "cors", "auth", "rate-limit", "cache"}, cfg.PluginsInOrder())
+func TestPluginOrderForRunsRateLimitAfterAuthOnlyForTokenSubjects(t *testing.T) {
+	assert.Equal(t, config.PluginOrder, config.PluginOrderFor(""))
+	assert.Equal(t, config.PluginOrder, config.PluginOrderFor("header:X-API-Key"))
+	assert.Equal(t, []string{"logger", "cors", "auth", "rate-limit", "cache"}, config.PluginOrderFor("jwt:sub"))
 }
 
 func TestJWTAlgorithms(t *testing.T) {

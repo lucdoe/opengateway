@@ -47,8 +47,8 @@ func (m *recordingMiddleware) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-func recordingMiddlewares(calls *[]string) map[string]Middleware {
-	mws := map[string]Middleware{}
+func recordingMiddlewares(calls *[]string) Middlewares {
+	mws := Middlewares{}
 	for _, name := range config.PluginOrder {
 		mws[name] = (&recordingMiddleware{name: name, calls: calls}).Middleware
 	}
@@ -293,7 +293,7 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 	tests := []struct {
 		name        string
 		service     config.Service
-		middlewares map[string]Middleware
+		middlewares Middlewares
 	}{
 		{
 			name:        "misspelled service plugin",
@@ -310,14 +310,14 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 		{
 			name:        "plugin that was never registered",
 			service:     config.Service{Plugins: []string{"logger"}, Endpoints: []config.Endpoint{endpoint}},
-			middlewares: map[string]Middleware{},
+			middlewares: Middlewares{},
 		},
 		{
 			name: "ApplyAuth without an auth plugin",
 			service: config.Service{Endpoints: []config.Endpoint{
 				{Name: "Items", HTTPMethod: "GET", Path: "/items", Auth: config.AuthConfig{ApplyAuth: true}},
 			}},
-			middlewares: map[string]Middleware{},
+			middlewares: Middlewares{},
 		},
 	}
 
@@ -337,7 +337,7 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 func TestNewServerListensOnTheConfiguredPort(t *testing.T) {
 	cfg := &config.Config{Server: config.ServerConfig{Port: 8443}}
 
-	s, err := NewServer(cfg, mux.NewRouter(), okProxy, map[string]Middleware{}, nil)
+	s, err := NewServer(cfg, mux.NewRouter(), okProxy, Middlewares{}, nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, ":8443", s.Addr)
@@ -373,7 +373,7 @@ func TestSetupRoutesBuildsOneProxyPerService(t *testing.T) {
 		}), nil
 	}
 
-	s, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{}, nil)
+	s, err := NewServer(cfg, mux.NewRouter(), newProxy, Middlewares{}, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"http://localhost:3001", "https://swapi.dev"}, targets)
 
@@ -397,7 +397,7 @@ func TestSetupRoutesFailsWhenAProxyCannotBeBuilt(t *testing.T) {
 		return nil, errors.New("invalid upstream URL")
 	}
 
-	s, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{}, nil)
+	s, err := NewServer(cfg, mux.NewRouter(), newProxy, Middlewares{}, nil)
 
 	assert.Nil(t, s)
 	assert.ErrorContains(t, err, `service "broken": invalid upstream URL`)
@@ -425,7 +425,7 @@ func TestRoutesForwardPathParametersToTheUpstream(t *testing.T) {
 		},
 	}
 
-	s, err := NewServer(cfg, mux.NewRouter(), proxy.NewHandler, map[string]Middleware{}, nil)
+	s, err := NewServer(cfg, mux.NewRouter(), proxy.NewHandler, Middlewares{}, nil)
 	assert.NoError(t, err)
 
 	for _, path := range []string{"/api/people/7", "/api/people?page=2"} {
@@ -451,7 +451,7 @@ func TestNewServerPassesTheUpstreamTimeoutToEveryProxy(t *testing.T) {
 		return http.NotFoundHandler(), nil
 	}
 
-	_, err := NewServer(cfg, mux.NewRouter(), newProxy, map[string]Middleware{}, nil)
+	_, err := NewServer(cfg, mux.NewRouter(), newProxy, Middlewares{}, nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, []time.Duration{7 * time.Second, 7 * time.Second}, timeouts)
@@ -710,7 +710,7 @@ func TestHealthAnswersWithoutPluginsOrUpstream(t *testing.T) {
 func TestHandlerSetsARequestIDOnEveryResponse(t *testing.T) {
 	s, err := NewServer(&config.Config{Services: map[string]config.Service{
 		"api": {URL: "http://upstream.test", Endpoints: []config.Endpoint{{HTTPMethod: "GET", Path: "/items"}}},
-	}}, mux.NewRouter(), okProxy, map[string]Middleware{}, nil)
+	}}, mux.NewRouter(), okProxy, Middlewares{}, nil)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
