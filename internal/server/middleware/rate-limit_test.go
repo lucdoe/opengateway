@@ -15,6 +15,8 @@
 package middleware_test
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -85,4 +87,72 @@ func TestRateLimitMiddlewareRateLimitExceeded(t *testing.T) {
 		assert.Equal(t, "0", recorder.Header().Get("X-RateLimit-Remaining"))
 	})
 
+}
+
+func TestRateLimitMiddlewareCountsPerClientIP(t *testing.T) {
+	tests := []struct {
+		name        string
+		remoteAddrs []string
+		expected    []string
+	}{
+		{
+			name:        "connections from one client share a key",
+			remoteAddrs: []string{"203.0.113.5:51000", "203.0.113.5:51001"},
+			expected:    []string{"ratelimit:203.0.113.5", "ratelimit:203.0.113.5"},
+		},
+		{
+			name:        "different clients get different keys",
+			remoteAddrs: []string{"203.0.113.5:51000", "[2001:db8::1]:51000"},
+			expected:    []string{"ratelimit:203.0.113.5", "ratelimit:2001:db8::1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var keys []string
+			mockRateLimiter := new(MockRateLimiter)
+			mockRateLimiter.On("RateLimit", mock.Anything).
+				Run(func(args mock.Arguments) { keys = append(keys, args.String(0)) }).
+				Return(int64(1), int64(9), time.Minute, nil)
+			mockRateLimiter.On("GetLimit").Return(int64(10))
+			handler := middleware.NewRateLimitMiddleware(mockRateLimiter).Middleware(http.NotFoundHandler())
+
+			for _, addr := range tc.remoteAddrs {
+				request := httptest.NewRequest("GET", "/", nil)
+				request.RemoteAddr = addr
+				request.Header.Set("X-Forwarded-For", "10.0.0.1")
+				handler.ServeHTTP(httptest.NewRecorder(), request)
+			}
+
+			assert.Equal(t, tc.expected, keys)
+		})
+	}
+}
+
+func TestRateLimitMiddlewareErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected int
+	}{
+		{"wrapped rate limit error", fmt.Errorf("checking limit: %w", ratelimit.ErrRateLimitExceeded), http.StatusTooManyRequests},
+		{"store failure", errors.New("connection refused"), http.StatusInternalServerError},
+		{"unrelated error with the same text", errors.New("rate limit exceeded"), http.StatusInternalServerError},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reached := false
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached = true })
+			mockRateLimiter := new(MockRateLimiter)
+			mockRateLimiter.On("RateLimit", mock.Anything).Return(int64(0), int64(0), time.Duration(0), tc.err)
+			mockRateLimiter.On("GetLimit").Return(int64(10))
+
+			recorder := httptest.NewRecorder()
+			middleware.NewRateLimitMiddleware(mockRateLimiter).Middleware(next).ServeHTTP(recorder, httptest.NewRequest("GET", "/", nil))
+
+			assert.Equal(t, tc.expected, recorder.Code)
+			assert.False(t, reached, "the request must not be forwarded")
+		})
+	}
 }

@@ -15,7 +15,6 @@
 package cache_test
 
 import (
-	"net/http"
 	"testing"
 	"time"
 
@@ -26,7 +25,7 @@ import (
 )
 
 const (
-	incrementShouldNotErrorMsg = "Increment should not error"
+	incrementShouldNotErrorMsg    = "Increment should not error"
 	incrementShouldReturnIncValue = "Increment should return incremented value"
 )
 
@@ -60,14 +59,6 @@ func TestRedisCacheOperations(t *testing.T) {
 		count, incErr = redisCache.Increment(incrementKey, 1*time.Minute)
 		assert.NoError(t, incErr, incrementShouldNotErrorMsg)
 		assert.Equal(t, int64(2), count, incrementShouldReturnIncValue)
-	})
-
-	t.Run("GenerateCacheKey operation", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/path?b=2&a=1", nil)
-		req.RemoteAddr = "123.45.67.89"
-		expectedKey := "GET:/path:a=1&b=2:123.45.67.89"
-		generatedKey := redisCache.GenerateCacheKey(req)
-		assert.Equal(t, expectedKey, generatedKey, "GenerateCacheKey should return a correctly formatted key")
 	})
 
 	t.Run("Expiration handling", func(t *testing.T) {
