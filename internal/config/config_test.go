@@ -45,11 +45,10 @@ Services:
       - Name: "Submit"
         HTTPMethod: "POST"
         Path: "/submit"
-        Auth:
-          ApplyAuth: true
-          Scope: "read:write"
+        Scope: "read:write"
         Plugins:
           - "logger"
+          - "auth"
 `
 
 func writeConfig(t *testing.T, content string) string {
@@ -79,8 +78,8 @@ func TestLoadReadsEveryField(t *testing.T) {
 			Name:       "Submit",
 			HTTPMethod: "POST",
 			Path:       "/submit",
-			Auth:       config.AuthConfig{ApplyAuth: true, Scope: "read:write"},
-			Plugins:    []string{"logger"},
+			Scope:      "read:write",
+			Plugins:    []string{"logger", "auth"},
 		}},
 	}, cfg.Services["service1"])
 }
@@ -190,4 +189,21 @@ Services:
 	} {
 		assert.ErrorContains(t, err, want)
 	}
+}
+
+func TestParseExplainsTheMovedAuthSettings(t *testing.T) {
+	_, err := config.Parse([]byte(`
+Services:
+  a:
+    URL: http://example.com
+    Endpoints:
+      - HTTPMethod: GET
+        Path: /admin
+        Auth:
+          ApplyAuth: true
+          Scope: admin
+`))
+
+	assert.ErrorContains(t, err, `line 9: Auth.ApplyAuth has been removed: add "auth" to the endpoint's Plugins, or the service's for all its endpoints`)
+	assert.ErrorContains(t, err, "line 10: Auth.Scope has moved: write it as the endpoint's Scope")
 }

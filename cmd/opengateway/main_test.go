@@ -170,11 +170,12 @@ Services:
       - Name: Items
         HTTPMethod: GET
         Path: /items
-        Auth: {ApplyAuth: true}
+        Plugins: [auth]
       - Name: Admin
         HTTPMethod: GET
         Path: /admin
-        Auth: {ApplyAuth: true, Scope: admin}
+        Plugins: [auth]
+        Scope: admin
 `))
 	require.NoError(t, err)
 	s, err := InitializeServer(ServerDependencies{
@@ -231,7 +232,7 @@ Services:
   api:
     URL: http://upstream.test
     Plugins: [cache]
-    Endpoints: [{HTTPMethod: GET, Path: /catalog, Auth: {ApplyAuth: true, Scope: read}}]
+    Endpoints: [{HTTPMethod: GET, Path: /catalog, Plugins: [auth], Scope: read}]
 `))
 	require.NoError(t, err)
 	calls := 0
@@ -291,7 +292,7 @@ Plugins: {JWTConfig: {JWKSURL: "` + provider.URL + `/jwks.json", Audience: gatew
 Services:
   api:
     URL: http://upstream.test
-    Endpoints: [{HTTPMethod: GET, Path: /me, Auth: {ApplyAuth: true}}]
+    Endpoints: [{HTTPMethod: GET, Path: /me, Plugins: [auth]}]
 `))
 	require.NoError(t, err)
 	s, err := InitializeServer(ServerDependencies{
@@ -337,7 +338,7 @@ Services:
     URL: http://upstream.test
     Plugins: [rate-limit]
     Endpoints:
-      - {HTTPMethod: GET, Path: /me, Auth: {ApplyAuth: true}}
+      - {HTTPMethod: GET, Path: /me, Plugins: [auth]}
       - {HTTPMethod: GET, Path: /news}
 `))
 	require.NoError(t, err)
@@ -509,7 +510,7 @@ Services:
     Plugins: [cors, rate-limit]
     Endpoints:
       - {HTTPMethod: GET, Path: /items}
-      - {HTTPMethod: GET, Path: /secure, Auth: {ApplyAuth: true}}
+      - {HTTPMethod: GET, Path: /secure, Plugins: [auth]}
 `))
 	require.NoError(t, err)
 	s, err := InitializeServer(ServerDependencies{

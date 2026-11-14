@@ -43,7 +43,7 @@ func validConfig() *config.Config {
 				Plugins: []string{"logger", "cors", "rate-limit", "cache"},
 				Endpoints: []config.Endpoint{
 					{Name: "List", HTTPMethod: "GET", Path: "/items"},
-					{Name: "Create", HTTPMethod: "POST", Path: "/items", Auth: config.AuthConfig{ApplyAuth: true}},
+					{Name: "Create", HTTPMethod: "POST", Path: "/items", Plugins: []string{"auth"}},
 				},
 			},
 		},
@@ -210,9 +210,9 @@ func TestValidateIgnoresRedisSettingsOfTheMemoryStore(t *testing.T) {
 }
 
 func TestValidateEndpointScope(t *testing.T) {
-	withScope := func(service config.Service, auth config.AuthConfig, plugins ...string) *config.Config {
+	withScope := func(service config.Service, plugins ...string) *config.Config {
 		cfg := validConfig()
-		service.Endpoints = []config.Endpoint{{Name: "Admin", HTTPMethod: "GET", Path: "/admin", Auth: auth, Plugins: plugins}}
+		service.Endpoints = []config.Endpoint{{Name: "Admin", HTTPMethod: "GET", Path: "/admin", Scope: "admin", Plugins: plugins}}
 		cfg.Services["api"] = service
 		return cfg
 	}
@@ -220,11 +220,10 @@ func TestValidateEndpointScope(t *testing.T) {
 	serviceWithAuth := service
 	serviceWithAuth.Plugins = append([]string{"auth"}, service.Plugins...)
 
-	assert.NoError(t, withScope(service, config.AuthConfig{ApplyAuth: true, Scope: "admin"}).Validate(), "ApplyAuth")
-	assert.NoError(t, withScope(service, config.AuthConfig{Scope: "admin"}, "auth").Validate(), "endpoint plugin")
-	assert.NoError(t, withScope(serviceWithAuth, config.AuthConfig{Scope: "admin"}).Validate(), "service plugin")
-	assert.ErrorContains(t, withScope(service, config.AuthConfig{Scope: "admin"}).Validate(),
-		`service "api", endpoint "Admin": Auth.Scope needs auth: set Auth.ApplyAuth or add the auth plugin`)
+	assert.NoError(t, withScope(service, "auth").Validate(), "endpoint plugin")
+	assert.NoError(t, withScope(serviceWithAuth).Validate(), "service plugin")
+	assert.ErrorContains(t, withScope(service).Validate(),
+		`service "api", endpoint "Admin": Scope needs auth: add "auth" to the endpoint's or the service's Plugins`)
 }
 
 func TestValidateRejectsAnEmptyConfig(t *testing.T) {
@@ -366,14 +365,14 @@ func TestUsesPlugin(t *testing.T) {
 		Services: map[string]config.Service{
 			"a": {Plugins: []string{"logger"}, Endpoints: []config.Endpoint{
 				{Name: "One", Plugins: []string{"cache"}},
-				{Name: "Two", Auth: config.AuthConfig{ApplyAuth: true}},
+				{Name: "Two", Plugins: []string{"auth"}},
 			}},
 		},
 	}
 
 	assert.True(t, cfg.UsesPlugin(config.PluginLogger), "listed on a service")
 	assert.True(t, cfg.UsesPlugin(config.PluginCache), "listed on an endpoint")
-	assert.True(t, cfg.UsesPlugin(config.PluginAuth), "enabled through ApplyAuth")
+	assert.True(t, cfg.UsesPlugin(config.PluginAuth), "enabled on one endpoint")
 	assert.False(t, cfg.UsesPlugin(config.PluginCORS))
 	assert.False(t, cfg.UsesPlugin(config.PluginRateLimit))
 }

@@ -66,10 +66,8 @@ Services:
       - Name: "Get Person"
         HTTPMethod: "GET"
         Path: "/people/{id}"
-        Plugins: ["cache"] # in addition, for this endpoint only
-        Auth:
-          ApplyAuth: true # require a valid JWT
-          Scope: "people:read" # optional: scopes the token must carry, space-separated
+        Plugins: ["cache", "auth"] # in addition, for this endpoint only; auth requires a valid JWT
+        Scope: "people:read" # optional, with auth: scopes the token must carry, space-separated
 ```
 
 With this config, `GET /api/people/7` on the gateway is forwarded to `https://swapi.dev/api/people/7`.
@@ -136,7 +134,7 @@ Plugins run in the order of this table, whatever order you list them in. Their s
 | `logger`     | Writes one JSON line per answered request: method, path, route, status, duration, bytes, client IP and request ID (no query string). To stdout, or appended to `FilePath`. Lines are buffered and written every second; if the output can't keep up, lines are dropped and counted rather than slowing requests. | `LoggerConfig`    |
 | `cors`       | Answers preflights and sets the CORS headers; rejects origins that are not listed with `403`. Requests without an `Origin` header (curl, other servers) pass untouched. `Origins: "*"` allows every origin but without credentials (cookies); list origins to allow them. | `CORSConfig`      |
 | `rate-limit` | Allows each client `Limit` requests per `Window`, then answers `429` with `Retry-After`. A client is an IP (IPv6: a /64) unless `Key` says otherwise (see [Rate-limit keys](#rate-limit-keys)). Sends `X-RateLimit-Limit`, `-Remaining` and `-Reset` (seconds). If the store is unavailable, requests pass without a limit. | `RateLimitConfig` |
-| `auth`       | Requires a `Bearer` JWT carrying `exp` (`401` otherwise), signed with `SecretKey` (HS256) or with a key from `JWKSURL` (see [Tokens from an identity provider](#tokens-from-an-identity-provider)). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Auth.Scope`, in their space-separated `scope` claim (`403` otherwise). Enabled per endpoint with `Auth.ApplyAuth: true`. | `JWTConfig`       |
+| `auth`       | Requires a `Bearer` JWT carrying `exp` (`401` otherwise), signed with `SecretKey` (HS256) or with a key from `JWKSURL` (see [Tokens from an identity provider](#tokens-from-an-identity-provider)). Checks `Issuer` and `Audience` when set. Tokens need every scope in `Scope`, and in the endpoint's `Scope`, in their space-separated `scope` claim (`403` otherwise). | `JWTConfig`       |
 | `cache`      | Stores `200` responses to `GET` requests in the store and shares them between clients, for the upstream's `s-maxage` or `max-age`, at most 10 minutes. Requests with an `Authorization` header are only cached when the upstream marks the response `public` or `s-maxage`; it then goes to every caller that auth lets through. Requests with a `Cookie` header, streamed responses and bodies over 1 MB are never cached. | none              |
 
 ### Rate-limit keys

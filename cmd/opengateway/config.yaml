@@ -27,7 +27,7 @@ Plugins:
     SigningMethod: "HS256" # with JWKSURL: empty accepts RS, PS, ES and EdDSA
     Issuer: "ExampleIssuer" # checked when set
     Audience: "ExampleAudience" # checked when set
-    Scope: "" # scopes every token needs, space-separated; endpoints can add more with Auth.Scope
+    Scope: "" # scopes every token needs, space-separated; endpoints can add more with Scope
   RateLimitConfig:
     Limit: 100
     Window: 1m

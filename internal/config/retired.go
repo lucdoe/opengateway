@@ -24,6 +24,8 @@ var (
 		"Body":        "Body has been removed: it was never applied to requests",
 	}
 	retiredAuthKeys = map[string]string{
+		"ApplyAuth": `Auth.ApplyAuth has been removed: add "auth" to the endpoint's Plugins, or the service's for all its endpoints`,
+		"Scope":     "Auth.Scope has moved: write it as the endpoint's Scope",
 		"Method":    "Auth.Method has been removed: auth always expects a Bearer token",
 		"Algorithm": "Auth.Algorithm has been removed: set Plugins.JWTConfig.SigningMethod",
 		"SecretKey": "Auth.SecretKey has been removed: set Plugins.JWTConfig.SecretKey or JWT_SECRET",

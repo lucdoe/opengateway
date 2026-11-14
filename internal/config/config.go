@@ -51,18 +51,15 @@ const (
 	RateLimitBySubject = "jwt:sub"
 )
 
-type AuthConfig struct {
-	ApplyAuth bool   `yaml:"ApplyAuth"`
-	Scope     string `yaml:"Scope"`
-}
-
 type Endpoint struct {
-	Name       string     `yaml:"Name"`
-	HTTPMethod string     `yaml:"HTTPMethod"`
-	Path       string     `yaml:"Path"`
-	Auth       AuthConfig `yaml:"Auth"`
-	Plugins    []string   `yaml:"Plugins"`
-	Settings   Settings   `yaml:"Settings"`
+	Name       string   `yaml:"Name"`
+	HTTPMethod string   `yaml:"HTTPMethod"`
+	Path       string   `yaml:"Path"`
+	Plugins    []string `yaml:"Plugins"`
+	// Scope lists space-separated scopes a token needs for this endpoint, on
+	// top of Plugins.JWTConfig.Scope. It needs the auth plugin.
+	Scope    string   `yaml:"Scope"`
+	Settings Settings `yaml:"Settings"`
 	// UpstreamPath, when set, is the path sent upstream instead of the
 	// gateway path, after the service URL's own path. Its {name}s take the
 	// values of Path's, and a final /* what came after Path's prefix.

@@ -158,7 +158,7 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 				Endpoints: []config.Endpoint{
 					{Name: "Open", HTTPMethod: "GET", Path: "/open"},
 					{Name: "Cached", HTTPMethod: "GET", Path: "/cached", Plugins: []string{"cache", "logger"}},
-					{Name: "Private", HTTPMethod: "GET", Path: "/private", Plugins: []string{"cache"}, Auth: config.AuthConfig{ApplyAuth: true}},
+					{Name: "Private", HTTPMethod: "GET", Path: "/private", Plugins: []string{"cache", "auth"}},
 				},
 			},
 		},
@@ -171,7 +171,7 @@ func TestEndpointPluginsAndAuth(t *testing.T) {
 	}{
 		{"service plugins only", "/open", []string{"logger"}},
 		{"endpoint plugins are added without duplicates", "/cached", []string{"logger", "cache"}},
-		{"ApplyAuth adds auth ahead of cache", "/private", []string{"logger", "auth", "cache"}},
+		{"an endpoint's auth runs ahead of cache", "/private", []string{"logger", "auth", "cache"}},
 	}
 
 	for _, tc := range tests {
@@ -247,7 +247,7 @@ func TestRateLimitRunsAfterAuthAndScopeWhenItCountsPerSubject(t *testing.T) {
 		Services: map[string]config.Service{
 			"api": {
 				Plugins:   []string{"logger", "rate-limit", "cache"},
-				Endpoints: []config.Endpoint{{HTTPMethod: "GET", Path: "/admin", Auth: config.AuthConfig{ApplyAuth: true, Scope: "admin"}}},
+				Endpoints: []config.Endpoint{{HTTPMethod: "GET", Path: "/admin", Plugins: []string{"auth"}, Scope: "admin"}},
 			},
 		},
 	}
@@ -266,8 +266,8 @@ func TestEndpointScopeRunsRightAfterAuth(t *testing.T) {
 			"api": {
 				Plugins: []string{"logger", "cache"},
 				Endpoints: []config.Endpoint{
-					{Name: "Admin", HTTPMethod: "GET", Path: "/admin", Auth: config.AuthConfig{ApplyAuth: true, Scope: "admin"}},
-					{Name: "Private", HTTPMethod: "GET", Path: "/private", Auth: config.AuthConfig{ApplyAuth: true}},
+					{Name: "Admin", HTTPMethod: "GET", Path: "/admin", Plugins: []string{"auth"}, Scope: "admin"},
+					{Name: "Private", HTTPMethod: "GET", Path: "/private", Plugins: []string{"auth"}},
 				},
 			},
 		},
@@ -284,7 +284,7 @@ func TestEndpointScopeRunsRightAfterAuth(t *testing.T) {
 	assert.Equal(t, []string{"logger", "auth", "cache"}, calls, "no scope, no check")
 
 	_, err = NewServer(cfg, mux.NewRouter(), okProxy, recordingMiddlewares(new([]string)), nil)
-	assert.ErrorContains(t, err, `service "api", endpoint "Admin": Auth.Scope is set but no scope check is registered`)
+	assert.ErrorContains(t, err, `service "api", endpoint "Admin": Scope is set but no scope check is registered`)
 }
 
 func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
@@ -313,9 +313,9 @@ func TestSetupRoutesRejectsUnknownPlugins(t *testing.T) {
 			middlewares: Middlewares{},
 		},
 		{
-			name: "ApplyAuth without an auth plugin",
+			name: "auth without an auth plugin",
 			service: config.Service{Endpoints: []config.Endpoint{
-				{Name: "Items", HTTPMethod: "GET", Path: "/items", Auth: config.AuthConfig{ApplyAuth: true}},
+				{Name: "Items", HTTPMethod: "GET", Path: "/items", Plugins: []string{"auth"}},
 			}},
 			middlewares: Middlewares{},
 		},

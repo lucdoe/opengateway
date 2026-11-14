@@ -83,9 +83,9 @@ func TestBuildPluginsBuildsOnlyWhatIsUsed(t *testing.T) {
 		assert.Equal(t, []string{"logger"}, builtPlugins(t, cfg, noStore(t)))
 	})
 
-	t.Run("auth through ApplyAuth", func(t *testing.T) {
+	t.Run("auth on one endpoint", func(t *testing.T) {
 		cfg := configUsing()
-		cfg.Services["api"].Endpoints[0].Auth.ApplyAuth = true
+		cfg.Services["api"].Endpoints[0].Plugins = []string{"auth"}
 		cfg.Plugins.JWTConfig.SecretKey = "secret"
 
 		assert.Equal(t, []string{"auth"}, builtPlugins(t, cfg, noStore(t)))

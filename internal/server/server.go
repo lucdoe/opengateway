@@ -29,7 +29,7 @@ type Middleware func(next http.Handler) http.Handler
 // timeout. It is called once per service when routes are set up.
 type ProxyFactory func(target string, timeout time.Duration) (http.Handler, error)
 
-// ScopeCheck builds the check for an endpoint's Auth.Scope. It runs right
+// ScopeCheck builds the check for an endpoint's Scope. It runs right
 // after the auth plugin, whose accepted token it inspects.
 type ScopeCheck func(scope string) Middleware
 
@@ -131,9 +131,9 @@ func (s *Server) SetupRoutes(cfg *config.Config) error {
 				return fmt.Errorf("service %q, endpoint %q: %w", name, endpoint.Name, err)
 			}
 			var afterAuth Middleware
-			if scope := endpoint.Auth.Scope; scope != "" {
+			if scope := endpoint.Scope; scope != "" {
 				if s.ScopeCheck == nil {
-					return fmt.Errorf("service %q, endpoint %q: Auth.Scope is set but no scope check is registered", name, endpoint.Name)
+					return fmt.Errorf("service %q, endpoint %q: Scope is set but no scope check is registered", name, endpoint.Name)
 				}
 				afterAuth = s.ScopeCheck(scope)
 			}
@@ -162,14 +162,11 @@ func health(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"ok"}` + "\n"))
 }
 
-// endpointPlugins returns the plugins enabled for an endpoint, in order:
-// the service's plugins, the endpoint's own plugins, and auth when the
-// endpoint sets ApplyAuth. A name with no registered plugin is an error.
+// endpointPlugins returns the plugins enabled for an endpoint, the
+// service's and its own, in order. A name with no registered plugin is an
+// error.
 func (s *Server) endpointPlugins(order []string, service config.Service, endpoint config.Endpoint) ([]string, error) {
 	requested := append(append([]string{}, service.Plugins...), endpoint.Plugins...)
-	if endpoint.Auth.ApplyAuth {
-		requested = append(requested, config.PluginAuth)
-	}
 
 	for _, name := range requested {
 		if _, ok := s.Middlewares.Middleware(name, config.RouteSettings{}); !ok {
