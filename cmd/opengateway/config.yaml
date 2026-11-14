@@ -1,6 +1,7 @@
 # Server and Store can be left out; the values below are the defaults.
-# Environment variables override this file: PORT, STORE_TYPE, REDIS_HOST,
-# REDIS_PORT, REDIS_PASSWORD and JWT_SECRET (for Plugins.JWTConfig.SecretKey).
+# Any value can come from the environment: ${NAME}, or ${NAME:-fallback}.
+# PORT, STORE_TYPE, REDIS_HOST, REDIS_PORT, REDIS_PASSWORD and JWT_SECRET
+# also override this file when set.
 Server:
   Port: 4000
   ReadHeaderTimeout: 10s # time a client has to send its request headers
@@ -20,7 +21,7 @@ Plugins:
   LoggerConfig:
     FilePath: "" # empty: JSON lines to stdout; or a file to append to, such as "server.log"
   JWTConfig:
-    SecretKey: "your-256-bit-secret"
+    SecretKey: "${JWT_SECRET:-your-256-bit-secret}"
     SigningMethod: "HS256"
     Issuer: "ExampleIssuer" # checked when set
     Audience: "ExampleAudience" # checked when set

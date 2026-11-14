@@ -7,11 +7,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -181,20 +181,31 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// Parse decodes YAML into a validated configuration. Environment variables
-// (see env.go) override the document, and missing settings get defaults.
+// Parse decodes YAML into a validated configuration. ${NAME} placeholders
+// are filled from the environment (see placeholders.go), environment
+// variables override the document (see env.go), and missing settings get
+// defaults.
 func Parse(data []byte) (*Config, error) {
 	cfg := &Config{}
 
 	if err := rejectRetiredKeys(data); err != nil {
 		return nil, err
 	}
-
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	// An empty document decodes to io.EOF; Validate reports what is missing.
-	if err := decoder.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, err
+	}
+	if err := rejectUnknownKeys(data); err != nil {
+		return nil, err
+	}
+	if err := fillPlaceholders(&doc); err != nil {
+		return nil, err
+	}
+	// An empty document has no content; Validate reports what is missing.
+	if doc.Kind != 0 {
+		if err := doc.Decode(cfg); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := cfg.applyEnvironment(); err != nil {
@@ -206,4 +217,28 @@ func Parse(data []byte) (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// rejectUnknownKeys reports keys the gateway does not read, such as a
+// misspelled one, with their lines. It decodes the document as written,
+// before placeholders are filled, so it skips the type errors an unfilled
+// placeholder like Port: ${PORT} gives; the decode after filling reports
+// the real ones.
+func rejectUnknownKeys(data []byte) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	var typeErr *yaml.TypeError
+	if err := decoder.Decode(&Config{}); !errors.As(err, &typeErr) {
+		return nil // io.EOF for an empty document; syntax errors are reported before
+	}
+	var unknown []string
+	for _, problem := range typeErr.Errors {
+		if strings.Contains(problem, " not found in type ") {
+			unknown = append(unknown, problem)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	return &yaml.TypeError{Errors: unknown}
 }

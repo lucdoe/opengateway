@@ -89,9 +89,27 @@ The `cache` and `rate-limit` plugins keep their state in a store. Pick one with 
 
 With `memory`, every instance counts its own limits: three instances with `Limit: 100` let a client through 300 times per window. The memory store holds at most 100,000 cached responses and 100,000 rate-limit counters; once either is full, new responses are not cached, or new clients pass without a limit, until old keys expire.
 
+### Environment variables in the config
+
+Any value can come from the environment, so secrets and per-environment URLs stay out of the file:
+
+```yaml
+Services:
+  users:
+    URL: "${USERS_URL:-http://localhost:3001}" # the fallback after :- is used when USERS_URL is unset or empty
+Plugins:
+  JWTConfig:
+    SecretKey: "${JWT_SECRET}" # the gateway does not start while JWT_SECRET is unset
+```
+
+- A variable that is unset or empty, and has no fallback, stops the gateway with its line. `check` reports it too.
+- The value is used exactly as it is, never read as YAML, so it can't change the structure of the config.
+- Unquoted, a placeholder takes the type of its value: `Port: ${PORT}` is a number. Inside `{ }` flow style, quote it, since its `}` would close the mapping.
+- Placeholders work in values, not in keys or comments. Write `$${` for a literal `${`.
+
 ### Server and environment
 
-These settings are optional. An environment variable, where one exists, overrides the config file, so secrets can stay out of it. Durations are written like `500ms`, `10s` or `2m`.
+These settings are optional. An environment variable, where one exists, overrides the config file. Durations are written like `500ms`, `10s` or `2m`.
 
 | Config key                    | Environment variable | Default     | Meaning                                                         |
 | ----------------------------- | -------------------- | ----------- | --------------------------------------------------------------- |
