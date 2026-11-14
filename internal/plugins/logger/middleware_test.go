@@ -56,6 +56,18 @@ func TestMiddlewareLogsTheAnsweredRequest(t *testing.T) {
 	assert.NotContains(t, entry, "token")
 }
 
+func TestMiddlewareLogsTheRequestID(t *testing.T) {
+	var out syncBuffer
+	l := newLogger(&out, nil)
+	req := httptest.NewRequest("GET", "http://gateway.test/x", nil)
+	req.Header.Set("X-Request-ID", "abc-123")
+
+	NewMiddleware(l)(http.NotFoundHandler()).ServeHTTP(httptest.NewRecorder(), req)
+	require.NoError(t, l.Close())
+
+	assert.Contains(t, out.String(), `"request_id":"abc-123"`)
+}
+
 func TestMiddlewareLogsOKForAHandlerThatWritesNothing(t *testing.T) {
 	entry := serveLogged(t, "/ping", "http://gateway.test/ping", func(w http.ResponseWriter, r *http.Request) {})
 
