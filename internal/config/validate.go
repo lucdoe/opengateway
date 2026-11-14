@@ -37,6 +37,11 @@ func (c *Config) Validate() error {
 	if !validPort(c.Server.Port) {
 		v.addf("Server.Port %d must be between 1 and 65535", c.Server.Port)
 	}
+	if metrics := c.Server.MetricsPort; metrics != 0 && !validPort(metrics) {
+		v.addf("Server.MetricsPort %d must be between 1 and 65535, or 0 for no metrics", metrics)
+	} else if metrics != 0 && metrics == c.Server.Port {
+		v.addf("Server.MetricsPort %d must differ from Server.Port, so metrics can stay inside the network", metrics)
+	}
 	for _, timeout := range []struct {
 		name  string
 		value time.Duration

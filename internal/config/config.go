@@ -137,6 +137,9 @@ type PluginConfig struct {
 type ServerConfig struct {
 	// Port is where the gateway listens. Defaults to DefaultPort.
 	Port int `yaml:"Port"`
+	// MetricsPort, when set, serves Prometheus metrics at /metrics on its
+	// own port, which can stay inside the network. 0 serves none.
+	MetricsPort int `yaml:"MetricsPort"`
 	// ReadHeaderTimeout is how long a client has to send its request headers.
 	ReadHeaderTimeout time.Duration `yaml:"ReadHeaderTimeout"`
 	// IdleTimeout is how long an idle keep-alive connection stays open.
@@ -215,6 +218,15 @@ func (c *Config) ServiceNames() []string {
 // ListenAddr returns the address the gateway's HTTP server listens on.
 func (c *Config) ListenAddr() string {
 	return ":" + strconv.Itoa(c.Server.Port)
+}
+
+// MetricsAddr returns the address metrics are served on, or "" when they
+// are off.
+func (c *Config) MetricsAddr() string {
+	if c.Server.MetricsPort == 0 {
+		return ""
+	}
+	return ":" + strconv.Itoa(c.Server.MetricsPort)
 }
 
 // Load reads the YAML file at path and returns its validated configuration.

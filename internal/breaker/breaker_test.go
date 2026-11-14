@@ -137,7 +137,7 @@ func TestWrapClosesAgainWhenTheTrialRequestSucceeds(t *testing.T) {
 	send(handler)
 	require.Equal(t, http.StatusServiceUnavailable, send(handler).Code)
 
-	up.status.Store(http.StatusOK)
+	up.status.Store(int32(http.StatusOK))
 	time.Sleep(60 * time.Millisecond)
 
 	assert.Equal(t, http.StatusOK, send(handler).Code, "the trial request reaches the upstream")
@@ -193,4 +193,17 @@ func TestWrapKeepsTheResponseFlushable(t *testing.T) {
 	w := send(handler)
 
 	assert.True(t, w.Flushed)
+}
+
+func TestWrapTellsObserversEveryNewState(t *testing.T) {
+	up := newUpstream(http.StatusBadGateway)
+	var states []int64
+	handler := breaker.Wrap("api", settings(1, time.Millisecond), up, func(state int64) { states = append(states, state) })
+
+	send(handler) // fails: open
+	time.Sleep(5 * time.Millisecond)
+	up.status.Store(int32(http.StatusOK))
+	send(handler) // the trial request: half-open, then closed
+
+	assert.Equal(t, []int64{2, 1, 0}, states, "open, half-open, closed")
 }

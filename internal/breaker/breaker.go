@@ -31,7 +31,9 @@ var (
 // settings.OpenTimeout. Then up to settings.HalfOpenRequests trial requests
 // decide whether the breaker closes or opens again. Requests the client
 // abandons are not counted. name labels the log line for each state change.
-func Wrap(name string, settings config.CircuitBreakerConfig, next http.Handler) http.Handler {
+// Each observer, if any, is told every new state: 0 closed, 1 half-open,
+// 2 open, as gobreaker numbers them.
+func Wrap(name string, settings config.CircuitBreakerConfig, next http.Handler, observers ...func(state int64)) http.Handler {
 	threshold := uint32(settings.ConsecutiveFailures)
 	cb := gobreaker.NewCircuitBreaker[struct{}](gobreaker.Settings{
 		Name:        name,
@@ -45,6 +47,9 @@ func Wrap(name string, settings config.CircuitBreakerConfig, next http.Handler) 
 		},
 		OnStateChange: func(name string, from, to gobreaker.State) {
 			log.Printf("circuit breaker %q: %s -> %s", name, from, to)
+			for _, observe := range observers {
+				observe(int64(to))
+			}
 		},
 	})
 	retryAfter := httpx.Seconds(settings.OpenTimeout)
