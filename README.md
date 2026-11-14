@@ -12,9 +12,11 @@ See the [architecture overview](docs/README.md) for how it is built.
 ## Quick start
 
 ```bash
-git clone https://github.com/lucdoe/opengateway.git   # or git@github.com:lucdoe/opengateway.git
+git clone https://github.com/lucdoe/opengateway.git
 cd opengateway
 ```
+
+Over SSH, clone `git@github.com:lucdoe/opengateway.git` instead.
 
 Edit [`cmd/opengateway/config.yaml`](cmd/opengateway/config.yaml) to describe your services, then start the gateway on port 4000 in one of two ways.
 
