@@ -29,7 +29,7 @@ Plugins:
     Limit: 100
     Window: 1m
   CORSConfig:
-    Origins: "*"
+    Origins: "*" # any origin, without credentials; list origins (comma-separated) to allow cookies
     Methods: "GET, POST, PUT, DELETE, OPTIONS"
     Headers: "Content-Type, Authorization"
 

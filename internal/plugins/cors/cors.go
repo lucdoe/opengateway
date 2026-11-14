@@ -58,29 +58,46 @@ func (p *Policy) AllowsHeaders(requested string) bool {
 	return true
 }
 
-// NewMiddleware returns the cors plugin: it rejects requests from origins the
-// policy does not allow, answers preflight requests and sets the CORS
+// NewMiddleware returns the cors plugin. A request without an Origin header
+// is not a CORS request and passes untouched. Otherwise it rejects origins
+// the policy does not allow, answers preflight requests and sets the CORS
 // response headers.
+//
+// With "*" every origin gets Access-Control-Allow-Origin: * and no
+// credentials, so other sites cannot make requests with the user's cookies.
+// A listed origin is echoed back with credentials allowed, and every
+// response carries Vary: Origin, since its CORS headers depend on it.
 func NewMiddleware(p *Policy) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !p.anyOrigin {
+				w.Header().Add("Vary", "Origin")
+			}
 			origin := r.Header.Get("Origin")
+			if origin == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
 			if !p.AllowsOrigin(origin) {
 				http.Error(w, "CORS policy violation: Invalid Origin", http.StatusForbidden)
 				return
 			}
 
-			preflight := r.Method == http.MethodOptions
+			preflight := r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != ""
 			if preflight && (!p.AllowsMethod(r.Header.Get("Access-Control-Request-Method")) ||
 				!p.AllowsHeaders(r.Header.Get("Access-Control-Request-Headers"))) {
 				http.Error(w, "CORS policy violation: Invalid Method or Header", http.StatusForbidden)
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", origin)
+			if p.anyOrigin {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 			w.Header().Set("Access-Control-Allow-Methods", p.allowMethods)
 			w.Header().Set("Access-Control-Allow-Headers", p.allowHeaders)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			if preflight {
 				w.WriteHeader(http.StatusOK)
 				return
