@@ -32,9 +32,9 @@ type MockCache struct {
 	mock.Mock
 }
 
-func (m *MockCache) Increment(key string, window time.Duration) (int64, error) {
+func (m *MockCache) Increment(key string, window time.Duration) (int64, time.Duration, error) {
 	args := m.Called(key, window)
-	return args.Get(0).(int64), args.Error(1)
+	return args.Get(0).(int64), args.Get(1).(time.Duration), args.Error(2)
 }
 
 func TestRateLimitService(t *testing.T) {
@@ -52,17 +52,19 @@ func TestRateLimitService(t *testing.T) {
 	limit := int64(10)
 
 	t.Run("Under limit", func(t *testing.T) {
-		mockCache.On("Increment", testIP, window).Return(int64(1), nil).Once()
-		count, remaining, _, err := service.RateLimit(testIP)
+		mockCache.On("Increment", testIP, window).Return(int64(1), 42*time.Second, nil).Once()
+		count, remaining, resetIn, err := service.RateLimit(testIP)
 		assert.NoError(t, err)
+		assert.Equal(t, 42*time.Second, resetIn)
 		assert.Equal(t, int64(1), count)
 		assert.Equal(t, limit-1, remaining)
 		mockCache.AssertExpectations(t)
 	})
 
 	t.Run("Rate limit exceeded", func(t *testing.T) {
-		mockCache.On("Increment", testIP, window).Return(int64(11), nil).Once()
-		count, remaining, _, err := service.RateLimit(testIP)
+		mockCache.On("Increment", testIP, window).Return(int64(11), 5*time.Second, nil).Once()
+		count, remaining, resetIn, err := service.RateLimit(testIP)
+		assert.Equal(t, 5*time.Second, resetIn, "the reset is reported with the error")
 		assert.Error(t, err)
 		assert.Equal(t, "rate limit exceeded", err.Error())
 		assert.Equal(t, int64(11), count)
@@ -71,7 +73,7 @@ func TestRateLimitService(t *testing.T) {
 	})
 
 	t.Run("Increment error", func(t *testing.T) {
-		mockCache.On("Increment", testIP, window).Return(int64(0), errors.New("redis error")).Once()
+		mockCache.On("Increment", testIP, window).Return(int64(0), time.Duration(0), errors.New("redis error")).Once()
 		_, _, _, err := service.RateLimit(testIP)
 		assert.Error(t, err)
 		assert.Equal(t, "redis error", err.Error())

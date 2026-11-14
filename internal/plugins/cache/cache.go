@@ -30,7 +30,7 @@ type CacheConfig struct {
 type Cache interface {
 	Get(key string) (string, error)
 	Set(key string, value string, expiration time.Duration) error
-	Increment(key string, window time.Duration) (int64, error)
+	Increment(key string, window time.Duration) (count int64, resetIn time.Duration, err error)
 }
 
 type RedisCache struct {
@@ -62,19 +62,26 @@ func (r *RedisCache) Set(key string, value string, expiration time.Duration) err
 	return err
 }
 
-func (r *RedisCache) Increment(key string, window time.Duration) (int64, error) {
+// Increment adds one to the counter at key and returns the new count and the
+// time left until the counter resets. A counter lives for window from its
+// first increment.
+//
+// The increment and the expiry run in one MULTI transaction, so no counter is
+// ever left without an expiry. PEXPIRE NX only sets an expiry where there is
+// none, which also repairs counters an older version left without one. NX
+// needs Redis 7.0 or newer.
+func (r *RedisCache) Increment(key string, window time.Duration) (count int64, resetIn time.Duration, err error) {
 	ctx := context.Background()
-	count, err := r.client.Incr(ctx, key).Result()
+	var incr *redis.IntCmd
+	var ttl *redis.DurationCmd
+	_, err = r.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		incr = pipe.Incr(ctx, key)
+		pipe.Do(ctx, "PEXPIRE", key, window.Milliseconds(), "NX")
+		ttl = pipe.PTTL(ctx, key)
+		return nil
+	})
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-
-	if count == 1 {
-		_, err := r.client.Expire(ctx, key, window).Result()
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	return count, nil
+	return incr.Val(), ttl.Val(), nil
 }

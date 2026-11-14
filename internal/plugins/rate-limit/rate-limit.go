@@ -21,12 +21,20 @@ import (
 
 var ErrRateLimitExceeded = errors.New("rate limit exceeded")
 
+// Cache is the store the counters live in.
 type Cache interface {
-	Increment(key string, window time.Duration) (int64, error)
+	// Increment adds one to the counter at key and returns the new count and
+	// the time left until it resets. A counter lives for window from its
+	// first increment.
+	Increment(key string, window time.Duration) (count int64, resetIn time.Duration, err error)
 }
 
 type RateLimiter interface {
-	RateLimit(key string) (count int64, remaining int64, window time.Duration, err error)
+	// RateLimit counts one request for key. remaining is how many more are
+	// allowed and resetIn how long until the count starts over. It returns
+	// ErrRateLimitExceeded once the limit is used up, and the store's error
+	// if counting failed.
+	RateLimit(key string) (count int64, remaining int64, resetIn time.Duration, err error)
 	GetLimit() int64
 }
 
@@ -48,16 +56,15 @@ func (r *RateLimitConfig) GetLimit() int64 {
 	return r.Limit
 }
 
-func (r *RateLimitConfig) RateLimit(key string) (count int64, remaining int64, window time.Duration, err error) {
-	curCount, err := r.Store.Increment(key, r.Window)
+func (r *RateLimitConfig) RateLimit(key string) (count int64, remaining int64, resetIn time.Duration, err error) {
+	count, resetIn, err = r.Store.Increment(key, r.Window)
 	if err != nil {
 		return 0, 0, 0, err
 	}
 
-	curRemaining := r.Limit - curCount
-	if curRemaining < 0 {
-		return curCount, 0, 0, ErrRateLimitExceeded
+	remaining = r.Limit - count
+	if remaining < 0 {
+		return count, 0, resetIn, ErrRateLimitExceeded
 	}
-
-	return curCount, curRemaining, r.Window, nil
+	return count, remaining, resetIn, nil
 }

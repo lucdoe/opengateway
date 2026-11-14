@@ -53,11 +53,11 @@ func TestRedisCacheOperations(t *testing.T) {
 
 	t.Run("Increment operation", func(t *testing.T) {
 		incrementKey := "incrementkey"
-		count, incErr := redisCache.Increment(incrementKey, 1*time.Minute)
+		count, _, incErr := redisCache.Increment(incrementKey, 1*time.Minute)
 		assert.NoError(t, incErr, incrementShouldNotErrorMsg)
 		assert.Equal(t, int64(1), count, incrementShouldReturnIncValue)
 
-		count, incErr = redisCache.Increment(incrementKey, 1*time.Minute)
+		count, _, incErr = redisCache.Increment(incrementKey, 1*time.Minute)
 		assert.NoError(t, incErr, incrementShouldNotErrorMsg)
 		assert.Equal(t, int64(2), count, incrementShouldReturnIncValue)
 	})
@@ -81,15 +81,39 @@ func TestRedisCacheOperations(t *testing.T) {
 
 	t.Run("Increment and Expiration handling", func(t *testing.T) {
 		incrementExpireKey := "incrementexpirekey"
-		count, incErr := redisCache.Increment(incrementExpireKey, 1*time.Second)
+		count, _, incErr := redisCache.Increment(incrementExpireKey, 1*time.Second)
 		assert.NoError(t, incErr, incrementShouldNotErrorMsg)
 		assert.Equal(t, int64(1), count, incrementShouldReturnIncValue)
 
 		mr.FastForward(1 * time.Second)
 
-		count, incErr = redisCache.Increment(incrementExpireKey, 1*time.Second)
+		count, _, incErr = redisCache.Increment(incrementExpireKey, 1*time.Second)
 		assert.NoError(t, incErr, "Increment should not error after expiration")
 		assert.Equal(t, int64(1), count, "Increment should reset after expiration")
+	})
+
+	t.Run("Increment reports the time left in the window", func(t *testing.T) {
+		key := "resetkey"
+		_, resetIn, incErr := redisCache.Increment(key, time.Minute)
+		assert.NoError(t, incErr)
+		assert.Equal(t, time.Minute, resetIn)
+
+		mr.FastForward(20 * time.Second)
+		_, resetIn, incErr = redisCache.Increment(key, time.Minute)
+		assert.NoError(t, incErr)
+		assert.Equal(t, 40*time.Second, resetIn, "later increments do not extend the window")
+	})
+
+	t.Run("Increment gives a counter without expiry one", func(t *testing.T) {
+		key := "stuckkey"
+		require.NoError(t, mr.Set(key, "41")) // left behind with no expiry
+
+		count, resetIn, incErr := redisCache.Increment(key, time.Minute)
+
+		assert.NoError(t, incErr)
+		assert.Equal(t, int64(42), count)
+		assert.Equal(t, time.Minute, resetIn)
+		assert.Equal(t, time.Minute, mr.TTL(key))
 	})
 
 	t.Run("Error handling on Set", func(t *testing.T) {
@@ -104,7 +128,7 @@ func TestRedisCacheOperations(t *testing.T) {
 	})
 
 	t.Run("Error handling on Increment", func(t *testing.T) {
-		_, incErr := redisCache.Increment("errorKey", 10*time.Minute)
+		_, _, incErr := redisCache.Increment("errorKey", 10*time.Minute)
 		assert.Error(t, incErr, "Increment should error when Redis is unavailable")
 	})
 }
