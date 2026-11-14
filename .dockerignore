@@ -5,8 +5,6 @@ LICENSES
 
 # Ignore README and log files
 README.md
-server.log
-cmd/gateway/server.log
 
 # Ignore local Go build artifacts
 *.exe
