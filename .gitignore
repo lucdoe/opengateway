@@ -26,3 +26,9 @@ go.work
 *.env
 
 *log
+
+# SonarQube scanner working directory
+.scannerwork/
+
+# Local coverage report
+.coverage.html

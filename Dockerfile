@@ -9,9 +9,9 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/opengateway/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/opengateway
 
-FROM alpine:3  
+FROM alpine:3
 
 ENV GO_ENV=production
 ENV CONFIG_PATH=/app/config.yaml
