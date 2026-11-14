@@ -102,7 +102,7 @@ func InitializeServer(deps ServerDependencies) (*server.Server, error) {
 		return nil, err
 	}
 
-	return server.NewServer(cfg, deps.router, deps.proxyService, middlewares), nil
+	return server.NewServer(cfg, deps.router, deps.proxyService, middlewares)
 }
 
 func main() {
