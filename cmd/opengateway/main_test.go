@@ -90,7 +90,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 		newStore: newStore,
 	}
 
-	server, err := InitializeServer(deps)
+	server, err := InitializeServer(deps, resolveConfigPath(""))
 	assert.NoError(t, err)
 	assert.NotNil(t, server)
 	assert.Equal(t, 1, storeConnections, "cache and rate-limit must share one store connection")
@@ -98,7 +98,7 @@ func TestInitializeServerSuccess(t *testing.T) {
 }
 
 func TestInitializeServerReturnsTheConfigError(t *testing.T) {
-	server, err := InitializeServer(ServerDependencies{loadConfig: loads(nil, errors.New("invalid configuration")), router: mux.NewRouter()})
+	server, err := InitializeServer(ServerDependencies{loadConfig: loads(nil, errors.New("invalid configuration")), router: mux.NewRouter()}, "config.yaml")
 
 	assert.Nil(t, server)
 	assert.ErrorContains(t, err, "invalid configuration")
@@ -111,7 +111,7 @@ func TestInitializeServerReturnsThePluginError(t *testing.T) {
 		router:     mux.NewRouter(),
 		newProxy:   func(string, time.Duration) (http.Handler, error) { return http.NotFoundHandler(), nil },
 		newStore:   func(config.StoreConfig) (store.Store, error) { return nil, errors.New("connection refused") },
-	})
+	}, "config.yaml")
 
 	assert.Nil(t, server)
 	assert.ErrorContains(t, err, "cache plugin: connection refused")
@@ -176,7 +176,7 @@ Services:
 		newProxy: func(string, time.Duration) (http.Handler, error) {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), nil
 		},
-	})
+	}, "config.yaml")
 	require.NoError(t, err)
 
 	token := func(issuer, scope string) string {
@@ -218,7 +218,7 @@ Services:
 func TestDefaultDependenciesStartTheShippedConfig(t *testing.T) {
 	t.Setenv("CONFIG_PATH", "config.yaml")
 
-	s, err := InitializeServer(defaultDependencies())
+	s, err := InitializeServer(defaultDependencies(), resolveConfigPath(""))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		for _, closer := range s.Closers {
@@ -246,7 +246,7 @@ Services:
 		newProxy: func(string, time.Duration) (http.Handler, error) {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("a preflight must not reach the upstream") }), nil
 		},
-	})
+	}, "config.yaml")
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("OPTIONS", "/items", nil)

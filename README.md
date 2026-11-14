@@ -36,7 +36,13 @@ go run ./cmd/opengateway
 
 ## Configuration
 
-Everything is configured in `config.yaml`. The gateway reads it from the path in `CONFIG_PATH`, or from `./cmd/opengateway/config.yaml` if that is not set. The file is validated at startup: an unknown key or an invalid value stops the gateway with a list of every problem.
+Everything is configured in `config.yaml`. The gateway reads it from the path given with `-c`, else from `CONFIG_PATH`, else from `./cmd/opengateway/config.yaml`. The file is validated at startup: an unknown key or an invalid value stops the gateway with a list of every problem.
+
+To validate a config without starting the gateway, for example in CI, run `check`. It lists every problem and exits with `1`, or prints a summary and exits with `0`. It contacts neither Redis nor the upstreams.
+
+```bash
+go run ./cmd/opengateway check -c path/to/config.yaml
+```
 
 ### Services
 

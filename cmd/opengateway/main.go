@@ -5,7 +5,10 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -31,11 +34,22 @@ type ServerDependencies struct {
 	newStore storeFactory
 }
 
-func InitializeServer(deps ServerDependencies) (*server.Server, error) {
-	configPath := os.Getenv("CONFIG_PATH")
-	if configPath == "" {
-		configPath = "./cmd/opengateway/config.yaml"
+// DefaultConfigPath is read when neither -c nor CONFIG_PATH names a file.
+const DefaultConfigPath = "./cmd/opengateway/config.yaml"
+
+// resolveConfigPath returns the config file to read: the -c flag, else
+// CONFIG_PATH, else DefaultConfigPath.
+func resolveConfigPath(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
 	}
+	if env := os.Getenv("CONFIG_PATH"); env != "" {
+		return env
+	}
+	return DefaultConfigPath
+}
+
+func InitializeServer(deps ServerDependencies, configPath string) (*server.Server, error) {
 	cfg, err := deps.loadConfig(configPath)
 	if err != nil {
 		return nil, err
@@ -88,10 +102,66 @@ func defaultDependencies() ServerDependencies {
 	}
 }
 
-func main() {
-	server, err := InitializeServer(defaultDependencies())
+const usage = `Usage:
+  opengateway [-c config.yaml]         start the gateway
+  opengateway check [-c config.yaml]   validate the config and exit
+
+Without -c, the config is read from CONFIG_PATH, else ` + DefaultConfigPath + `.
+`
+
+// run executes the command in args (without the program name) and returns
+// the exit code: 0 on success, 1 when the config or the server fails, 2 for
+// a usage error.
+func run(args []string, deps ServerDependencies, stdout, stderr io.Writer) int {
+	command := "serve"
+	if len(args) > 0 && args[0] == "check" {
+		command, args = "check", args[1:]
+	}
+
+	flags := flag.NewFlagSet("opengateway", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	flags.Usage = func() { fmt.Fprint(stderr, usage) }
+	configFlag := flags.String("c", "", "config file")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if flags.NArg() > 0 {
+		fmt.Fprintf(stderr, "unknown argument %q\n\n", flags.Arg(0))
+		flags.Usage()
+		return 2
+	}
+	configPath := resolveConfigPath(*configFlag)
+
+	if command == "check" {
+		return check(deps.loadConfig, configPath, stdout, stderr)
+	}
+	return serve(deps, configPath)
+}
+
+// check loads and validates the config without starting the gateway, so it
+// contacts neither the store nor any upstream.
+func check(loadConfig func(string) (*config.Config, error), configPath string, stdout, stderr io.Writer) int {
+	cfg, err := loadConfig(configPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize the server: %v", err)
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	endpoints := 0
+	for _, service := range cfg.Services {
+		endpoints += len(service.Endpoints)
+	}
+	fmt.Fprintf(stdout, "%s is valid: %d services, %d endpoints\n", configPath, len(cfg.Services), endpoints)
+	return 0
+}
+
+func serve(deps ServerDependencies, configPath string) int {
+	server, err := InitializeServer(deps, configPath)
+	if err != nil {
+		log.Printf("Failed to initialize the server: %v", err)
+		return 1
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -99,7 +169,13 @@ func main() {
 
 	log.Printf("Listening on %s", server.Addr)
 	if err := server.Run(ctx); err != nil {
-		log.Fatalf("Failed to run the server: %v", err)
+		log.Printf("Failed to run the server: %v", err)
+		return 1
 	}
 	log.Print("Stopped")
+	return 0
+}
+
+func main() {
+	os.Exit(run(os.Args[1:], defaultDependencies(), os.Stdout, os.Stderr))
 }
