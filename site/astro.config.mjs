@@ -3,12 +3,14 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import mermaid from 'astro-mermaid';
 import { relativeLinks } from './src/relative-links.mjs';
+import { breakKeys } from './src/break-keys.mjs';
 
 export default defineConfig({
   site: 'https://lucdoe.github.io',
   base: '/opengateway',
   markdown: {
     remarkPlugins: [relativeLinks],
+    rehypePlugins: [breakKeys],
   },
   integrations: [
     mermaid({ autoTheme: true }),
