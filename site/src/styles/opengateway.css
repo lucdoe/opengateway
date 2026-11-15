@@ -101,9 +101,12 @@ h1#_top { font-weight: 700; letter-spacing: -0.015em; }
 
 /* Inline code and tables. */
 .sl-markdown-content :not(pre) > code { background: var(--og-paper-sunken); border: 1px solid var(--og-line); border-radius: 4px; padding: 0.05em 0.3em; font-size: 0.88em; }
-.sl-markdown-content table { border: 1px solid var(--og-line); border-radius: 8px; border-collapse: separate; border-spacing: 0; overflow: hidden; background: var(--og-paper-raised); }
+.sl-markdown-content table { border: 1px solid var(--og-line); border-radius: 8px; border-collapse: separate; border-spacing: 0; overflow-x: auto; background: var(--og-paper-raised); }
 .sl-markdown-content th { background: var(--og-paper-sunken); color: var(--og-ink-muted); font-size: var(--sl-text-sm); font-weight: 600; }
-.sl-markdown-content :is(th, td) { border-bottom: 1px solid var(--og-line); padding: 0.625rem 1rem; }
+.sl-markdown-content table { font-size: var(--sl-text-sm); line-height: 1.5; }
+.sl-markdown-content :is(th, td) { border-bottom: 1px solid var(--og-line); padding: 0.5rem 0.75rem; }
+.sl-markdown-content :is(th, td):first-child { padding-left: 1rem; }
+.sl-markdown-content td code { font-size: 0.85em; }
 .sl-markdown-content tr:last-child td { border-bottom: 0; }
 /* A table whose header cells are all empty (| | |) is a list of label and value rows: no header bar. */
 .sl-markdown-content thead:not(:has(th:not(:empty))) { display: none; }
